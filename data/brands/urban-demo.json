@@ -1,0 +1,62 @@
+{
+  "brandId": "urban-demo",
+  "brandName": "Urban Gadgets Demo",
+  "industry": "Electronics and accessories",
+  "tone": "crisp, technical, reassuring, professional",
+  "managerContact": {
+    "name": "Urban Gadgets Escalation Desk",
+    "whatsapp": "+91 98765 11122",
+    "email": "care@urbangadgets.demo",
+    "hours": "9 AM - 8 PM IST, Monday to Saturday"
+  },
+  "policies": {
+    "shipping": "Orders are dispatched within 24 hours. Metro delivery usually takes 2-4 business days and other locations take 4-7 business days.",
+    "return": "Returns are accepted within 7 days of delivery only for unused accessories in original sealed packaging. Return requests are allowed only after the order status is Delivered.",
+    "exchange": "Defective items can be exchanged within 7 days of delivery after troubleshooting and verification.",
+    "cod": "Cash on Delivery is available for orders below INR 4,999 on selected pincodes.",
+    "refund": "Refunds are processed after product inspection. Prepaid refunds go to the original payment method.",
+    "warranty": "Most electronics accessories include a 6-month limited warranty against manufacturing defects."
+  },
+  "faqs": [
+    {
+      "question": "Do products have warranty?",
+      "answer": "Most accessories include a 6-month limited warranty against manufacturing defects."
+    },
+    {
+      "question": "Can I return opened electronics?",
+      "answer": "Opened electronics are eligible only if defective and verified by support. Sealed unused products can be returned within 7 days of delivery."
+    },
+    {
+      "question": "How fast is delivery?",
+      "answer": "Metro delivery usually takes 2-4 business days after dispatch. Other locations usually take 4-7 business days."
+    },
+    {
+      "question": "Is COD available?",
+      "answer": "COD is available for orders below INR 4,999 on selected pincodes."
+    }
+  ],
+  "widgetConfig": {
+    "widgetTitle": "Urban Gadgets Help",
+    "welcomeMessage": "Welcome to Urban Gadgets support. I can help with orders, warranty, returns, or product compatibility.",
+    "themeColor": "#0f766e",
+    "position": "bottom-right",
+    "quickReplies": [
+      "Track my order",
+      "Warranty help",
+      "Product compatibility",
+      "Talk to human"
+    ]
+  },
+  "escalationRules": {
+    "hardKeywords": [
+      "fraud",
+      "scam",
+      "legal",
+      "police",
+      "consumer court",
+      "electric shock",
+      "battery blast"
+    ],
+    "response": "This needs priority attention. I am routing this to a senior support specialist."
+  }
+}

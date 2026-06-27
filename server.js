@@ -1,0 +1,85 @@
+require("dotenv").config();
+
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const chatRoutes = require("./routes/chat.routes");
+const brandConfigRoutes = require("./routes/brand-config.routes");
+const { corsOrigin } = require("./config/cors");
+const { getNodeEnv, validateEnv } = require("./config/env");
+
+const app = express();
+const PORT = Number(process.env.PORT) || 5000;
+const NODE_ENV = getNodeEnv();
+
+validateEnv();
+
+app.set("trust proxy", 1);
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  })
+);
+app.use(cors({ origin: corsOrigin }));
+app.use(express.json({ limit: "1mb" }));
+
+const chatRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    reply: "Too many messages. Please wait a minute and try again.",
+    source: "system",
+    escalated: false,
+    intent: "general_faq"
+  }
+});
+
+app.get("/health", (req, res) => {
+  res.json({
+    ok: true,
+    service: "teviq-support-ai-backend",
+    environment: NODE_ENV
+  });
+});
+
+app.use("/api/brand-config", brandConfigRoutes);
+app.use("/api/chat", chatRateLimit, chatRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({
+    reply: "Endpoint not found.",
+    source: "system",
+    escalated: false,
+    intent: "general"
+  });
+});
+
+app.use((error, req, res, next) => {
+  if (error.message === "Origin is not allowed by CORS") {
+    return res.status(403).json({
+      reply: "This origin is not allowed to use Teviq Support AI.",
+      source: "system",
+      escalated: false,
+      intent: "general_faq"
+    });
+  }
+
+  console.error("Unhandled error:", error);
+  res.status(500).json({
+    reply: "Sorry, support is temporarily unavailable. Please try again in a few minutes.",
+    source: "system",
+    escalated: false,
+    intent: "general"
+  });
+});
+
+const server = app.listen(PORT, () => {
+  console.log(`Teviq Support AI backend running on port ${PORT}`);
+});
+
+server.ref();
+
+module.exports = { app, server };

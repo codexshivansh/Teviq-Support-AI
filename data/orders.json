@@ -1,0 +1,83 @@
+[
+  {
+    "brandId": "vastra-demo",
+    "orderId": "TVQ1001",
+    "customerId": "guest_123",
+    "status": "Delivered",
+    "items": ["Indigo Cotton Kurta"],
+    "trackingText": "It was delivered successfully by BlueDart.",
+    "estimatedUpdate": "Delivered on 20 June 2026"
+  },
+  {
+    "brandId": "vastra-demo",
+    "orderId": "TVQ1002",
+    "customerId": "guest_123",
+    "status": "Shipped",
+    "items": ["Printed Co-ord Set"],
+    "trackingText": "It has been shipped and is in transit with Delhivery.",
+    "estimatedUpdate": "Expected delivery by 28 June 2026"
+  },
+  {
+    "brandId": "vastra-demo",
+    "orderId": "TVQ1003",
+    "customerId": "guest_456",
+    "status": "Processing",
+    "items": ["Linen Saree"],
+    "trackingText": "It is being packed at the warehouse.",
+    "estimatedUpdate": "Expected dispatch within 24-48 hours"
+  },
+  {
+    "brandId": "vastra-demo",
+    "orderId": "TVQ1004",
+    "customerId": "guest_789",
+    "status": "Cancelled",
+    "items": ["Embroidered Dupatta"],
+    "trackingText": "This order was cancelled before dispatch.",
+    "estimatedUpdate": "No delivery update is available for cancelled orders"
+  },
+  {
+    "brandId": "vastra-demo",
+    "orderId": "TVQ1005",
+    "customerId": "guest_123",
+    "status": "Out for Delivery",
+    "items": ["Ajrakh Maxi Dress"],
+    "trackingText": "It is out for delivery with the courier partner today.",
+    "estimatedUpdate": "Expected delivery by end of day"
+  },
+  {
+    "brandId": "urban-demo",
+    "orderId": "UGD2001",
+    "customerId": "guest_urban",
+    "status": "Delivered",
+    "items": ["MagSafe Power Bank 10K"],
+    "trackingText": "It was delivered successfully by Delhivery.",
+    "estimatedUpdate": "Delivered on 22 June 2026"
+  },
+  {
+    "brandId": "urban-demo",
+    "orderId": "UGD2002",
+    "customerId": "guest_urban",
+    "status": "Shipped",
+    "items": ["USB-C Braided Cable Pack"],
+    "trackingText": "It is in transit with the courier partner.",
+    "estimatedUpdate": "Expected delivery by 29 June 2026"
+  },
+  {
+    "brandId": "beauty-demo",
+    "orderId": "GCB3001",
+    "customerId": "guest_beauty",
+    "status": "Delivered",
+    "items": ["Vitamin C Glow Serum"],
+    "trackingText": "It was delivered successfully by Ecom Express.",
+    "estimatedUpdate": "Delivered on 21 June 2026"
+  },
+  {
+    "brandId": "beauty-demo",
+    "orderId": "GCB3002",
+    "customerId": "guest_beauty",
+    "status": "Processing",
+    "items": ["Barrier Repair Moisturizer"],
+    "trackingText": "It is being packed at the warehouse.",
+    "estimatedUpdate": "Expected dispatch within 24 hours"
+  }
+]

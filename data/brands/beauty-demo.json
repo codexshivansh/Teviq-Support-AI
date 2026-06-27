@@ -1,0 +1,63 @@
+{
+  "brandId": "beauty-demo",
+  "brandName": "GlowCare Beauty Demo",
+  "industry": "Skincare and beauty",
+  "tone": "warm, gentle, expert, friendly",
+  "managerContact": {
+    "name": "GlowCare Customer Care Lead",
+    "whatsapp": "+91 98765 22233",
+    "email": "hello@glowcare.demo",
+    "hours": "10 AM - 6 PM IST, Monday to Saturday"
+  },
+  "policies": {
+    "shipping": "Orders are usually dispatched within 24-48 hours. Delivery takes 3-6 business days depending on the pincode.",
+    "return": "Returns are accepted within 5 days of delivery only for unused and sealed products. Return requests are allowed only after the order status is Delivered.",
+    "exchange": "Damaged or incorrect products can be replaced within 5 days of delivery after image verification.",
+    "cod": "Cash on Delivery is available on selected pincodes for orders below INR 2,999.",
+    "refund": "Refunds are processed after product verification and can take 5-7 business days after approval.",
+    "skinSafety": "Customers should patch test new skincare products for 24 hours. For irritation, discontinue use and consult a dermatologist."
+  },
+  "faqs": [
+    {
+      "question": "Can I return opened skincare?",
+      "answer": "Opened skincare cannot be returned unless the product is damaged or incorrect. Unused and sealed products can be returned within 5 days of delivery."
+    },
+    {
+      "question": "How should I patch test?",
+      "answer": "Apply a small amount behind the ear or on the inner arm and wait 24 hours before full use."
+    },
+    {
+      "question": "How long does delivery take?",
+      "answer": "Delivery usually takes 3-6 business days after dispatch."
+    },
+    {
+      "question": "Do you offer COD?",
+      "answer": "COD is available on selected pincodes for orders below INR 2,999."
+    }
+  ],
+  "widgetConfig": {
+    "widgetTitle": "GlowCare Beauty Support",
+    "welcomeMessage": "Hi, welcome to GlowCare Beauty support. I can help with skincare guidance, orders, returns, or COD.",
+    "themeColor": "#be185d",
+    "position": "bottom-right",
+    "quickReplies": [
+      "Track my order",
+      "Skincare help",
+      "Return policy",
+      "Talk to human"
+    ]
+  },
+  "escalationRules": {
+    "hardKeywords": [
+      "fraud",
+      "scam",
+      "legal",
+      "police",
+      "consumer court",
+      "allergy",
+      "rash",
+      "burning"
+    ],
+    "response": "This sounds sensitive. I am routing this to a senior care specialist for priority help."
+  }
+}

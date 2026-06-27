@@ -1,0 +1,62 @@
+{
+  "brandId": "vastra-demo",
+  "brandName": "Teviq Vastra Demo",
+  "industry": "Fashion and apparel",
+  "tone": "friendly Hinglish, helpful, professional",
+  "managerContact": {
+    "name": "Vastra Demo Support Manager",
+    "whatsapp": "+91 98765 43210",
+    "email": "manager@vastrademo.com",
+    "hours": "10 AM - 7 PM IST, Monday to Saturday"
+  },
+  "policies": {
+    "shipping": "Orders are shipped within 24-48 hours. Delivery usually takes 3-7 business days depending on the pincode.",
+    "return": "Returns are accepted within 7 days of delivery for unused products with original tags and packaging. Return requests are allowed only after the order status is Delivered.",
+    "exchange": "Size exchanges are accepted within 7 days of delivery, subject to stock availability.",
+    "cod": "Cash on Delivery is available on eligible pincodes. COD may require phone verification before dispatch.",
+    "refund": "Prepaid refunds are processed to the original payment method after quality check. COD refunds are processed via bank transfer or UPI.",
+    "size": "Customers should use the product size chart. If between two sizes, choose the larger size for a comfortable fit."
+  },
+  "faqs": [
+    {
+      "question": "How do I choose the right size?",
+      "answer": "Check the size chart on each product page. If you are between two sizes, choose the larger size for a comfortable fit."
+    },
+    {
+      "question": "How long does delivery take?",
+      "answer": "Delivery usually takes 3-7 business days after dispatch, depending on the customer pincode."
+    },
+    {
+      "question": "What is the return policy?",
+      "answer": "Returns are accepted within 7 days after delivery for unused products with original tags and packaging."
+    },
+    {
+      "question": "Which payment methods are accepted?",
+      "answer": "Customers can pay using UPI, cards, net banking, wallets, and Cash on Delivery where available."
+    }
+  ],
+  "widgetConfig": {
+    "widgetTitle": "Vastra Demo Support",
+    "welcomeMessage": "Hi, welcome to Teviq Vastra Demo support. Ask me about orders, returns, sizing, or COD.",
+    "themeColor": "#101828",
+    "position": "bottom-right",
+    "quickReplies": [
+      "Track my order",
+      "Return / Exchange",
+      "Size help",
+      "Talk to human"
+    ]
+  },
+  "escalationRules": {
+    "hardKeywords": [
+      "fraud",
+      "scam",
+      "legal",
+      "police",
+      "consumer court",
+      "abuse",
+      "harassment"
+    ],
+    "response": "I understand this is sensitive. I am connecting this to a senior support manager for priority help."
+  }
+}
