@@ -7,6 +7,7 @@ const rateLimit = require("express-rate-limit");
 const chatRoutes = require("./routes/chat.routes");
 const brandConfigRoutes = require("./routes/brand-config.routes");
 const knowledgeRoutes = require("./routes/knowledge.routes");
+const shopifyRoutes = require("./routes/shopify.routes");
 const { corsOrigin } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
 
@@ -48,6 +49,7 @@ app.get("/health", (req, res) => {
 
 app.use("/api/brand-config", brandConfigRoutes);
 app.use("/api/knowledge", knowledgeRoutes);
+app.use("/api/integrations/shopify", shopifyRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
 
 app.use((req, res) => {

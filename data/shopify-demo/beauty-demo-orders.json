@@ -1,0 +1,22 @@
+[
+  {
+    "orderId": "GC-SH-9001",
+    "brandId": "beauty-demo",
+    "customerId": "guest_123",
+    "status": "Delivered",
+    "trackingText": "Your Glow-C Vitamin Serum was delivered successfully.",
+    "estimatedUpdate": "No further shipping updates.",
+    "items": ["Glow-C Vitamin Serum"],
+    "source": "shopify-demo"
+  },
+  {
+    "orderId": "GC-SH-9002",
+    "brandId": "beauty-demo",
+    "customerId": "guest_987",
+    "status": "Processing",
+    "trackingText": "Your Barrier Repair Moisturizer is being prepared for dispatch.",
+    "estimatedUpdate": "Expected dispatch by tomorrow.",
+    "items": ["Barrier Repair Moisturizer"],
+    "source": "shopify-demo"
+  }
+]

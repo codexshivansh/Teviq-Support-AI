@@ -2,6 +2,10 @@ const { getOrderById } = require("../services/order.service");
 const { evaluatePolicy } = require("../services/policy.service");
 const { buildEscalationReply, detectEscalation } = require("../services/escalation.service");
 const { buildLeadCaptureReply, extractContactInfo, hasContactInfo } = require("../services/lead.service");
+const {
+  getRecommendedProducts,
+  buildProductRecommendationReply
+} = require("../services/product.service");
 
 const ORDER_INTENTS = ["order_tracking", "return_exchange", "refund_status", "cancellation"];
 
@@ -14,7 +18,11 @@ function buildOrderTrackingReply(order, brand, entities) {
     return `I could not find order ${entities.orderId} for ${brand.brandName}. Please recheck the order ID or share the phone/email used at checkout.`;
   }
 
-  return `Order ${order.orderId} is currently ${order.status}. ${order.trackingText} Expected update: ${order.estimatedUpdate}.`;
+  const estimatedUpdate = String(order.estimatedUpdate || "No estimated update available.").replace(
+    /[.。]+$/,
+    ""
+  );
+  return `Order ${order.orderId} is currently ${order.status}. ${order.trackingText} Expected update: ${estimatedUpdate}.`;
 }
 
 function buildKnowledgeReply(brand, intent) {
@@ -101,6 +109,31 @@ function routeTools({ brand, intent, entities, message }) {
       leadState: null,
       reply: policyResult.reply
     };
+  }
+
+  if (intent === "product_recommendation") {
+    const products = getRecommendedProducts({
+      brandId: brand.brandId,
+      message
+    });
+    const recommendationReply = buildProductRecommendationReply({
+      brand,
+      products,
+      message
+    });
+
+    if (recommendationReply) {
+      return {
+        allowAI: false,
+        source: "system",
+        escalated: false,
+        order: null,
+        policyResult: null,
+        leadState: null,
+        products,
+        reply: recommendationReply
+      };
+    }
   }
 
   const knowledgeReply = buildKnowledgeReply(brand, intent);

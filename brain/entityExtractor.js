@@ -1,6 +1,6 @@
 function extractOrderId(message) {
   const match = message.match(
-    /(?:#|\border\s*(?:id|number|no\.?)?\s*(?:is|:)?\s*)?([a-z]{2,6}[-_\s]?\d{4,})\b/i
+    /(?:#|\border\s*(?:id|number|no\.?)?\s*(?:is|:)?\s*)?([a-z]{2,6}(?:[-_\s]?[a-z]{2,6})?[-_\s]?\d{3,8})\b/i
   );
 
   return match ? match[1].replace(/[-_\s]/g, "").toUpperCase() : null;

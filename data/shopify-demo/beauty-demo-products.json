@@ -1,0 +1,41 @@
+[
+  {
+    "id": "gid://shopify/Product/beauty-001",
+    "handle": "glow-c-vitamin-serum",
+    "title": "Glow-C Vitamin Serum",
+    "category": "serum",
+    "price": 899,
+    "currency": "INR",
+    "available": true,
+    "tags": ["serum", "vitamin c", "glow", "morning routine"],
+    "keywords": ["serum", "vitamin c", "glow", "dull skin", "morning"],
+    "description": "Lightweight vitamin C serum for dullness and everyday glow.",
+    "recommendationText": "Best for dull skin, morning routines and beginner glow care."
+  },
+  {
+    "id": "gid://shopify/Product/beauty-002",
+    "handle": "barrier-repair-moisturizer",
+    "title": "Barrier Repair Moisturizer",
+    "category": "moisturizer",
+    "price": 749,
+    "currency": "INR",
+    "available": true,
+    "tags": ["moisturizer", "barrier", "dry skin", "sensitive"],
+    "keywords": ["moisturizer", "dry", "sensitive", "barrier", "repair"],
+    "description": "Ceramide-rich moisturizer for dry, sensitive and compromised skin barriers.",
+    "recommendationText": "Best for dry skin, sensitive skin and barrier repair."
+  },
+  {
+    "id": "gid://shopify/Product/beauty-003",
+    "handle": "daily-sunscreen-gel",
+    "title": "Daily Sunscreen Gel",
+    "category": "sunscreen",
+    "price": 699,
+    "currency": "INR",
+    "available": true,
+    "tags": ["sunscreen", "spf", "daily", "gel"],
+    "keywords": ["sunscreen", "spf", "daily", "outdoor", "gel", "oily"],
+    "description": "Light gel sunscreen for daily SPF protection without a sticky finish.",
+    "recommendationText": "Best for daily SPF, oily skin and outdoor use."
+  }
+]

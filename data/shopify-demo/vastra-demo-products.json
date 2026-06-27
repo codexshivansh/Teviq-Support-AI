@@ -1,0 +1,41 @@
+[
+  {
+    "id": "gid://shopify/Product/vastra-001",
+    "handle": "cotton-kurta-set",
+    "title": "Cotton Kurta Set",
+    "category": "ethnic wear",
+    "price": 1899,
+    "currency": "INR",
+    "available": true,
+    "tags": ["kurta", "cotton", "daily wear", "office", "ethnic"],
+    "keywords": ["kurta", "cotton", "office", "daily", "summer", "ethnic"],
+    "description": "Breathable cotton kurta set for daily wear and office styling.",
+    "recommendationText": "Best for daily wear, office looks and breathable summer comfort."
+  },
+  {
+    "id": "gid://shopify/Product/vastra-002",
+    "handle": "festive-anarkali",
+    "title": "Festive Anarkali",
+    "category": "occasion wear",
+    "price": 3499,
+    "currency": "INR",
+    "available": true,
+    "tags": ["anarkali", "festive", "wedding", "occasion"],
+    "keywords": ["wedding", "festive", "party", "occasion", "anarkali"],
+    "description": "Flowy festive anarkali with soft lining and elegant detailing.",
+    "recommendationText": "Best for weddings, festive functions and family occasions."
+  },
+  {
+    "id": "gid://shopify/Product/vastra-003",
+    "handle": "linen-co-ord-set",
+    "title": "Linen Co-ord Set",
+    "category": "western wear",
+    "price": 2499,
+    "currency": "INR",
+    "available": true,
+    "tags": ["linen", "co-ord", "travel", "casual"],
+    "keywords": ["travel", "casual", "linen", "co-ord", "vacation"],
+    "description": "Relaxed linen co-ord set for casual outings and travel.",
+    "recommendationText": "Best for travel, casual plans and minimal styling."
+  }
+]

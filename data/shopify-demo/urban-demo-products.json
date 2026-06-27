@@ -1,0 +1,41 @@
+[
+  {
+    "id": "gid://shopify/Product/urban-001",
+    "handle": "swiftbuds-pro",
+    "title": "SwiftBuds Pro",
+    "category": "earbuds",
+    "price": 2999,
+    "currency": "INR",
+    "available": true,
+    "tags": ["earbuds", "wireless", "music", "calls"],
+    "keywords": ["earbuds", "wireless", "music", "calling", "travel", "gym"],
+    "description": "Wireless earbuds with clear calling, bass mode and compact charging case.",
+    "recommendationText": "Best for music, calls, travel and everyday wireless use."
+  },
+  {
+    "id": "gid://shopify/Product/urban-002",
+    "handle": "powerpack-10000",
+    "title": "PowerPack 10000",
+    "category": "power bank",
+    "price": 1799,
+    "currency": "INR",
+    "available": true,
+    "tags": ["power bank", "travel", "charging", "usb-c"],
+    "keywords": ["powerbank", "power bank", "charging", "travel", "battery", "usb-c"],
+    "description": "Compact 10000mAh power bank with USB-C fast charging support.",
+    "recommendationText": "Best for travel, backup charging and daily commute."
+  },
+  {
+    "id": "gid://shopify/Product/urban-003",
+    "handle": "type-c-hub-lite",
+    "title": "Type-C Hub Lite",
+    "category": "accessories",
+    "price": 2199,
+    "currency": "INR",
+    "available": true,
+    "tags": ["usb-c", "hub", "laptop", "accessory"],
+    "keywords": ["hub", "usb-c", "type c", "laptop", "hdmi", "office"],
+    "description": "Slim USB-C hub for laptops with HDMI, USB and SD card support.",
+    "recommendationText": "Best for laptop users, office setups and creator desks."
+  }
+]

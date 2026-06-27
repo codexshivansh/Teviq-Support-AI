@@ -1,0 +1,22 @@
+[
+  {
+    "orderId": "UG-SH-7001",
+    "brandId": "urban-demo",
+    "customerId": "guest_123",
+    "status": "Out for Delivery",
+    "trackingText": "Your SwiftBuds Pro is out for delivery with Xpressbees.",
+    "estimatedUpdate": "Delivery is expected today.",
+    "items": ["SwiftBuds Pro"],
+    "source": "shopify-demo"
+  },
+  {
+    "orderId": "UG-SH-7002",
+    "brandId": "urban-demo",
+    "customerId": "guest_789",
+    "status": "Delivered",
+    "trackingText": "Your PowerPack 10000 was delivered successfully.",
+    "estimatedUpdate": "No further shipping updates.",
+    "items": ["PowerPack 10000"],
+    "source": "shopify-demo"
+  }
+]

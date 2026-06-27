@@ -1,0 +1,22 @@
+[
+  {
+    "orderId": "VS-SH-5001",
+    "brandId": "vastra-demo",
+    "customerId": "guest_123",
+    "status": "Shipped",
+    "trackingText": "Your Cotton Kurta Set has been shipped via Delhivery.",
+    "estimatedUpdate": "Expected delivery in 2-3 business days.",
+    "items": ["Cotton Kurta Set"],
+    "source": "shopify-demo"
+  },
+  {
+    "orderId": "VS-SH-5002",
+    "brandId": "vastra-demo",
+    "customerId": "guest_456",
+    "status": "Processing",
+    "trackingText": "Your Festive Anarkali is being packed by the store team.",
+    "estimatedUpdate": "Expected dispatch within 24 hours.",
+    "items": ["Festive Anarkali"],
+    "source": "shopify-demo"
+  }
+]

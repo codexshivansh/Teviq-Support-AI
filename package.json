@@ -9,7 +9,8 @@
     "smoke:test": "node scripts/smoke-test.js",
     "validate:brands": "node scripts/validate-brands.js",
     "test:brain": "node scripts/test-brain.js",
-    "test:knowledge": "node scripts/test-knowledge.js"
+    "test:knowledge": "node scripts/test-knowledge.js",
+    "test:shopify-demo": "node scripts/test-shopify-demo.js"
   },
   "keywords": [
     "support",
