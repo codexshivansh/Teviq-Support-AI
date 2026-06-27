@@ -1,1 +1,5 @@
 .env
+node_modules/
+knowledge/uploads/
+logs/
+.DS_Store
