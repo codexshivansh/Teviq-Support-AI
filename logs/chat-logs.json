@@ -1,1 +1,204 @@
-[]
+[
+  {
+    "timestamp": "2026-06-27T18:00:34.649Z",
+    "brandId": "urban-demo",
+    "customerId": "guest_lmpd7h9t",
+    "message": "Track my order",
+    "detectedIntent": "order_tracking",
+    "escalated": false,
+    "source": "system",
+    "reply": "Please share your order ID so I can check the latest status for you."
+  },
+  {
+    "timestamp": "2026-06-27T18:00:35.126Z",
+    "brandId": "urban-demo",
+    "customerId": "guest_lmpd7h9t",
+    "message": "Return Item",
+    "detectedIntent": "return_exchange",
+    "escalated": false,
+    "source": "system",
+    "reply": "Please share your order ID so I can check return or exchange for you."
+  },
+  {
+    "timestamp": "2026-06-27T18:00:35.613Z",
+    "brandId": "urban-demo",
+    "customerId": "guest_lmpd7h9t",
+    "message": "Talk to human",
+    "detectedIntent": "human_support",
+    "escalated": false,
+    "source": "system",
+    "reply": "Sure, I can help with that. Please share your name and phone number or email, and Urban Gadgets Demo's team will get back to you."
+  },
+  {
+    "timestamp": "2026-06-27T18:00:36.111Z",
+    "brandId": "urban-demo",
+    "customerId": "guest_lmpd7h9t",
+    "message": "Do you support COD?",
+    "detectedIntent": "payment_cod",
+    "escalated": false,
+    "source": "system",
+    "reply": "Cash on Delivery is available for orders below INR 4,999 on selected pincodes. Payment options include UPI, cards, net banking, wallets, and COD where available."
+  },
+  {
+    "timestamp": "2026-06-27T18:00:37.297Z",
+    "brandId": "urban-demo",
+    "customerId": "guest_lmpd7h9t",
+    "message": "Talk to human",
+    "detectedIntent": "human_support",
+    "escalated": false,
+    "source": "system",
+    "reply": "Sure, I can help with that. Please share your name and phone number or email, and Urban Gadgets Demo's team will get back to you."
+  },
+  {
+    "timestamp": "2026-06-27T18:45:53.986Z",
+    "brandId": "vastra-demo",
+    "customerId": "smoke_test_guest",
+    "message": "Do you have COD?",
+    "detectedIntent": "payment_cod",
+    "escalated": false,
+    "source": "system",
+    "reply": "Cash on Delivery is available on eligible pincodes. COD may require phone verification before dispatch. Payment options include UPI, cards, net banking, wallets, and COD where available.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:45:53.995Z",
+    "brandId": "urban-demo",
+    "customerId": "smoke_test_guest",
+    "message": "Do products have warranty?",
+    "detectedIntent": "general_faq",
+    "escalated": false,
+    "source": "system",
+    "reply": "Sorry, I am unable to generate a reply right now. Please try again in a few minutes or contact our support team.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:26.402Z",
+    "brandId": "urban-demo",
+    "customerId": "knowledge_chat_test",
+    "message": "Do earbuds have warranty?",
+    "detectedIntent": "general_faq",
+    "escalated": false,
+    "source": "system",
+    "reply": "Based on confirmed brand information: Urban Gadgets Demo gives a 6 month warranty on earbuds, power banks, charging cables and USB-C hubs. Warranty does not cover water damage, burnt ports, physical damage or missing accessories.",
+    "knowledgeConfidence": 0.2694,
+    "knowledgeCitations": [
+      {
+        "chunkId": "doc_1782585986284_d132a723b97c_chunk_1",
+        "documentId": "doc_1782585986284_d132a723b97c",
+        "sourceName": "teviq-knowledge-chat.XXXXXX.txt",
+        "sectionTitle": "Warranty Policy",
+        "score": 0.2694
+      }
+    ]
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.268Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_faq",
+    "message": "Do you support COD?",
+    "detectedIntent": "payment_cod",
+    "escalated": false,
+    "source": "system",
+    "reply": "Cash on Delivery is available on eligible pincodes. COD may require phone verification before dispatch. Payment options include UPI, cards, net banking, wallets, and COD where available.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.282Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_order",
+    "message": "Track order TVQ1001",
+    "detectedIntent": "order_tracking",
+    "escalated": false,
+    "source": "system",
+    "reply": "Order TVQ1001 is currently Delivered. It was delivered successfully by BlueDart. Expected update: Delivered on 20 June 2026.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.283Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_missing_order",
+    "message": "Where is my order?",
+    "detectedIntent": "order_tracking",
+    "escalated": false,
+    "source": "system",
+    "reply": "Please share your order ID so I can check the latest status for you.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.283Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_return_yes",
+    "message": "Can I return order TVQ1001?",
+    "detectedIntent": "return_exchange",
+    "escalated": false,
+    "source": "system",
+    "reply": "Your order TVQ1001 is Delivered, so return or exchange can be checked as per Teviq Vastra Demo's policy. Please keep the item unused with original packaging.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.284Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_return_no",
+    "message": "Can I return order TVQ1003?",
+    "detectedIntent": "return_exchange",
+    "escalated": false,
+    "source": "system",
+    "reply": "Your order TVQ1003 is currently Processing. Return or exchange can be checked only after delivery.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.284Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_cancel_yes",
+    "message": "Cancel order TVQ1003",
+    "detectedIntent": "cancellation",
+    "escalated": false,
+    "source": "system",
+    "reply": "Order TVQ1003 is Processing, so cancellation can be requested now. Final confirmation will come from the support team.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.285Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_cancel_no",
+    "message": "Cancel order TVQ1001",
+    "detectedIntent": "cancellation",
+    "escalated": false,
+    "source": "system",
+    "reply": "Order TVQ1001 is currently Delivered. Cancellation is only available while the order is Processing.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.286Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_escalation",
+    "message": "This is fraud, I will call police",
+    "detectedIntent": "complaint",
+    "escalated": true,
+    "source": "system",
+    "reply": "I understand this is sensitive. I am connecting this to a senior support manager for priority help. WhatsApp: +91 98765 43210 Email: manager@vastrademo.com Available: 10 AM - 7 PM IST, Monday to Saturday",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  },
+  {
+    "timestamp": "2026-06-27T18:46:49.286Z",
+    "brandId": "vastra-demo",
+    "customerId": "brain_lead",
+    "message": "I want to talk to human",
+    "detectedIntent": "human_support",
+    "escalated": false,
+    "source": "system",
+    "reply": "Sure, I can help with that. Please share your name and phone number or email, and Teviq Vastra Demo's team will get back to you.",
+    "knowledgeConfidence": 0,
+    "knowledgeCitations": []
+  }
+]

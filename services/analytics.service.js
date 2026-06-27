@@ -26,7 +26,9 @@ function appendChatLog(entry) {
       detectedIntent: entry.detectedIntent,
       escalated: Boolean(entry.escalated),
       source: entry.source,
-      reply: entry.reply
+      reply: entry.reply,
+      knowledgeConfidence: entry.knowledgeConfidence,
+      knowledgeCitations: entry.knowledgeCitations || []
     });
     fs.writeFileSync(logFile, `${JSON.stringify(logs, null, 2)}\n`);
   } catch (error) {

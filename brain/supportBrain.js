@@ -8,6 +8,11 @@ const { extractEntities } = require("./entityExtractor");
 const { buildContext } = require("./contextBuilder");
 const { routeTools } = require("./toolRouter");
 const { validateResponse } = require("./responseValidator");
+const {
+  retrieveKnowledge,
+  shouldBlockAIForLowConfidence,
+  buildLowConfidenceReply
+} = require("../knowledge/retrieval.service");
 
 async function processMessage({ brandId, message, customerId = "guest" }) {
   const brand = getBrandById(brandId);
@@ -35,6 +40,9 @@ async function processMessage({ brandId, message, customerId = "guest" }) {
   const memory = getConversationMemory(brandId, customerId);
 
   const toolResult = routeTools({ brand, intent, entities, message });
+  const knowledge = toolResult.allowAI
+    ? retrieveKnowledge({ brandId: brand.brandId, query: message, topK: 5 })
+    : null;
   const context = buildContext({
     brand,
     message,
@@ -45,13 +53,17 @@ async function processMessage({ brandId, message, customerId = "guest" }) {
     memory,
     order: toolResult.order,
     policyResult: toolResult.policyResult,
-    leadState: toolResult.leadState
+    leadState: toolResult.leadState,
+    knowledge
   });
 
   let reply = toolResult.reply;
   let source = toolResult.source || "system";
 
-  if (toolResult.allowAI) {
+  if (toolResult.allowAI && shouldBlockAIForLowConfidence({ intent, knowledgeResult: knowledge })) {
+    reply = buildLowConfidenceReply(brand);
+    source = "system";
+  } else if (toolResult.allowAI) {
     const aiResponse = await generateSupportReply({
       brand,
       faqs: brand.faqs || [],
@@ -59,7 +71,8 @@ async function processMessage({ brandId, message, customerId = "guest" }) {
       customerId,
       intent,
       language: analysis.language,
-      memory
+      memory,
+      knowledge
     });
     reply = aiResponse.reply;
     source = aiResponse.source;
@@ -81,7 +94,9 @@ async function processMessage({ brandId, message, customerId = "guest" }) {
     detectedIntent: intent,
     escalated: toolResult.escalated,
     source,
-    reply: validation.finalReply
+    reply: validation.finalReply,
+    knowledgeCitations: knowledge?.citations || [],
+    knowledgeConfidence: knowledge?.confidence || 0
   });
 
   return {

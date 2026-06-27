@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "smoke:test": "node scripts/smoke-test.js",
     "validate:brands": "node scripts/validate-brands.js",
-    "test:brain": "node scripts/test-brain.js"
+    "test:brain": "node scripts/test-brain.js",
+    "test:knowledge": "node scripts/test-knowledge.js"
   },
   "keywords": [
     "support",
@@ -24,7 +25,10 @@
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
-    "helmet": "^8.2.0"
+    "helmet": "^8.2.0",
+    "mammoth": "^1.12.0",
+    "multer": "^2.2.0",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

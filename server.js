@@ -6,6 +6,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const chatRoutes = require("./routes/chat.routes");
 const brandConfigRoutes = require("./routes/brand-config.routes");
+const knowledgeRoutes = require("./routes/knowledge.routes");
 const { corsOrigin } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
 
@@ -46,6 +47,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api/brand-config", brandConfigRoutes);
+app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
 
 app.use((req, res) => {
@@ -64,6 +66,16 @@ app.use((error, req, res, next) => {
       source: "system",
       escalated: false,
       intent: "general_faq"
+    });
+  }
+
+  if (error.statusCode || error.code === "LIMIT_FILE_SIZE") {
+    return res.status(error.statusCode || 400).json({
+      error: error.code === "LIMIT_FILE_SIZE" ? "file_too_large" : "request_error",
+      message:
+        error.code === "LIMIT_FILE_SIZE"
+          ? "Document is too large. Maximum upload size is 10MB."
+          : error.message
     });
   }
 

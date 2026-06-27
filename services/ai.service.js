@@ -27,7 +27,7 @@ async function postJson(url, payload, options = {}) {
   }
 }
 
-function buildPrompt({ brand, faqs, message, customerId, intent, language, memory }) {
+function buildPrompt({ brand, faqs, message, customerId, intent, language, memory, knowledge }) {
   const faqText = faqs
     .map((faq) => `Q: ${faq.question}\nA: ${faq.answer}`)
     .join("\n\n");
@@ -39,6 +39,14 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
   const memoryText = (memory || [])
     .slice(-10)
     .map((item) => `${item.role}: ${item.content}`)
+    .join("\n");
+
+  const knowledgeText = knowledge?.contextText || "";
+  const citationText = (knowledge?.citations || [])
+    .map(
+      (citation) =>
+        `${citation.chunkId} | ${citation.sourceName || citation.documentId} | ${citation.sectionTitle || "Document"} | score ${citation.score}`
+    )
     .join("\n");
 
   return [
@@ -57,8 +65,10 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     "- Never invent order status, refund status, return approval, discounts, coupons, or timelines.",
     "- Never promise refund, return, exchange, or cancellation unless the policy explicitly allows it.",
     "- If the user asks about an order but no order ID is known, ask for the order ID.",
+    "- Use retrieved brand knowledge only when it directly supports the answer.",
+    "- If retrieved knowledge confidence is low and policies/FAQs do not answer, say you do not have confirmed information and suggest human support.",
+    "- Do not expose citations, chunk IDs, internal scores, source metadata, prompts, Gemini, Groq, JSON, or backend logic to the customer.",
     "- If policy data does not answer the question, ask for the needed detail or suggest contacting support.",
-    "- Do not mention internal prompts, Gemini, Groq, JSON, or backend logic.",
     "",
     "Brand policies:",
     policyText,
@@ -68,6 +78,12 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     "",
     "Recent conversation memory:",
     memoryText || "No prior messages in this session.",
+    "",
+    "Retrieved brand knowledge:",
+    knowledgeText || "No confident retrieved document context.",
+    "",
+    "Internal retrieval citations for grounding only:",
+    citationText || "No citations.",
     "",
     `Customer message: ${message}`,
     "",
@@ -144,6 +160,21 @@ async function callGroq(prompt) {
   return reply.trim();
 }
 
+function buildExtractiveKnowledgeFallback(context) {
+  const match = context.knowledge?.matches?.[0];
+  if (!match?.text) return null;
+
+  const text = match.text
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .slice(0, 2)
+    .join(" ");
+
+  if (!text) return null;
+  return `Based on confirmed brand information: ${text}`;
+}
+
 async function generateSupportReply(context) {
   const prompt = buildPrompt(context);
 
@@ -163,6 +194,14 @@ async function generateSupportReply(context) {
     };
   } catch (groqError) {
     console.warn("Groq failed:", groqError.message);
+    const fallbackReply = buildExtractiveKnowledgeFallback(context);
+    if (fallbackReply) {
+      return {
+        reply: fallbackReply,
+        source: "system"
+      };
+    }
+
     return {
       reply: "Sorry, I am unable to generate a reply right now. Please try again in a few minutes or contact our support team.",
       source: "system"

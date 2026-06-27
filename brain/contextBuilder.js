@@ -10,7 +10,8 @@ function buildContext({
   memory,
   order,
   policyResult,
-  leadState
+  leadState,
+  knowledge
 }) {
   return {
     brand,
@@ -23,7 +24,8 @@ function buildContext({
     memory,
     order,
     policyResult,
-    leadState
+    leadState,
+    knowledge
   };
 }
 
