@@ -10,6 +10,7 @@ const knowledgeRoutes = require("./routes/knowledge.routes");
 const shopifyRoutes = require("./routes/shopify.routes");
 const { corsOrigin } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
+const { requireClerkAuth } = require("./middleware/clerkAuth.middleware");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
@@ -48,8 +49,8 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api/brand-config", brandConfigRoutes);
-app.use("/api/knowledge", knowledgeRoutes);
-app.use("/api/integrations/shopify", shopifyRoutes);
+app.use("/api/knowledge", requireClerkAuth, knowledgeRoutes);
+app.use("/api/integrations/shopify", requireClerkAuth, shopifyRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
 
 app.use((req, res) => {
