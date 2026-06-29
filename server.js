@@ -8,7 +8,7 @@ const chatRoutes = require("./routes/chat.routes");
 const brandConfigRoutes = require("./routes/brand-config.routes");
 const knowledgeRoutes = require("./routes/knowledge.routes");
 const shopifyRoutes = require("./routes/shopify.routes");
-const { corsOrigin } = require("./config/cors");
+const { corsOptions } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
 const { requireClerkAuth } = require("./middleware/clerkAuth.middleware");
 
@@ -24,7 +24,8 @@ app.use(
     crossOriginResourcePolicy: { policy: "cross-origin" }
   })
 );
-app.use(cors({ origin: corsOrigin }));
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
 
 const chatRateLimit = rateLimit({
