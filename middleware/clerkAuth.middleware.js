@@ -45,6 +45,20 @@ async function requireClerkAuth(req, res, next) {
     };
     return next();
   } catch (error) {
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY || "";
+
+    console.error("[auth] Clerk token verification failed", {
+      errorName: error?.name,
+      errorMessage: error?.message,
+      tokenPrefix: token ? token.slice(0, 20) : "",
+      hasClerkSecretKey: Boolean(clerkSecretKey),
+      clerkSecretKeyType: clerkSecretKey.startsWith("sk_live_")
+        ? "sk_live"
+        : clerkSecretKey.startsWith("sk_test_")
+          ? "sk_test"
+          : "unknown"
+    });
+
     return res.status(401).json({
       error: "invalid_token",
       message: "Invalid or expired authentication token."
