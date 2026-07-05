@@ -4,6 +4,7 @@ const { buildUploadMetadata, uploadRoot } = require("../knowledge/upload.service
 const { ingestKnowledgeDocument } = require("../knowledge/knowledge.service");
 const { retrieveKnowledge } = require("../knowledge/retrieval.service");
 const vectorStore = require("../knowledge/vectorStore.service");
+const structuredKnowledge = require("../knowledge/structuredKnowledge.service");
 
 function getBrandOrRespond(req, res) {
   const { brandId } = req.params;
@@ -132,9 +133,188 @@ function retrieveKnowledgeForDebug(req, res) {
   });
 }
 
+function listPolicies(req, res) {
+  const brand = getBrandOrRespond(req, res);
+  if (!brand) return;
+
+  const policies = structuredKnowledge.listItems({
+    brandId: brand.brandId,
+    type: "policy",
+    search: req.query?.search
+  });
+
+  return res.json({
+    brandId: brand.brandId,
+    policies,
+    stats: structuredKnowledge.getStructuredStats(brand.brandId)
+  });
+}
+
+function createPolicy(req, res) {
+  const brand = getBrandOrRespond(req, res);
+  if (!brand) return;
+
+  const result = structuredKnowledge.createPolicy({
+    brandId: brand.brandId,
+    policyType: req.body?.policyType,
+    title: req.body?.title,
+    content: req.body?.content,
+    tags: req.body?.tags
+  });
+
+  if (result.error) {
+    return res.status(400).json(result.error);
+  }
+
+  return res.status(201).json({
+    ok: true,
+    brandId: brand.brandId,
+    policy: result.item
+  });
+}
+
+function updatePolicy(req, res) {
+  const brand = getBrandOrRespond(req, res);
+  if (!brand) return;
+
+  const result = structuredKnowledge.updatePolicy({
+    brandId: brand.brandId,
+    policyId: req.params.policyId,
+    updates: req.body || {}
+  });
+
+  if (result.error) {
+    const status = result.error.error === "policy_not_found" ? 404 : 400;
+    return res.status(status).json(result.error);
+  }
+
+  return res.json({
+    ok: true,
+    brandId: brand.brandId,
+    policy: result.item
+  });
+}
+
+function deletePolicy(req, res) {
+  const brand = getBrandOrRespond(req, res);
+  if (!brand) return;
+
+  const result = structuredKnowledge.deleteItem({
+    brandId: brand.brandId,
+    itemId: req.params.policyId,
+    type: "policy"
+  });
+
+  if (!result.deleted) {
+    return res.status(404).json({
+      error: "policy_not_found",
+      message: "Policy not found for this brand."
+    });
+  }
+
+  return res.json({
+    ok: true,
+    brandId: brand.brandId,
+    policyId: req.params.policyId
+  });
+}
+
+function listFaqs(req, res) {
+  const brand = getBrandOrRespond(req, res);
+  if (!brand) return;
+
+  const faqs = structuredKnowledge.listItems({
+    brandId: brand.brandId,
+    type: "faq",
+    search: req.query?.search
+  });
+
+  return res.json({
+    brandId: brand.brandId,
+    faqs,
+    stats: structuredKnowledge.getStructuredStats(brand.brandId)
+  });
+}
+
+function createFaq(req, res) {
+  const brand = getBrandOrRespond(req, res);
+  if (!brand) return;
+
+  const result = structuredKnowledge.createFaq({
+    brandId: brand.brandId,
+    question: req.body?.question,
+    answer: req.body?.answer,
+    tags: req.body?.tags
+  });
+
+  if (result.error) {
+    return res.status(400).json(result.error);
+  }
+
+  return res.status(201).json({
+    ok: true,
+    brandId: brand.brandId,
+    faq: result.item
+  });
+}
+
+function updateFaq(req, res) {
+  const brand = getBrandOrRespond(req, res);
+  if (!brand) return;
+
+  const result = structuredKnowledge.updateFaq({
+    brandId: brand.brandId,
+    faqId: req.params.faqId,
+    updates: req.body || {}
+  });
+
+  if (result.error) {
+    const status = result.error.error === "faq_not_found" ? 404 : 400;
+    return res.status(status).json(result.error);
+  }
+
+  return res.json({
+    ok: true,
+    brandId: brand.brandId,
+    faq: result.item
+  });
+}
+
+function deleteFaq(req, res) {
+  const brand = getBrandOrRespond(req, res);
+  if (!brand) return;
+
+  const result = structuredKnowledge.deleteItem({
+    brandId: brand.brandId,
+    itemId: req.params.faqId,
+    type: "faq"
+  });
+
+  if (!result.deleted) {
+    return res.status(404).json({
+      error: "faq_not_found",
+      message: "FAQ not found for this brand."
+    });
+  }
+
+  return res.json({
+    ok: true,
+    brandId: brand.brandId,
+    faqId: req.params.faqId
+  });
+}
+
 module.exports = {
   uploadKnowledgeDocument,
   listKnowledgeDocuments,
   deleteKnowledgeDocument,
-  retrieveKnowledgeForDebug
+  retrieveKnowledgeForDebug,
+  listPolicies,
+  createPolicy,
+  updatePolicy,
+  deletePolicy,
+  listFaqs,
+  createFaq,
+  updateFaq,
+  deleteFaq
 };

@@ -1,5 +1,6 @@
 .env
 node_modules/
 knowledge/uploads/
+data/knowledge/structured-knowledge.json
 logs/
 .DS_Store
