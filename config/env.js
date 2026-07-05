@@ -7,10 +7,10 @@ function isProduction() {
 }
 
 function getAllowedOrigins() {
-  return (process.env.ALLOWED_ORIGINS || "")
+  return Array.from(new Set((process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter(Boolean)));
 }
 
 function validateEnv() {

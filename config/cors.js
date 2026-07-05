@@ -2,6 +2,7 @@ const { getAllowedOrigins, isProduction } = require("./env");
 
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://teviq-support-ai-dashboard-ph9p.vercel.app",
+  "https://dashboard.teviq.in",
   "https://teviq.in",
   "https://www.teviq.in",
   "http://localhost:5173",
