@@ -7,6 +7,7 @@ const rateLimit = require("express-rate-limit");
 const chatRoutes = require("./routes/chat.routes");
 const brandConfigRoutes = require("./routes/brand-config.routes");
 const knowledgeRoutes = require("./routes/knowledge.routes");
+const onboardingRoutes = require("./routes/onboarding.routes");
 const shopifyRoutes = require("./routes/shopify.routes");
 const { corsOptions } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
@@ -52,6 +53,7 @@ app.get("/health", (req, res) => {
 app.use("/api/brand-config", brandConfigRoutes);
 app.use("/api/knowledge", requireClerkAuth, knowledgeRoutes);
 app.use("/api/integrations/shopify", requireClerkAuth, shopifyRoutes);
+app.use("/api/onboarding", requireClerkAuth, onboardingRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
 
 app.use((req, res) => {
