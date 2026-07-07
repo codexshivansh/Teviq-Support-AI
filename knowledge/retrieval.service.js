@@ -4,10 +4,68 @@ const vectorStore = require("./vectorStore.service");
 const HIGH_CONFIDENCE = 0.34;
 const MIN_CONFIDENCE = 0.16;
 
+const SOURCE_PRIORITY = {
+  faq: 0,
+  policy: 1,
+  document: 2
+};
+
+function getSourceType(chunk) {
+  return chunk.metadata?.source_type || chunk.metadata?.sourceType || "document";
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isExactFaqMatch(chunk, query) {
+  if (getSourceType(chunk) !== "faq") return false;
+  const question = normalizeSearchText(chunk.metadata?.question || "");
+  const normalizedQuery = normalizeSearchText(query);
+  if (!question || !normalizedQuery) return false;
+
+  return question.includes(normalizedQuery) || normalizedQuery.includes(question);
+}
+
+function getPriorityScore(chunk, query) {
+  const sourceType = getSourceType(chunk);
+  const priority = SOURCE_PRIORITY[sourceType] ?? SOURCE_PRIORITY.document;
+  const exactMatchBoost = isExactFaqMatch(chunk, query) ? 1 : 0;
+
+  return {
+    priority,
+    exactMatchBoost,
+    score: chunk.score || 0
+  };
+}
+
+function sortByKnowledgePriority(query) {
+  return (left, right) => {
+    const leftRank = getPriorityScore(left, query);
+    const rightRank = getPriorityScore(right, query);
+
+    if (leftRank.priority !== rightRank.priority) {
+      return leftRank.priority - rightRank.priority;
+    }
+
+    if (leftRank.exactMatchBoost !== rightRank.exactMatchBoost) {
+      return rightRank.exactMatchBoost - leftRank.exactMatchBoost;
+    }
+
+    return rightRank.score - leftRank.score;
+  };
+}
+
 function buildCitations(chunks) {
   return chunks.map((chunk) => ({
     chunkId: chunk.id,
     documentId: chunk.documentId,
+    sourceId: chunk.metadata?.source_id || chunk.metadata?.sourceId || chunk.documentId,
+    sourceType: getSourceType(chunk),
     sourceName: chunk.metadata?.sourceName,
     sectionTitle: chunk.metadata?.sectionTitle,
     score: Number(chunk.score.toFixed(4))
@@ -18,7 +76,8 @@ function buildContextText(chunks) {
   return chunks
     .map((chunk, index) => {
       const source = chunk.metadata?.sourceName || chunk.documentId;
-      const section = chunk.metadata?.sectionTitle || "Document";
+      const sourceType = getSourceType(chunk);
+      const section = chunk.metadata?.sectionTitle || sourceType;
       return `[K${index + 1}] ${source} > ${section}\n${chunk.text}`;
     })
     .join("\n\n");
@@ -29,11 +88,11 @@ function retrieveKnowledge({ brandId, query, topK = 5 }) {
   const matches = vectorStore.search({
     brandId,
     queryEmbedding,
-    topK,
+    topK: Math.max(topK * 4, 20),
     minScore: MIN_CONFIDENCE
-  });
+  }).sort(sortByKnowledgePriority(query)).slice(0, topK);
 
-  const topScore = matches[0]?.score || 0;
+  const topScore = matches.reduce((max, match) => Math.max(max, match.score || 0), 0);
 
   return {
     brandId,

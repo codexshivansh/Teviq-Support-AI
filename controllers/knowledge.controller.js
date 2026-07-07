@@ -126,6 +126,8 @@ function retrieveKnowledgeForDebug(req, res) {
     matches: result.matches.map((match) => ({
       chunkId: match.id,
       documentId: match.documentId,
+      sourceId: match.metadata?.source_id || match.metadata?.sourceId || match.documentId,
+      sourceType: match.metadata?.source_type || match.metadata?.sourceType || "document",
       score: Number(match.score.toFixed(4)),
       text: match.text,
       metadata: match.metadata
@@ -215,7 +217,8 @@ function deletePolicy(req, res) {
   return res.json({
     ok: true,
     brandId: brand.brandId,
-    policyId: req.params.policyId
+    policyId: req.params.policyId,
+    deletedChunks: result.deletedChunks || 0
   });
 }
 
@@ -300,7 +303,8 @@ function deleteFaq(req, res) {
   return res.json({
     ok: true,
     brandId: brand.brandId,
-    faqId: req.params.faqId
+    faqId: req.params.faqId,
+    deletedChunks: result.deletedChunks || 0
   });
 }
 

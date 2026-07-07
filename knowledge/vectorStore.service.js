@@ -49,6 +49,30 @@ function upsertDocument({ document, chunks }) {
   };
 }
 
+function getChunkSourceId(chunk) {
+  return chunk.metadata?.source_id || chunk.metadata?.sourceId || chunk.documentId;
+}
+
+function upsertSourceChunks({ brandId, sourceId, sourceType, chunks }) {
+  const store = readStore();
+  const remainingChunks = store.chunks.filter((chunk) => {
+    const sameBrand = chunk.brandId === brandId;
+    const sameSource = getChunkSourceId(chunk) === sourceId;
+    const sameType = !sourceType || chunk.metadata?.source_type === sourceType || chunk.metadata?.sourceType === sourceType;
+    return !(sameBrand && sameSource && sameType);
+  });
+
+  store.chunks = [...remainingChunks, ...chunks];
+  writeStore(store);
+
+  return {
+    brandId,
+    sourceId,
+    sourceType,
+    chunkCount: chunks.length
+  };
+}
+
 function listDocuments(brandId) {
   const store = readStore();
   return store.documents
@@ -71,6 +95,24 @@ function deleteDocument({ brandId, documentId }) {
 
   return {
     deleted: beforeDocuments !== store.documents.length,
+    deletedChunks: beforeChunks - store.chunks.length
+  };
+}
+
+function deleteChunksBySource({ brandId, sourceId, sourceType }) {
+  const store = readStore();
+  const beforeChunks = store.chunks.length;
+
+  store.chunks = store.chunks.filter((chunk) => {
+    const sameBrand = chunk.brandId === brandId;
+    const sameSource = getChunkSourceId(chunk) === sourceId;
+    const sameType = !sourceType || chunk.metadata?.source_type === sourceType || chunk.metadata?.sourceType === sourceType;
+    return !(sameBrand && sameSource && sameType);
+  });
+  writeStore(store);
+
+  return {
+    deleted: beforeChunks !== store.chunks.length,
     deletedChunks: beforeChunks - store.chunks.length
   };
 }
@@ -104,8 +146,10 @@ function getStats(brandId) {
 module.exports = {
   vectorStorePath,
   upsertDocument,
+  upsertSourceChunks,
   listDocuments,
   deleteDocument,
+  deleteChunksBySource,
   search,
   getStats
 };

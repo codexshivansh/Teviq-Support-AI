@@ -1,6 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { chunkText } = require("./chunking.service");
+const { embedChunks } = require("./embedding.service");
+const vectorStore = require("./vectorStore.service");
 
 const knowledgeDataDir = path.join(__dirname, "..", "data", "knowledge");
 const structuredKnowledgePath = path.join(knowledgeDataDir, "structured-knowledge.json");
@@ -135,6 +138,79 @@ function itemMatchesSearch(item, search) {
   return searchableText.includes(query);
 }
 
+function getStructuredText(item) {
+  if (item.type === "faq") {
+    return `Q: ${item.question}\nA: ${item.answer}`;
+  }
+
+  return [item.title, item.content].filter(Boolean).join("\n\n");
+}
+
+function getSourceMetadata(item) {
+  const now = item.updatedAt || item.createdAt || new Date().toISOString();
+  const title = item.type === "faq" ? item.question : item.title;
+
+  return {
+    brandId: item.brandId,
+    documentId: item.id,
+    sourceName: title,
+    title,
+    mimeType: "text/plain",
+    extension: item.type,
+    uploadedAt: now
+  };
+}
+
+function decorateStructuredChunk(chunk, item) {
+  const baseMetadata = {
+    ...chunk.metadata,
+    source_type: item.type,
+    source_id: item.id,
+    brand_id: item.brandId,
+    sourceType: item.type,
+    sourceId: item.id
+  };
+
+  const metadata = item.type === "faq"
+    ? {
+        ...baseMetadata,
+        question: item.question
+      }
+    : {
+        ...baseMetadata,
+        policy_type: item.policyType,
+        policyType: item.policyType,
+        title: item.title
+      };
+
+  return {
+    ...chunk,
+    metadata
+  };
+}
+
+function indexStructuredItem(item) {
+  const chunks = chunkText(getStructuredText(item), getSourceMetadata(item)).map((chunk) =>
+    decorateStructuredChunk(chunk, item)
+  );
+  const embeddedChunks = embedChunks(chunks);
+
+  return vectorStore.upsertSourceChunks({
+    brandId: item.brandId,
+    sourceId: item.id,
+    sourceType: item.type,
+    chunks: embeddedChunks
+  });
+}
+
+function deleteStructuredIndex({ brandId, itemId, type }) {
+  return vectorStore.deleteChunksBySource({
+    brandId,
+    sourceId: itemId,
+    sourceType: type
+  });
+}
+
 function listItems({ brandId, type, search = "" }) {
   const store = readStore();
   return store.items
@@ -168,6 +244,7 @@ function createPolicy({ brandId, policyType, title, content, tags }) {
   const store = readStore();
   store.items.push(policy);
   writeStore(store);
+  indexStructuredItem(policy);
 
   return { item: policy };
 }
@@ -197,6 +274,8 @@ function updatePolicy({ brandId, policyId, updates }) {
 
   store.items[index] = updated;
   writeStore(store);
+  deleteStructuredIndex({ brandId, itemId: policyId, type: "policy" });
+  indexStructuredItem(updated);
 
   return { item: updated };
 }
@@ -225,6 +304,7 @@ function createFaq({ brandId, question, answer, tags }) {
   const store = readStore();
   store.items.push(faq);
   writeStore(store);
+  indexStructuredItem(faq);
 
   return { item: faq };
 }
@@ -253,6 +333,8 @@ function updateFaq({ brandId, faqId, updates }) {
 
   store.items[index] = updated;
   writeStore(store);
+  deleteStructuredIndex({ brandId, itemId: faqId, type: "faq" });
+  indexStructuredItem(updated);
 
   return { item: updated };
 }
@@ -268,7 +350,8 @@ function deleteItem({ brandId, itemId, type }) {
   }
 
   writeStore({ ...store, items: nextItems });
-  return { deleted: true };
+  const indexResult = deleteStructuredIndex({ brandId, itemId, type });
+  return { deleted: true, deletedChunks: indexResult.deletedChunks };
 }
 
 function getStructuredStats(brandId) {
@@ -289,7 +372,9 @@ module.exports = {
   createFaq,
   updateFaq,
   deleteItem,
+  deleteStructuredIndex,
   getStructuredStats,
+  indexStructuredItem,
   listItems,
   structuredKnowledgePath
 };
