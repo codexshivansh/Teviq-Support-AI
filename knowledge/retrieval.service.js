@@ -85,12 +85,14 @@ function buildContextText(chunks) {
 
 async function retrieveKnowledge({ brandId, query, topK = 5 }) {
   const queryEmbedding = embedText(query);
+  console.log("[RETRIEVAL] Calling RPC for brand:", brandId, "query:", query);
   const matches = (await vectorStore.search({
     brandId,
     queryEmbedding,
     topK: Math.max(topK * 4, 20),
-    minScore: MIN_CONFIDENCE
+    minScore: 0.0
   })).sort(sortByKnowledgePriority(query)).slice(0, topK);
+  console.log("[RETRIEVAL] RPC results:", matches?.length, matches);
 
   const topScore = matches.reduce((max, match) => Math.max(max, match.score || 0), 0);
 

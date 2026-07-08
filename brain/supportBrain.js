@@ -40,9 +40,11 @@ async function processMessage({ brandId, message, customerId = "guest" }) {
   const memory = getConversationMemory(brandId, customerId);
 
   const toolResult = routeTools({ brand, intent, entities, message });
+  console.log("[BRAIN] Starting retrieval for brand:", brandId);
   const knowledge = toolResult.allowAI
     ? await retrieveKnowledge({ brandId: brand.brandId, query: message, topK: 5 })
     : null;
+  console.log("[BRAIN] Retrieved chunks:", knowledge?.matches?.length || 0);
   const context = buildContext({
     brand,
     message,
