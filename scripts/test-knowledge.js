@@ -43,7 +43,7 @@ async function run() {
   });
 
   const ingestion = await ingestKnowledgeDocument(uploadMetadata);
-  const retrieval = retrieveKnowledge({
+  const retrieval = await retrieveKnowledge({
     brandId,
     query: "Do earbuds have warranty?",
     topK: 3
@@ -63,7 +63,7 @@ async function run() {
     )
   );
 
-  vectorStore.deleteDocument({
+  await vectorStore.deleteDocument({
     brandId,
     documentId: ingestion.document.documentId
   });

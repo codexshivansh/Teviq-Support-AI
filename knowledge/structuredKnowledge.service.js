@@ -189,7 +189,7 @@ function decorateStructuredChunk(chunk, item) {
   };
 }
 
-function indexStructuredItem(item) {
+async function indexStructuredItem(item) {
   const chunks = chunkText(getStructuredText(item), getSourceMetadata(item)).map((chunk) =>
     decorateStructuredChunk(chunk, item)
   );
@@ -203,7 +203,7 @@ function indexStructuredItem(item) {
   });
 }
 
-function deleteStructuredIndex({ brandId, itemId, type }) {
+async function deleteStructuredIndex({ brandId, itemId, type }) {
   return vectorStore.deleteChunksBySource({
     brandId,
     sourceId: itemId,
@@ -219,7 +219,7 @@ function listItems({ brandId, type, search = "" }) {
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 }
 
-function createPolicy({ brandId, policyType, title, content, tags }) {
+async function createPolicy({ brandId, policyType, title, content, tags }) {
   const validationError = validatePolicyInput({ policyType, title, content });
   if (validationError) return { error: validationError };
 
@@ -244,12 +244,12 @@ function createPolicy({ brandId, policyType, title, content, tags }) {
   const store = readStore();
   store.items.push(policy);
   writeStore(store);
-  indexStructuredItem(policy);
+  await indexStructuredItem(policy);
 
   return { item: policy };
 }
 
-function updatePolicy({ brandId, policyId, updates }) {
+async function updatePolicy({ brandId, policyId, updates }) {
   const validationError = validatePolicyInput(updates, { partial: true });
   if (validationError) return { error: validationError };
 
@@ -274,13 +274,13 @@ function updatePolicy({ brandId, policyId, updates }) {
 
   store.items[index] = updated;
   writeStore(store);
-  deleteStructuredIndex({ brandId, itemId: policyId, type: "policy" });
-  indexStructuredItem(updated);
+  await deleteStructuredIndex({ brandId, itemId: policyId, type: "policy" });
+  await indexStructuredItem(updated);
 
   return { item: updated };
 }
 
-function createFaq({ brandId, question, answer, tags }) {
+async function createFaq({ brandId, question, answer, tags }) {
   const validationError = validateFaqInput({ question, answer });
   if (validationError) return { error: validationError };
 
@@ -304,12 +304,12 @@ function createFaq({ brandId, question, answer, tags }) {
   const store = readStore();
   store.items.push(faq);
   writeStore(store);
-  indexStructuredItem(faq);
+  await indexStructuredItem(faq);
 
   return { item: faq };
 }
 
-function updateFaq({ brandId, faqId, updates }) {
+async function updateFaq({ brandId, faqId, updates }) {
   const validationError = validateFaqInput(updates, { partial: true });
   if (validationError) return { error: validationError };
 
@@ -333,13 +333,13 @@ function updateFaq({ brandId, faqId, updates }) {
 
   store.items[index] = updated;
   writeStore(store);
-  deleteStructuredIndex({ brandId, itemId: faqId, type: "faq" });
-  indexStructuredItem(updated);
+  await deleteStructuredIndex({ brandId, itemId: faqId, type: "faq" });
+  await indexStructuredItem(updated);
 
   return { item: updated };
 }
 
-function deleteItem({ brandId, itemId, type }) {
+async function deleteItem({ brandId, itemId, type }) {
   const store = readStore();
   const nextItems = store.items.filter(
     (item) => !(item.brandId === brandId && item.type === type && item.id === itemId)
@@ -350,7 +350,7 @@ function deleteItem({ brandId, itemId, type }) {
   }
 
   writeStore({ ...store, items: nextItems });
-  const indexResult = deleteStructuredIndex({ brandId, itemId, type });
+  const indexResult = await deleteStructuredIndex({ brandId, itemId, type });
   return { deleted: true, deletedChunks: indexResult.deletedChunks };
 }
 

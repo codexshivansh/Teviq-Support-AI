@@ -41,7 +41,7 @@ async function processMessage({ brandId, message, customerId = "guest" }) {
 
   const toolResult = routeTools({ brand, intent, entities, message });
   const knowledge = toolResult.allowAI
-    ? retrieveKnowledge({ brandId: brand.brandId, query: message, topK: 5 })
+    ? await retrieveKnowledge({ brandId: brand.brandId, query: message, topK: 5 })
     : null;
   const context = buildContext({
     brand,

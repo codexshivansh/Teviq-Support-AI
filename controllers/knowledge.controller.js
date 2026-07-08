@@ -61,8 +61,8 @@ async function listKnowledgeDocuments(req, res) {
 
   return res.json({
     brandId: brand.brandId,
-    documents: vectorStore.listDocuments(brand.brandId),
-    stats: vectorStore.getStats(brand.brandId)
+    documents: await vectorStore.listDocuments(brand.brandId),
+    stats: await vectorStore.getStats(brand.brandId)
   });
 }
 
@@ -70,10 +70,9 @@ async function deleteKnowledgeDocument(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const document = vectorStore
-    .listDocuments(brand.brandId)
+  const document = (await vectorStore.listDocuments(brand.brandId))
     .find((item) => item.documentId === req.params.documentId);
-  const result = vectorStore.deleteDocument({
+  const result = await vectorStore.deleteDocument({
     brandId: brand.brandId,
     documentId: req.params.documentId
   });
@@ -110,7 +109,7 @@ async function retrieveKnowledgeForDebug(req, res) {
     });
   }
 
-  const result = retrieveKnowledge({
+  const result = await retrieveKnowledge({
     brandId: brand.brandId,
     query,
     topK: Number(req.body?.topK) || 5
@@ -156,7 +155,7 @@ async function createPolicy(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const result = structuredKnowledge.createPolicy({
+  const result = await structuredKnowledge.createPolicy({
     brandId: brand.brandId,
     policyType: req.body?.policyType,
     title: req.body?.title,
@@ -179,7 +178,7 @@ async function updatePolicy(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const result = structuredKnowledge.updatePolicy({
+  const result = await structuredKnowledge.updatePolicy({
     brandId: brand.brandId,
     policyId: req.params.policyId,
     updates: req.body || {}
@@ -201,7 +200,7 @@ async function deletePolicy(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const result = structuredKnowledge.deleteItem({
+  const result = await structuredKnowledge.deleteItem({
     brandId: brand.brandId,
     itemId: req.params.policyId,
     type: "policy"
@@ -243,7 +242,7 @@ async function createFaq(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const result = structuredKnowledge.createFaq({
+  const result = await structuredKnowledge.createFaq({
     brandId: brand.brandId,
     question: req.body?.question,
     answer: req.body?.answer,
@@ -265,7 +264,7 @@ async function updateFaq(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const result = structuredKnowledge.updateFaq({
+  const result = await structuredKnowledge.updateFaq({
     brandId: brand.brandId,
     faqId: req.params.faqId,
     updates: req.body || {}
@@ -287,7 +286,7 @@ async function deleteFaq(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const result = structuredKnowledge.deleteItem({
+  const result = await structuredKnowledge.deleteItem({
     brandId: brand.brandId,
     itemId: req.params.faqId,
     type: "faq"

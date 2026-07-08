@@ -83,14 +83,14 @@ function buildContextText(chunks) {
     .join("\n\n");
 }
 
-function retrieveKnowledge({ brandId, query, topK = 5 }) {
+async function retrieveKnowledge({ brandId, query, topK = 5 }) {
   const queryEmbedding = embedText(query);
-  const matches = vectorStore.search({
+  const matches = (await vectorStore.search({
     brandId,
     queryEmbedding,
     topK: Math.max(topK * 4, 20),
     minScore: MIN_CONFIDENCE
-  }).sort(sortByKnowledgePriority(query)).slice(0, topK);
+  })).sort(sortByKnowledgePriority(query)).slice(0, topK);
 
   const topScore = matches.reduce((max, match) => Math.max(max, match.score || 0), 0);
 

@@ -1,51 +1,89 @@
-const fs = require("fs");
-const path = require("path");
-const { cosineSimilarity } = require("./embedding.service");
+const vectorStorePath = "supabase:knowledge_chunks";
 
-const knowledgeDataDir = path.join(__dirname, "..", "data", "knowledge");
-const vectorStorePath = path.join(knowledgeDataDir, "vector-store.json");
+function getSupabaseConfig() {
+  const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-function ensureStore() {
-  fs.mkdirSync(knowledgeDataDir, { recursive: true });
-  if (!fs.existsSync(vectorStorePath)) {
-    fs.writeFileSync(
-      vectorStorePath,
-      JSON.stringify({ version: 1, documents: [], chunks: [] }, null, 2) + "\n"
-    );
+  if (!url || !serviceRoleKey) {
+    const error = new Error("Supabase vector store is not configured.");
+    error.statusCode = 503;
+    error.code = "supabase_not_configured";
+    throw error;
   }
+
+  return { url, serviceRoleKey };
 }
 
-function readStore() {
-  ensureStore();
-  try {
-    return JSON.parse(fs.readFileSync(vectorStorePath, "utf8"));
-  } catch (error) {
-    console.warn("[knowledge] Failed to read vector store:", error.message);
-    return { version: 1, documents: [], chunks: [] };
-  }
-}
-
-function writeStore(store) {
-  ensureStore();
-  fs.writeFileSync(vectorStorePath, JSON.stringify(store, null, 2) + "\n");
-}
-
-function upsertDocument({ document, chunks }) {
-  const store = readStore();
-  const remainingDocuments = store.documents.filter(
-    (item) => !(item.brandId === document.brandId && item.documentId === document.documentId)
-  );
-  const remainingChunks = store.chunks.filter(
-    (item) => !(item.brandId === document.brandId && item.documentId === document.documentId)
-  );
-
-  store.documents = [...remainingDocuments, document];
-  store.chunks = [...remainingChunks, ...chunks];
-  writeStore(store);
-
+function getHeaders(extra = {}) {
+  const { serviceRoleKey } = getSupabaseConfig();
   return {
-    document,
-    chunkCount: chunks.length
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+    "Content-Type": "application/json",
+    ...extra
+  };
+}
+
+function getRestUrl(path) {
+  const { url } = getSupabaseConfig();
+  return `${url}/rest/v1/${path}`;
+}
+
+function encodeFilter(value) {
+  return encodeURIComponent(String(value || ""));
+}
+
+function formatVector(embedding) {
+  return `[${(embedding || []).map((value) => Number(value) || 0).join(",")}]`;
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(getRestUrl(path), {
+    ...options,
+    headers: getHeaders(options.headers)
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const error = new Error(data?.message || `Supabase vector request failed with ${response.status}`);
+    error.statusCode = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+}
+
+function toDocumentRow(document) {
+  return {
+    document_id: document.documentId,
+    brand_id: document.brandId,
+    title: document.title || "",
+    source_name: document.sourceName || "",
+    stored_file_name: document.storedFileName || "",
+    mime_type: document.mimeType || "",
+    extension: document.extension || "",
+    size_bytes: document.sizeBytes || 0,
+    uploaded_at: document.uploadedAt,
+    chunk_count: document.chunkCount || 0,
+    extraction: document.extraction || {}
+  };
+}
+
+function fromDocumentRow(row) {
+  return {
+    brandId: row.brand_id,
+    documentId: row.document_id,
+    title: row.title,
+    sourceName: row.source_name,
+    storedFileName: row.stored_file_name,
+    mimeType: row.mime_type,
+    extension: row.extension,
+    sizeBytes: row.size_bytes,
+    uploadedAt: row.uploaded_at,
+    chunkCount: row.chunk_count,
+    extraction: row.extraction || {}
   };
 }
 
@@ -53,17 +91,79 @@ function getChunkSourceId(chunk) {
   return chunk.metadata?.source_id || chunk.metadata?.sourceId || chunk.documentId;
 }
 
-function upsertSourceChunks({ brandId, sourceId, sourceType, chunks }) {
-  const store = readStore();
-  const remainingChunks = store.chunks.filter((chunk) => {
-    const sameBrand = chunk.brandId === brandId;
-    const sameSource = getChunkSourceId(chunk) === sourceId;
-    const sameType = !sourceType || chunk.metadata?.source_type === sourceType || chunk.metadata?.sourceType === sourceType;
-    return !(sameBrand && sameSource && sameType);
+function getChunkSourceType(chunk) {
+  return chunk.metadata?.source_type || chunk.metadata?.sourceType || "document";
+}
+
+function toChunkRow(chunk) {
+  const metadata = chunk.metadata || {};
+
+  return {
+    id: chunk.id,
+    brand_id: chunk.brandId,
+    document_id: chunk.documentId || null,
+    source_id: getChunkSourceId(chunk),
+    source_type: getChunkSourceType(chunk),
+    text: chunk.text,
+    metadata,
+    embedding: formatVector(chunk.embedding)
+  };
+}
+
+function fromChunkRow(row) {
+  return {
+    id: row.id,
+    brandId: row.brand_id,
+    documentId: row.document_id,
+    text: row.text,
+    metadata: row.metadata || {},
+    embedding: row.embedding,
+    score: row.score == null ? undefined : Number(row.score)
+  };
+}
+
+async function upsertDocument({ document, chunks }) {
+  const documentRow = toDocumentRow(document);
+  const chunkRows = chunks.map(toChunkRow);
+
+  await request("knowledge_documents?on_conflict=document_id", {
+    method: "POST",
+    headers: {
+      Prefer: "resolution=merge-duplicates"
+    },
+    body: JSON.stringify([documentRow])
   });
 
-  store.chunks = [...remainingChunks, ...chunks];
-  writeStore(store);
+  await request(
+    `knowledge_chunks?brand_id=eq.${encodeFilter(document.brandId)}&document_id=eq.${encodeFilter(document.documentId)}`,
+    {
+      method: "DELETE"
+    }
+  );
+
+  if (chunkRows.length) {
+    await request("knowledge_chunks", {
+      method: "POST",
+      body: JSON.stringify(chunkRows)
+    });
+  }
+
+  return {
+    document,
+    chunkCount: chunks.length
+  };
+}
+
+async function upsertSourceChunks({ brandId, sourceId, sourceType, chunks }) {
+  await deleteChunksBySource({ brandId, sourceId, sourceType });
+
+  const chunkRows = chunks.map(toChunkRow);
+  if (chunkRows.length) {
+    await request("knowledge_chunks", {
+      method: "POST",
+      body: JSON.stringify(chunkRows)
+    });
+  }
 
   return {
     brandId,
@@ -73,73 +173,86 @@ function upsertSourceChunks({ brandId, sourceId, sourceType, chunks }) {
   };
 }
 
-function listDocuments(brandId) {
-  const store = readStore();
-  return store.documents
-    .filter((document) => document.brandId === brandId)
-    .sort((left, right) => String(right.uploadedAt).localeCompare(String(left.uploadedAt)));
+async function listDocuments(brandId) {
+  const rows = await request(
+    `knowledge_documents?brand_id=eq.${encodeFilter(brandId)}&select=*&order=uploaded_at.desc`
+  );
+
+  return (Array.isArray(rows) ? rows : []).map(fromDocumentRow);
 }
 
-function deleteDocument({ brandId, documentId }) {
-  const store = readStore();
-  const beforeDocuments = store.documents.length;
-  const beforeChunks = store.chunks.length;
+async function deleteDocument({ brandId, documentId }) {
+  const deletedDocuments = await request(
+    `knowledge_documents?brand_id=eq.${encodeFilter(brandId)}&document_id=eq.${encodeFilter(documentId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        Prefer: "return=representation"
+      }
+    }
+  );
 
-  store.documents = store.documents.filter(
-    (document) => !(document.brandId === brandId && document.documentId === documentId)
+  const deletedChunks = await request(
+    `knowledge_chunks?brand_id=eq.${encodeFilter(brandId)}&document_id=eq.${encodeFilter(documentId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        Prefer: "return=representation"
+      }
+    }
   );
-  store.chunks = store.chunks.filter(
-    (chunk) => !(chunk.brandId === brandId && chunk.documentId === documentId)
-  );
-  writeStore(store);
 
   return {
-    deleted: beforeDocuments !== store.documents.length,
-    deletedChunks: beforeChunks - store.chunks.length
+    deleted: Array.isArray(deletedDocuments) && deletedDocuments.length > 0,
+    deletedChunks: Array.isArray(deletedChunks) ? deletedChunks.length : 0
   };
 }
 
-function deleteChunksBySource({ brandId, sourceId, sourceType }) {
-  const store = readStore();
-  const beforeChunks = store.chunks.length;
+async function deleteChunksBySource({ brandId, sourceId, sourceType }) {
+  const deletedChunks = await request(
+    [
+      `knowledge_chunks?brand_id=eq.${encodeFilter(brandId)}`,
+      `source_id=eq.${encodeFilter(sourceId)}`,
+      `source_type=eq.${encodeFilter(sourceType)}`
+    ].join("&"),
+    {
+      method: "DELETE",
+      headers: {
+        Prefer: "return=representation"
+      }
+    }
+  );
 
-  store.chunks = store.chunks.filter((chunk) => {
-    const sameBrand = chunk.brandId === brandId;
-    const sameSource = getChunkSourceId(chunk) === sourceId;
-    const sameType = !sourceType || chunk.metadata?.source_type === sourceType || chunk.metadata?.sourceType === sourceType;
-    return !(sameBrand && sameSource && sameType);
+  return {
+    deleted: Array.isArray(deletedChunks) && deletedChunks.length > 0,
+    deletedChunks: Array.isArray(deletedChunks) ? deletedChunks.length : 0
+  };
+}
+
+async function search({ brandId, queryEmbedding, topK = 5, minScore = 0.12 }) {
+  const rows = await request("rpc/match_knowledge_chunks", {
+    method: "POST",
+    body: JSON.stringify({
+      p_brand_id: brandId,
+      p_query_embedding: formatVector(queryEmbedding),
+      p_min_score: minScore,
+      p_match_count: topK
+    })
   });
-  writeStore(store);
 
-  return {
-    deleted: beforeChunks !== store.chunks.length,
-    deletedChunks: beforeChunks - store.chunks.length
-  };
+  return (Array.isArray(rows) ? rows : []).map(fromChunkRow);
 }
 
-function search({ brandId, queryEmbedding, topK = 5, minScore = 0.12 }) {
-  const store = readStore();
-
-  return store.chunks
-    .filter((chunk) => chunk.brandId === brandId)
-    .map((chunk) => ({
-      ...chunk,
-      score: cosineSimilarity(queryEmbedding, chunk.embedding)
-    }))
-    .filter((chunk) => chunk.score >= minScore)
-    .sort((left, right) => right.score - left.score)
-    .slice(0, topK);
-}
-
-function getStats(brandId) {
-  const store = readStore();
-  const documents = store.documents.filter((document) => document.brandId === brandId);
-  const chunks = store.chunks.filter((chunk) => chunk.brandId === brandId);
+async function getStats(brandId) {
+  const [documents, chunks] = await Promise.all([
+    request(`knowledge_documents?brand_id=eq.${encodeFilter(brandId)}&select=document_id`),
+    request(`knowledge_chunks?brand_id=eq.${encodeFilter(brandId)}&select=id`)
+  ]);
 
   return {
     brandId,
-    documentCount: documents.length,
-    chunkCount: chunks.length
+    documentCount: Array.isArray(documents) ? documents.length : 0,
+    chunkCount: Array.isArray(chunks) ? chunks.length : 0
   };
 }
 
