@@ -15,7 +15,7 @@ const {
 } = require("../knowledge/retrieval.service");
 
 async function processMessage({ brandId, message, customerId = "guest" }) {
-  const brand = getBrandById(brandId);
+  const brand = await getBrandById(brandId);
   if (!brand) {
     return {
       statusCode: 404,

@@ -1,11 +1,7 @@
 const { createClerkClient } = require("@clerk/backend");
 const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
-const { brandsDir, getBrandById } = require("../services/brand.service");
+const { brandExists, createBrand, deleteBrand, getBrandById, updateBrand } = require("../services/brand.service");
 
-const secureDataDir = path.join(__dirname, "..", "data", "secure");
-const shopifyConnectionsPath = path.join(secureDataDir, "shopify-connections.json");
 const SHOPIFY_ADMIN_API_VERSION = process.env.SHOPIFY_ADMIN_API_VERSION || "2024-10";
 
 const BRAND_CATEGORIES = new Set([
@@ -32,31 +28,6 @@ function getClerkClient() {
 
 function normalizeText(value) {
   return String(value || "").trim();
-}
-
-function ensureSecureStore() {
-  fs.mkdirSync(secureDataDir, { recursive: true });
-  if (!fs.existsSync(shopifyConnectionsPath)) {
-    fs.writeFileSync(shopifyConnectionsPath, JSON.stringify({ version: 1, connections: [] }, null, 2));
-  }
-}
-
-function readShopifyConnections() {
-  ensureSecureStore();
-  try {
-    const parsed = JSON.parse(fs.readFileSync(shopifyConnectionsPath, "utf8"));
-    return {
-      version: parsed.version || 1,
-      connections: Array.isArray(parsed.connections) ? parsed.connections : []
-    };
-  } catch (error) {
-    return { version: 1, connections: [] };
-  }
-}
-
-function writeShopifyConnections(store) {
-  ensureSecureStore();
-  fs.writeFileSync(shopifyConnectionsPath, JSON.stringify(store, null, 2));
 }
 
 function getCredentialSecret() {
@@ -94,67 +65,6 @@ function slugifyBrandName(brandName) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
-}
-
-function buildInitialBrand({ brandId, brandName, brandCategory, supportLanguage, escalationWhatsapp }) {
-  return {
-    brandId,
-    brandName,
-    industry: brandCategory,
-    tone: `${supportLanguage} first, helpful, concise, professional`,
-    managerContact: {
-      name: `${brandName} Support`,
-      whatsapp: escalationWhatsapp || "",
-      email: "",
-      hours: "Business hours configured by brand owner"
-    },
-    policies: {
-      shipping: "",
-      return: "",
-      exchange: "",
-      cod: "",
-      refund: "",
-      warranty: ""
-    },
-    faqs: [],
-    widgetConfig: {
-      widgetTitle: `${brandName} Help`,
-      welcomeMessage: `Welcome to ${brandName} support. I can help with orders, returns, shipping, or products.`,
-      themeColor: "#0f172a",
-      position: "bottom-right",
-      quickReplies: [
-        "Track my order",
-        "Return / Exchange",
-        "Shipping & Delivery",
-        "Talk to Support"
-      ]
-    },
-    escalationRules: {
-      hardKeywords: [
-        "fraud",
-        "scam",
-        "legal",
-        "police",
-        "consumer court",
-        "abuse"
-      ],
-      response: "This needs priority attention. I am routing this to a senior support specialist."
-    }
-  };
-}
-
-function createInitialBrandFile(brand) {
-  if (!fs.existsSync(brandsDir)) {
-    fs.mkdirSync(brandsDir, { recursive: true });
-  }
-
-  const filePath = path.join(brandsDir, `${brand.brandId}.json`);
-  if (fs.existsSync(filePath)) {
-    return false;
-  }
-
-  fs.writeFileSync(filePath, JSON.stringify(brand, null, 2), { flag: "wx" });
-  return true;
 }
 
 function getMetadataBrandId(metadata = {}) {
@@ -256,52 +166,39 @@ async function validateShopifyCredentials({ storeHost, adminAccessToken }) {
   return data?.data?.shop || {};
 }
 
-function saveShopifyConnection({ brandId, storeHost, adminAccessToken, shop }) {
-  const store = readShopifyConnections();
+async function saveShopifyConnection({ brandId, storeHost, adminAccessToken, shop }) {
   const now = new Date().toISOString();
-  const connection = {
+  const encryptedToken = encryptValue(adminAccessToken);
+
+  await updateBrand(brandId, {
+    shopify_store_url: storeHost,
+    shopify_token_encrypted: JSON.stringify(encryptedToken)
+  });
+
+  return {
     brandId,
     provider: "shopify",
     storeHost,
     shopName: shop.name || storeHost,
     myshopifyDomain: shop.myshopifyDomain || storeHost,
     primaryDomainUrl: shop.primaryDomain?.url || "",
-    encryptedAdminAccessToken: encryptValue(adminAccessToken),
-    connectedAt: now,
-    updatedAt: now
-  };
-
-  store.connections = [
-    ...store.connections.filter((item) => item.brandId !== brandId),
-    connection
-  ];
-  writeShopifyConnections(store);
-
-  return {
-    brandId,
-    provider: connection.provider,
-    storeHost: connection.storeHost,
-    shopName: connection.shopName,
-    myshopifyDomain: connection.myshopifyDomain,
-    primaryDomainUrl: connection.primaryDomainUrl,
-    connectedAt: connection.connectedAt
+    connectedAt: now
   };
 }
 
-function getStoredShopifyConnection(brandId) {
-  const store = readShopifyConnections();
-  const connection = store.connections.find((item) => item.brandId === brandId);
-  if (!connection) return null;
+async function getStoredShopifyConnection(brandId) {
+  const brand = await getBrandById(brandId);
+  if (!brand?.shopifyStoreUrl || !brand?.shopifyTokenEncrypted) return null;
 
   return {
     brandId,
-    provider: connection.provider,
-    storeHost: connection.storeHost,
-    shopName: connection.shopName,
-    myshopifyDomain: connection.myshopifyDomain,
-    primaryDomainUrl: connection.primaryDomainUrl,
-    connectedAt: connection.connectedAt,
-    updatedAt: connection.updatedAt
+    provider: "shopify",
+    storeHost: brand.shopifyStoreUrl,
+    shopName: brand.shopifyStoreUrl,
+    myshopifyDomain: brand.shopifyStoreUrl,
+    primaryDomainUrl: "",
+    connectedAt: null,
+    updatedAt: null
   };
 }
 
@@ -343,25 +240,25 @@ async function saveBrandSetup(req, res, next) {
       });
     }
 
-    const brandFilePath = path.join(brandsDir, `${brandId}.json`);
-    if (getBrandById(brandId) || fs.existsSync(brandFilePath)) {
+    if (await brandExists(brandId)) {
       return res.status(409).json({
         error: "brand_id_conflict",
         message: "This brand ID already exists. Please use a more specific brand name."
       });
     }
 
-    const initialBrand = buildInitialBrand({
-      brandId,
-      brandName,
-      brandCategory,
-      supportLanguage,
-      escalationWhatsapp
-    });
-
-    let createdBrandFile = false;
+    let createdBrand = false;
     try {
-      createdBrandFile = createInitialBrandFile(initialBrand);
+      await createBrand({
+        id: brandId,
+        brand_name: brandName,
+        brand_category: brandCategory,
+        support_language: supportLanguage,
+        escalation_whatsapp: escalationWhatsapp,
+        is_active: true
+      });
+      createdBrand = true;
+
       const publicMetadata = await updateUserPublicMetadata(req.auth.userId, {
         brand_name: brandName,
         brand_category: brandCategory,
@@ -375,8 +272,10 @@ async function saveBrandSetup(req, res, next) {
         publicMetadata
       });
     } catch (error) {
-      if (createdBrandFile) {
-        fs.rm(brandFilePath, { force: true }, () => {});
+      if (createdBrand) {
+        await deleteBrand(brandId).catch((rollbackError) => {
+          console.warn(`[onboarding] Failed to rollback brand ${brandId}: ${rollbackError.message}`);
+        });
       }
       throw error;
     }
@@ -417,7 +316,7 @@ async function getShopifyConnectionStatus(req, res, next) {
     const metadata = await ensureBrandAccess(req, res, brandId);
     if (!metadata) return;
 
-    const connection = getStoredShopifyConnection(brandId);
+    const connection = await getStoredShopifyConnection(brandId);
     return res.json({
       ok: true,
       connected: Boolean(connection),
@@ -461,7 +360,7 @@ async function testShopifyConnection(req, res, next) {
     }
 
     const shop = await validateShopifyCredentials({ storeHost, adminAccessToken });
-    const connection = saveShopifyConnection({
+    const connection = await saveShopifyConnection({
       brandId,
       storeHost,
       adminAccessToken,
@@ -484,7 +383,6 @@ module.exports = {
   completeOnboarding,
   getShopifyConnectionStatus,
   saveBrandSetup,
-  shopifyConnectionsPath,
   slugifyBrandName,
   testShopifyConnection
 };

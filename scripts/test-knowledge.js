@@ -9,7 +9,7 @@ const vectorStore = require("../knowledge/vectorStore.service");
 
 async function run() {
   const brandId = "urban-demo";
-  const brand = getBrandById(brandId);
+  const brand = await getBrandById(brandId);
   if (!brand) {
     throw new Error("urban-demo brand is required for this test.");
   }

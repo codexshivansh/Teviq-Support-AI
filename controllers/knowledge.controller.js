@@ -6,9 +6,9 @@ const { retrieveKnowledge } = require("../knowledge/retrieval.service");
 const vectorStore = require("../knowledge/vectorStore.service");
 const structuredKnowledge = require("../knowledge/structuredKnowledge.service");
 
-function getBrandOrRespond(req, res) {
+async function getBrandOrRespond(req, res) {
   const { brandId } = req.params;
-  const brand = getBrandById(brandId);
+  const brand = await getBrandById(brandId);
 
   if (!brand) {
     res.status(404).json({
@@ -23,7 +23,7 @@ function getBrandOrRespond(req, res) {
 
 async function uploadKnowledgeDocument(req, res, next) {
   try {
-    const brand = getBrandOrRespond(req, res);
+    const brand = await getBrandOrRespond(req, res);
     if (!brand) return;
 
     if (!req.file) {
@@ -55,8 +55,8 @@ async function uploadKnowledgeDocument(req, res, next) {
   }
 }
 
-function listKnowledgeDocuments(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function listKnowledgeDocuments(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   return res.json({
@@ -66,8 +66,8 @@ function listKnowledgeDocuments(req, res) {
   });
 }
 
-function deleteKnowledgeDocument(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function deleteKnowledgeDocument(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const document = vectorStore
@@ -98,8 +98,8 @@ function deleteKnowledgeDocument(req, res) {
   });
 }
 
-function retrieveKnowledgeForDebug(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function retrieveKnowledgeForDebug(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const query = String(req.body?.query || "").trim();
@@ -135,8 +135,8 @@ function retrieveKnowledgeForDebug(req, res) {
   });
 }
 
-function listPolicies(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function listPolicies(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const policies = structuredKnowledge.listItems({
@@ -152,8 +152,8 @@ function listPolicies(req, res) {
   });
 }
 
-function createPolicy(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function createPolicy(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const result = structuredKnowledge.createPolicy({
@@ -175,8 +175,8 @@ function createPolicy(req, res) {
   });
 }
 
-function updatePolicy(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function updatePolicy(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const result = structuredKnowledge.updatePolicy({
@@ -197,8 +197,8 @@ function updatePolicy(req, res) {
   });
 }
 
-function deletePolicy(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function deletePolicy(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const result = structuredKnowledge.deleteItem({
@@ -222,8 +222,8 @@ function deletePolicy(req, res) {
   });
 }
 
-function listFaqs(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function listFaqs(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const faqs = structuredKnowledge.listItems({
@@ -239,8 +239,8 @@ function listFaqs(req, res) {
   });
 }
 
-function createFaq(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function createFaq(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const result = structuredKnowledge.createFaq({
@@ -261,8 +261,8 @@ function createFaq(req, res) {
   });
 }
 
-function updateFaq(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function updateFaq(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const result = structuredKnowledge.updateFaq({
@@ -283,8 +283,8 @@ function updateFaq(req, res) {
   });
 }
 
-function deleteFaq(req, res) {
-  const brand = getBrandOrRespond(req, res);
+async function deleteFaq(req, res) {
+  const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
   const result = structuredKnowledge.deleteItem({

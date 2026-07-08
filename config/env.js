@@ -34,6 +34,14 @@ function validateEnv() {
     );
   }
 
+  if (!process.env.SUPABASE_URL) {
+    console.warn("[env] SUPABASE_URL is missing. Brand lookup will be unavailable.");
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn("[env] SUPABASE_SERVICE_ROLE_KEY is missing. Brand lookup will be unavailable.");
+  }
+
   if (!isProduction() && process.env.ENABLE_DEMO_LOGIN !== "false") {
     console.warn("[env] Demo login bypass is enabled for non-production dashboard presentations.");
   }

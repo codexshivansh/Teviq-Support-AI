@@ -27,7 +27,7 @@ async function handleChat(req, res, next) {
       });
     }
 
-    if (!/^[a-z0-9-]+$/.test(brandId) || !getBrandById(brandId)) {
+    if (!/^[a-z0-9-]+$/.test(brandId) || !(await getBrandById(brandId))) {
       return res.status(403).json({
         reply: "This support widget is not configured for the requested brand.",
         source: "system",

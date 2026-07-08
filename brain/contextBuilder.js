@@ -1,5 +1,3 @@
-const { getPublicBrandConfig } = require("../services/brand.service");
-
 function buildContext({
   brand,
   message,
@@ -15,7 +13,10 @@ function buildContext({
 }) {
   return {
     brand,
-    publicBrandConfig: getPublicBrandConfig(brand.brandId),
+    publicBrandConfig: {
+      brandName: brand.brandName,
+      ...(brand.widgetConfig || {})
+    },
     message,
     customerId,
     analysis,
