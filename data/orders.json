@@ -3,81 +3,108 @@
     "brandId": "vastra-demo",
     "orderId": "TVQ1001",
     "customerId": "guest_123",
+    "customerPhone": "+919876543210",
     "status": "Delivered",
     "items": ["Indigo Cotton Kurta"],
     "trackingText": "It was delivered successfully by BlueDart.",
-    "estimatedUpdate": "Delivered on 20 June 2026"
+    "estimatedUpdate": "Delivered on 20 June 2026",
+    "placedAt": "2026-06-15T10:00:00.000Z",
+    "expectedDeliveryDate": "2026-06-20"
   },
   {
     "brandId": "vastra-demo",
     "orderId": "TVQ1002",
     "customerId": "guest_123",
+    "customerPhone": "+919876543210",
     "status": "Shipped",
     "items": ["Printed Co-ord Set"],
     "trackingText": "It has been shipped and is in transit with Delhivery.",
-    "estimatedUpdate": "Expected delivery by 28 June 2026"
+    "estimatedUpdate": "Expected delivery by 28 June 2026",
+    "placedAt": "2026-06-24T09:00:00.000Z",
+    "expectedDeliveryDate": "2026-06-28"
   },
   {
     "brandId": "vastra-demo",
     "orderId": "TVQ1003",
     "customerId": "guest_456",
+    "customerPhone": "+919876543211",
     "status": "Processing",
     "items": ["Linen Saree"],
     "trackingText": "It is being packed at the warehouse.",
-    "estimatedUpdate": "Expected dispatch within 24-48 hours"
+    "estimatedUpdate": "Expected dispatch within 24-48 hours",
+    "placedAt": "2026-07-08T14:00:00.000Z",
+    "expectedDeliveryDate": "2026-07-15"
   },
   {
     "brandId": "vastra-demo",
     "orderId": "TVQ1004",
     "customerId": "guest_789",
+    "customerPhone": "+919876543212",
     "status": "Cancelled",
     "items": ["Embroidered Dupatta"],
     "trackingText": "This order was cancelled before dispatch.",
-    "estimatedUpdate": "No delivery update is available for cancelled orders"
+    "estimatedUpdate": "No delivery update is available for cancelled orders",
+    "placedAt": "2026-06-10T11:00:00.000Z",
+    "expectedDeliveryDate": "2026-06-15"
   },
   {
     "brandId": "vastra-demo",
     "orderId": "TVQ1005",
     "customerId": "guest_123",
+    "customerPhone": "+919876543210",
     "status": "Out for Delivery",
     "items": ["Ajrakh Maxi Dress"],
     "trackingText": "It is out for delivery with the courier partner today.",
-    "estimatedUpdate": "Expected delivery by end of day"
+    "estimatedUpdate": "Expected delivery by end of day",
+    "placedAt": "2026-07-07T08:00:00.000Z",
+    "expectedDeliveryDate": "2026-07-14"
   },
   {
     "brandId": "urban-demo",
     "orderId": "UGD2001",
     "customerId": "guest_urban",
+    "customerPhone": "+919876543213",
     "status": "Delivered",
     "items": ["MagSafe Power Bank 10K"],
     "trackingText": "It was delivered successfully by Delhivery.",
-    "estimatedUpdate": "Delivered on 22 June 2026"
+    "estimatedUpdate": "Delivered on 22 June 2026",
+    "placedAt": "2026-06-17T10:00:00.000Z",
+    "expectedDeliveryDate": "2026-06-22"
   },
   {
     "brandId": "urban-demo",
     "orderId": "UGD2002",
     "customerId": "guest_urban",
+    "customerPhone": "+919876543213",
     "status": "Shipped",
     "items": ["USB-C Braided Cable Pack"],
     "trackingText": "It is in transit with the courier partner.",
-    "estimatedUpdate": "Expected delivery by 29 June 2026"
+    "estimatedUpdate": "Expected delivery by 29 June 2026",
+    "placedAt": "2026-06-25T09:00:00.000Z",
+    "expectedDeliveryDate": "2026-06-29"
   },
   {
     "brandId": "beauty-demo",
     "orderId": "GCB3001",
     "customerId": "guest_beauty",
+    "customerPhone": "+919876543214",
     "status": "Delivered",
     "items": ["Vitamin C Glow Serum"],
     "trackingText": "It was delivered successfully by Ecom Express.",
-    "estimatedUpdate": "Delivered on 21 June 2026"
+    "estimatedUpdate": "Delivered on 21 June 2026",
+    "placedAt": "2026-06-16T10:00:00.000Z",
+    "expectedDeliveryDate": "2026-06-21"
   },
   {
     "brandId": "beauty-demo",
     "orderId": "GCB3002",
     "customerId": "guest_beauty",
+    "customerPhone": "+919876543214",
     "status": "Processing",
     "items": ["Barrier Repair Moisturizer"],
     "trackingText": "It is being packed at the warehouse.",
-    "estimatedUpdate": "Expected dispatch within 24 hours"
+    "estimatedUpdate": "Expected dispatch within 24 hours",
+    "placedAt": "2026-07-01T12:00:00.000Z",
+    "expectedDeliveryDate": "2026-07-05"
   }
 ]

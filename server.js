@@ -9,9 +9,11 @@ const brandConfigRoutes = require("./routes/brand-config.routes");
 const knowledgeRoutes = require("./routes/knowledge.routes");
 const onboardingRoutes = require("./routes/onboarding.routes");
 const shopifyRoutes = require("./routes/shopify.routes");
+const internalRoutes = require("./routes/internal.routes");
 const { corsOptions } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
 const { requireClerkAuth } = require("./middleware/clerkAuth.middleware");
+const { requireInternalCronSecret } = require("./middleware/internalCron.middleware");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
@@ -55,6 +57,7 @@ app.use("/api/knowledge", requireClerkAuth, knowledgeRoutes);
 app.use("/api/integrations/shopify", requireClerkAuth, shopifyRoutes);
 app.use("/api/onboarding", requireClerkAuth, onboardingRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
+app.use("/internal", requireInternalCronSecret, internalRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

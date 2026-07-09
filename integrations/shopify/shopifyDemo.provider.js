@@ -96,6 +96,7 @@ function getStoreSummary(brandId) {
 
 module.exports = {
   getOrderById,
+  getOrders,
   getProducts,
   getProductByName,
   getStoreSummary
