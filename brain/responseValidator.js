@@ -30,6 +30,22 @@ function validateResponse({ reply, context, source, escalated }) {
     finalReply = "Sorry, I could not prepare a response. Please try again.";
   }
 
+  if (escalated) {
+    if (!hasManagerContact(finalReply, context.brand)) {
+      warnings.push("manager_contact_added");
+      const contact = context.brand.managerContact || {};
+      finalReply = [finalReply, contact.whatsapp && `WhatsApp: ${contact.whatsapp}`, contact.email && `Email: ${contact.email}`]
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    return {
+      valid: warnings.length === 0,
+      finalReply: trimToWordLimit(finalReply),
+      warnings
+    };
+  }
+
   if (context.order && !finalReply.includes(context.order.status)) {
     warnings.push("order_status_not_mentioned");
   }
@@ -37,14 +53,6 @@ function validateResponse({ reply, context, source, escalated }) {
   if (/refund (is|will be|has been|confirmed|approved)/i.test(finalReply) && !context.policyResult?.allowed) {
     warnings.push("refund_promise_removed");
     finalReply = context.policyResult?.reply || "Refunds depend on policy checks and team approval. I cannot confirm a refund yet.";
-  }
-
-  if (escalated && !hasManagerContact(finalReply, context.brand)) {
-    warnings.push("manager_contact_added");
-    const contact = context.brand.managerContact || {};
-    finalReply = [finalReply, contact.whatsapp && `WhatsApp: ${contact.whatsapp}`, contact.email && `Email: ${contact.email}`]
-      .filter(Boolean)
-      .join(" ");
   }
 
   if (

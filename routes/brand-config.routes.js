@@ -1,10 +1,12 @@
 const express = require("express");
 const { getPublicBrandConfig } = require("../services/brand.service");
+const { asyncHandler } = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
-router.get("/:brandId", async (req, res, next) => {
-  try {
+router.get(
+  "/:brandId",
+  asyncHandler(async (req, res) => {
     const config = await getPublicBrandConfig(req.params.brandId);
 
     if (!config) {
@@ -15,9 +17,7 @@ router.get("/:brandId", async (req, res, next) => {
     }
 
     return res.json(config);
-  } catch (error) {
-    next(error);
-  }
-});
+  })
+);
 
 module.exports = router;

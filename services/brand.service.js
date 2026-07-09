@@ -72,6 +72,18 @@ async function requestSupabase(path, options = {}) {
   return { data, ok: true, status: response.status };
 }
 
+async function callSupabaseSafely(operationLabel, path, options) {
+  try {
+    return await requestSupabase(path, options);
+  } catch (error) {
+    console.error(`[brand] ${operationLabel} failed: ${error.message}`);
+    const wrapped = new Error(`${operationLabel} failed: ${error.message}`);
+    wrapped.statusCode = error.statusCode || 503;
+    wrapped.code = error.code || "brand_supabase_error";
+    throw wrapped;
+  }
+}
+
 function validateBrandRow(row) {
   const missingFields = REQUIRED_FIELDS.filter((field) => row?.[field] == null);
 
@@ -142,7 +154,10 @@ async function getBrandById(brandId) {
   if (!isSafeBrandId(brandId)) return null;
 
   const encodedId = encodeURIComponent(brandId);
-  const { data } = await requestSupabase(`?id=eq.${encodedId}&is_active=eq.true&select=*`);
+  const { data } = await callSupabaseSafely(
+    `Brand lookup for "${brandId}"`,
+    `?id=eq.${encodedId}&is_active=eq.true&select=*`
+  );
   const row = Array.isArray(data) ? data[0] : null;
 
   if (!row) return null;
@@ -160,7 +175,10 @@ async function brandExists(brandId) {
   if (!isSafeBrandId(brandId)) return false;
 
   const encodedId = encodeURIComponent(brandId);
-  const { data } = await requestSupabase(`?id=eq.${encodedId}&select=id`);
+  const { data } = await callSupabaseSafely(
+    `Brand existence check for "${brandId}"`,
+    `?id=eq.${encodedId}&select=id`
+  );
   return Array.isArray(data) && data.length > 0;
 }
 
@@ -182,7 +200,7 @@ async function createBrand(brandData) {
     is_active: brandData.is_active !== false
   };
 
-  const { data } = await requestSupabase("", {
+  const { data } = await callSupabaseSafely(`Brand creation for "${brandData.id}"`, "", {
     method: "POST",
     headers: {
       Prefer: "return=representation"
@@ -218,7 +236,7 @@ async function updateBrand(brandId, updates) {
   });
 
   const encodedId = encodeURIComponent(brandId);
-  const { data } = await requestSupabase(`?id=eq.${encodedId}`, {
+  const { data } = await callSupabaseSafely(`Brand update for "${brandId}"`, `?id=eq.${encodedId}`, {
     method: "PATCH",
     headers: {
       Prefer: "return=representation"
@@ -233,7 +251,7 @@ async function deleteBrand(brandId) {
   if (!isSafeBrandId(brandId)) return false;
 
   const encodedId = encodeURIComponent(brandId);
-  await requestSupabase(`?id=eq.${encodedId}`, {
+  await callSupabaseSafely(`Brand deletion for "${brandId}"`, `?id=eq.${encodedId}`, {
     method: "DELETE"
   });
 
@@ -256,7 +274,7 @@ async function getPublicBrandConfig(brandId) {
 }
 
 async function listBrands() {
-  const { data } = await requestSupabase("?select=*&order=created_at.asc");
+  const { data } = await callSupabaseSafely("Brand list", "?select=*&order=created_at.asc");
   return (Array.isArray(data) ? data : []).map(normalizeBrand).filter(Boolean);
 }
 
