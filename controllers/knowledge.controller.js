@@ -1,25 +1,10 @@
 const fs = require("fs");
-const { getBrandById } = require("../services/brand.service");
 const { buildUploadMetadata, uploadRoot } = require("../knowledge/upload.service");
 const { ingestKnowledgeDocument } = require("../knowledge/knowledge.service");
 const { retrieveKnowledge } = require("../knowledge/retrieval.service");
 const vectorStore = require("../knowledge/vectorStore.service");
 const structuredKnowledge = require("../knowledge/structuredKnowledge.service");
-
-async function getBrandOrRespond(req, res) {
-  const { brandId } = req.params;
-  const brand = await getBrandById(brandId);
-
-  if (!brand) {
-    res.status(404).json({
-      error: "brand_not_found",
-      message: "Brand not found."
-    });
-    return null;
-  }
-
-  return brand;
-}
+const { getBrandOrRespond } = require("./helpers/brandLookup");
 
 async function uploadKnowledgeDocument(req, res, next) {
   try {
@@ -138,7 +123,7 @@ async function listPolicies(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const policies = structuredKnowledge.listItems({
+  const policies = await structuredKnowledge.listItems({
     brandId: brand.brandId,
     type: "policy",
     search: req.query?.search
@@ -147,7 +132,7 @@ async function listPolicies(req, res) {
   return res.json({
     brandId: brand.brandId,
     policies,
-    stats: structuredKnowledge.getStructuredStats(brand.brandId)
+    stats: await structuredKnowledge.getStructuredStats(brand.brandId)
   });
 }
 
@@ -164,7 +149,8 @@ async function createPolicy(req, res) {
   });
 
   if (result.error) {
-    return res.status(400).json(result.error);
+    const status = result.error.error === "indexing_failed" ? 500 : 400;
+    return res.status(status).json(result.error);
   }
 
   return res.status(201).json({
@@ -185,7 +171,12 @@ async function updatePolicy(req, res) {
   });
 
   if (result.error) {
-    const status = result.error.error === "policy_not_found" ? 404 : 400;
+    const status =
+      result.error.error === "policy_not_found"
+        ? 404
+        : ["indexing_failed", "save_failed"].includes(result.error.error)
+          ? 500
+          : 400;
     return res.status(status).json(result.error);
   }
 
@@ -225,7 +216,7 @@ async function listFaqs(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const faqs = structuredKnowledge.listItems({
+  const faqs = await structuredKnowledge.listItems({
     brandId: brand.brandId,
     type: "faq",
     search: req.query?.search
@@ -234,7 +225,7 @@ async function listFaqs(req, res) {
   return res.json({
     brandId: brand.brandId,
     faqs,
-    stats: structuredKnowledge.getStructuredStats(brand.brandId)
+    stats: await structuredKnowledge.getStructuredStats(brand.brandId)
   });
 }
 
@@ -250,7 +241,8 @@ async function createFaq(req, res) {
   });
 
   if (result.error) {
-    return res.status(400).json(result.error);
+    const status = result.error.error === "indexing_failed" ? 500 : 400;
+    return res.status(status).json(result.error);
   }
 
   return res.status(201).json({
@@ -271,7 +263,12 @@ async function updateFaq(req, res) {
   });
 
   if (result.error) {
-    const status = result.error.error === "faq_not_found" ? 404 : 400;
+    const status =
+      result.error.error === "faq_not_found"
+        ? 404
+        : ["indexing_failed", "save_failed"].includes(result.error.error)
+          ? 500
+          : 400;
     return res.status(status).json(result.error);
   }
 

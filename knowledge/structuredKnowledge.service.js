@@ -1,12 +1,7 @@
-const fs = require("fs");
-const path = require("path");
 const crypto = require("crypto");
 const { chunkText } = require("./chunking.service");
-const { embedChunks } = require("./embedding.service");
+const { embedBatchForStorage } = require("./embedding.service");
 const vectorStore = require("./vectorStore.service");
-
-const knowledgeDataDir = path.join(__dirname, "..", "data", "knowledge");
-const structuredKnowledgePath = path.join(knowledgeDataDir, "structured-knowledge.json");
 
 const POLICY_TYPES = new Set([
   "return",
@@ -20,33 +15,92 @@ const POLICY_TYPES = new Set([
   "custom"
 ]);
 
-function ensureStore() {
-  if (!fs.existsSync(knowledgeDataDir)) {
-    fs.mkdirSync(knowledgeDataDir, { recursive: true });
+function getSupabaseConfig() {
+  const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+  if (!url || !serviceRoleKey) {
+    const error = new Error("Supabase structured knowledge store is not configured.");
+    error.statusCode = 503;
+    error.code = "supabase_not_configured";
+    throw error;
   }
 
-  if (!fs.existsSync(structuredKnowledgePath)) {
-    fs.writeFileSync(structuredKnowledgePath, JSON.stringify({ version: 1, items: [] }, null, 2));
-  }
+  return { url, serviceRoleKey };
 }
 
-function readStore() {
-  ensureStore();
-  try {
-    const raw = fs.readFileSync(structuredKnowledgePath, "utf8");
-    const parsed = JSON.parse(raw);
-    return {
-      version: parsed.version || 1,
-      items: Array.isArray(parsed.items) ? parsed.items : []
-    };
-  } catch (error) {
-    return { version: 1, items: [] };
-  }
+function getHeaders(extra = {}) {
+  const { serviceRoleKey } = getSupabaseConfig();
+  return {
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+    "Content-Type": "application/json",
+    ...extra
+  };
 }
 
-function writeStore(store) {
-  ensureStore();
-  fs.writeFileSync(structuredKnowledgePath, JSON.stringify(store, null, 2));
+function getRestUrl(path) {
+  const { url } = getSupabaseConfig();
+  return `${url}/rest/v1/structured_knowledge${path}`;
+}
+
+function encodeFilter(value) {
+  return encodeURIComponent(String(value || ""));
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(getRestUrl(path), {
+    ...options,
+    headers: getHeaders(options.headers)
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const error = new Error(data?.message || `Supabase structured_knowledge request failed with ${response.status}`);
+    error.statusCode = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+}
+
+function toRow(item) {
+  return {
+    id: item.id,
+    brand_id: item.brandId,
+    type: item.type,
+    source: item.source || "manual",
+    question: item.question ?? null,
+    answer: item.answer ?? null,
+    policy_type: item.policyType ?? null,
+    title: item.title ?? null,
+    content: item.content ?? null,
+    tags: item.tags || [],
+    metadata: item.metadata || {},
+    created_at: item.createdAt,
+    updated_at: item.updatedAt
+  };
+}
+
+function fromRow(row) {
+  const base = {
+    id: row.id,
+    brandId: row.brand_id,
+    type: row.type,
+    source: row.source,
+    tags: row.tags || [],
+    metadata: row.metadata || {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+
+  if (row.type === "faq") {
+    return { ...base, question: row.question, answer: row.answer };
+  }
+
+  return { ...base, policyType: row.policy_type, title: row.title, content: row.content };
 }
 
 function createId(type) {
@@ -193,7 +247,8 @@ async function indexStructuredItem(item) {
   const chunks = chunkText(getStructuredText(item), getSourceMetadata(item)).map((chunk) =>
     decorateStructuredChunk(chunk, item)
   );
-  const embeddedChunks = embedChunks(chunks);
+  const embeddingValues = await embedBatchForStorage(chunks.map((chunk) => chunk.text));
+  const embeddedChunks = chunks.map((chunk, index) => ({ ...chunk, embedding: embeddingValues[index] }));
 
   return vectorStore.upsertSourceChunks({
     brandId: item.brandId,
@@ -211,12 +266,14 @@ async function deleteStructuredIndex({ brandId, itemId, type }) {
   });
 }
 
-function listItems({ brandId, type, search = "" }) {
-  const store = readStore();
-  return store.items
-    .filter((item) => item.brandId === brandId && item.type === type)
-    .filter((item) => itemMatchesSearch(item, search))
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+async function listItems({ brandId, type, search = "" }) {
+  const rows = await request(
+    `?brand_id=eq.${encodeFilter(brandId)}&type=eq.${encodeFilter(type)}&select=*&order=updated_at.desc`
+  );
+
+  return (Array.isArray(rows) ? rows : [])
+    .map(fromRow)
+    .filter((item) => itemMatchesSearch(item, search));
 }
 
 async function createPolicy({ brandId, policyType, title, content, tags }) {
@@ -241,10 +298,38 @@ async function createPolicy({ brandId, policyType, title, content, tags }) {
     updatedAt: now
   };
 
-  const store = readStore();
-  store.items.push(policy);
-  writeStore(store);
-  await indexStructuredItem(policy);
+  try {
+    await indexStructuredItem(policy);
+  } catch (error) {
+    console.error(
+      `[structuredKnowledge] Failed to index policy "${policy.title}" (${policy.id}) for brand "${brandId}" in Supabase: ${error.message}`
+    );
+    return {
+      error: {
+        error: "indexing_failed",
+        message: "Policy could not be saved because indexing failed. Please try again."
+      }
+    };
+  }
+
+  try {
+    await request("", { method: "POST", body: JSON.stringify(toRow(policy)) });
+  } catch (error) {
+    console.error(
+      `[structuredKnowledge] Failed to save policy record for "${policy.id}" after indexing succeeded — rolling back chunk: ${error.message}`
+    );
+    await deleteStructuredIndex({ brandId, itemId: policy.id, type: "policy" }).catch((rollbackError) => {
+      console.error(
+        `[structuredKnowledge] Rollback of orphaned chunk also failed for "${policy.id}": ${rollbackError.message}`
+      );
+    });
+    return {
+      error: {
+        error: "save_failed",
+        message: "Policy could not be saved. Please try again."
+      }
+    };
+  }
 
   return { item: policy };
 }
@@ -253,16 +338,15 @@ async function updatePolicy({ brandId, policyId, updates }) {
   const validationError = validatePolicyInput(updates, { partial: true });
   if (validationError) return { error: validationError };
 
-  const store = readStore();
-  const index = store.items.findIndex(
-    (item) => item.brandId === brandId && item.type === "policy" && item.id === policyId
+  const rows = await request(
+    `?brand_id=eq.${encodeFilter(brandId)}&type=eq.policy&id=eq.${encodeFilter(policyId)}&select=*`
   );
+  const current = Array.isArray(rows) && rows.length ? fromRow(rows[0]) : null;
 
-  if (index === -1) {
+  if (!current) {
     return { error: { error: "policy_not_found", message: "Policy not found for this brand." } };
   }
 
-  const current = store.items[index];
   const updated = {
     ...current,
     policyType: updates.policyType !== undefined ? normalizePolicyType(updates.policyType) : current.policyType,
@@ -272,10 +356,41 @@ async function updatePolicy({ brandId, policyId, updates }) {
     updatedAt: new Date().toISOString()
   };
 
-  store.items[index] = updated;
-  writeStore(store);
-  await deleteStructuredIndex({ brandId, itemId: policyId, type: "policy" });
-  await indexStructuredItem(updated);
+  try {
+    await indexStructuredItem(updated);
+  } catch (error) {
+    console.error(
+      `[structuredKnowledge] Failed to reindex policy "${policyId}" for brand "${brandId}" — structured record left unchanged: ${error.message}`
+    );
+    return {
+      error: {
+        error: "indexing_failed",
+        message: "Policy could not be updated because indexing failed. Please try again."
+      }
+    };
+  }
+
+  try {
+    await request(`?id=eq.${encodeFilter(policyId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(toRow(updated))
+    });
+  } catch (error) {
+    console.error(
+      `[structuredKnowledge] Failed to save updated policy record for "${policyId}" after reindexing succeeded — reverting chunk to previous content: ${error.message}`
+    );
+    await indexStructuredItem(current).catch((revertError) => {
+      console.error(
+        `[structuredKnowledge] Revert-to-previous-content also failed for "${policyId}": ${revertError.message}`
+      );
+    });
+    return {
+      error: {
+        error: "save_failed",
+        message: "Policy could not be saved. Please try again."
+      }
+    };
+  }
 
   return { item: updated };
 }
@@ -301,10 +416,38 @@ async function createFaq({ brandId, question, answer, tags }) {
     updatedAt: now
   };
 
-  const store = readStore();
-  store.items.push(faq);
-  writeStore(store);
-  await indexStructuredItem(faq);
+  try {
+    await indexStructuredItem(faq);
+  } catch (error) {
+    console.error(
+      `[structuredKnowledge] Failed to index FAQ "${faq.question}" (${faq.id}) for brand "${brandId}" in Supabase: ${error.message}`
+    );
+    return {
+      error: {
+        error: "indexing_failed",
+        message: "FAQ could not be saved because indexing failed. Please try again."
+      }
+    };
+  }
+
+  try {
+    await request("", { method: "POST", body: JSON.stringify(toRow(faq)) });
+  } catch (error) {
+    console.error(
+      `[structuredKnowledge] Failed to save FAQ record for "${faq.id}" after indexing succeeded — rolling back chunk: ${error.message}`
+    );
+    await deleteStructuredIndex({ brandId, itemId: faq.id, type: "faq" }).catch((rollbackError) => {
+      console.error(
+        `[structuredKnowledge] Rollback of orphaned chunk also failed for "${faq.id}": ${rollbackError.message}`
+      );
+    });
+    return {
+      error: {
+        error: "save_failed",
+        message: "FAQ could not be saved. Please try again."
+      }
+    };
+  }
 
   return { item: faq };
 }
@@ -313,16 +456,15 @@ async function updateFaq({ brandId, faqId, updates }) {
   const validationError = validateFaqInput(updates, { partial: true });
   if (validationError) return { error: validationError };
 
-  const store = readStore();
-  const index = store.items.findIndex(
-    (item) => item.brandId === brandId && item.type === "faq" && item.id === faqId
+  const rows = await request(
+    `?brand_id=eq.${encodeFilter(brandId)}&type=eq.faq&id=eq.${encodeFilter(faqId)}&select=*`
   );
+  const current = Array.isArray(rows) && rows.length ? fromRow(rows[0]) : null;
 
-  if (index === -1) {
+  if (!current) {
     return { error: { error: "faq_not_found", message: "FAQ not found for this brand." } };
   }
 
-  const current = store.items[index];
   const updated = {
     ...current,
     question: updates.question !== undefined ? normalizeString(updates.question) : current.question,
@@ -331,32 +473,65 @@ async function updateFaq({ brandId, faqId, updates }) {
     updatedAt: new Date().toISOString()
   };
 
-  store.items[index] = updated;
-  writeStore(store);
-  await deleteStructuredIndex({ brandId, itemId: faqId, type: "faq" });
-  await indexStructuredItem(updated);
+  try {
+    await indexStructuredItem(updated);
+  } catch (error) {
+    console.error(
+      `[structuredKnowledge] Failed to reindex FAQ "${faqId}" for brand "${brandId}" — structured record left unchanged: ${error.message}`
+    );
+    return {
+      error: {
+        error: "indexing_failed",
+        message: "FAQ could not be updated because indexing failed. Please try again."
+      }
+    };
+  }
+
+  try {
+    await request(`?id=eq.${encodeFilter(faqId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(toRow(updated))
+    });
+  } catch (error) {
+    console.error(
+      `[structuredKnowledge] Failed to save updated FAQ record for "${faqId}" after reindexing succeeded — reverting chunk to previous content: ${error.message}`
+    );
+    await indexStructuredItem(current).catch((revertError) => {
+      console.error(
+        `[structuredKnowledge] Revert-to-previous-content also failed for "${faqId}": ${revertError.message}`
+      );
+    });
+    return {
+      error: {
+        error: "save_failed",
+        message: "FAQ could not be saved. Please try again."
+      }
+    };
+  }
 
   return { item: updated };
 }
 
 async function deleteItem({ brandId, itemId, type }) {
-  const store = readStore();
-  const nextItems = store.items.filter(
-    (item) => !(item.brandId === brandId && item.type === type && item.id === itemId)
+  const deletedRows = await request(
+    `?brand_id=eq.${encodeFilter(brandId)}&type=eq.${encodeFilter(type)}&id=eq.${encodeFilter(itemId)}`,
+    {
+      method: "DELETE",
+      headers: { Prefer: "return=representation" }
+    }
   );
 
-  if (nextItems.length === store.items.length) {
+  if (!Array.isArray(deletedRows) || deletedRows.length === 0) {
     return { deleted: false };
   }
 
-  writeStore({ ...store, items: nextItems });
   const indexResult = await deleteStructuredIndex({ brandId, itemId, type });
   return { deleted: true, deletedChunks: indexResult.deletedChunks };
 }
 
-function getStructuredStats(brandId) {
-  const store = readStore();
-  const brandItems = store.items.filter((item) => item.brandId === brandId);
+async function getStructuredStats(brandId) {
+  const rows = await request(`?brand_id=eq.${encodeFilter(brandId)}&select=type`);
+  const brandItems = Array.isArray(rows) ? rows : [];
 
   return {
     policyCount: brandItems.filter((item) => item.type === "policy").length,
@@ -375,6 +550,5 @@ module.exports = {
   deleteStructuredIndex,
   getStructuredStats,
   indexStructuredItem,
-  listItems,
-  structuredKnowledgePath
+  listItems
 };
