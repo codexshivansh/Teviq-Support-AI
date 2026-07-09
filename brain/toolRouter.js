@@ -26,6 +26,14 @@ function buildOrderTrackingReply(order, brand, entities) {
 }
 
 function buildKnowledgeReply(brand, intent) {
+  if (intent === "discount_query") {
+    return "I do not see a confirmed discount code in the current brand data. Please check the website banner or share a coupon code to verify.";
+  }
+
+  return null;
+}
+
+function getIntentFallbackReply(brand, intent) {
   const policies = brand.policies || {};
 
   if (intent === "shipping_policy") {
@@ -43,10 +51,6 @@ function buildKnowledgeReply(brand, intent) {
 
   if (intent === "size_help") {
     return policies.size || "Please check the product size guide. If you are between sizes, choose the larger size.";
-  }
-
-  if (intent === "discount_query") {
-    return "I do not see a confirmed discount code in the current brand data. Please check the website banner or share a coupon code to verify.";
   }
 
   return null;
@@ -156,7 +160,8 @@ function routeTools({ brand, intent, entities, message }) {
     order,
     policyResult: null,
     leadState: null,
-    reply: null
+    reply: null,
+    fallbackReply: getIntentFallbackReply(brand, intent)
   };
 }
 
