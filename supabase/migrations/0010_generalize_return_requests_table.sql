@@ -1,0 +1,34 @@
+-- Migration 0010: Generalize return_requests for cancellation requests too
+-- (F2 Phase 1)
+--
+-- Additive. Adds a `request_type` discriminator so this one table can hold
+-- both return requests and cancellation requests, matching the same
+-- discriminated-table pattern already used by knowledge_chunks
+-- (source_type: faq/policy/document) and structured_knowledge (type:
+-- faq/policy) elsewhere in this schema.
+--
+-- Assessment on column reuse (no renames in this migration):
+--   - `line_items` stays return-specific — cancellation acts on the whole
+--     order, not specific fulfillment line items, so cancellation rows will
+--     simply always have `line_items = '[]'`. Harmless unused column for
+--     that row type, not worth a schema change to special-case.
+--   - `shopify_return_id` is kept as-is and reused generically rather than
+--     renamed. For return rows it holds a Shopify Return GID; for
+--     cancellation rows it will hold the Shopify Job GID that orderCancel
+--     returns (cancellation is processed asynchronously as a Job, not a
+--     Return object). It's a plain text column either way, so this works
+--     without a schema change — a rename (e.g. to `shopify_reference_id`)
+--     would touch existing app code (returnRequestRecord.service.js) for no
+--     functional benefit at 2 request types. Worth revisiting if a third,
+--     meaningfully different request type is ever added.
+--   - `status` enum (pending/shopify_submitted/shopify_failed/approved/
+--     declined) is reused as-is — the same lifecycle applies to both
+--     request types.
+--
+-- Existing rows (if any) default to request_type='return', which is
+-- correct — every row created before this migration was a return.
+--
+-- Rollback: see 0010_rollback_generalize_return_requests_table.sql
+
+alter table public.return_requests
+  add column if not exists request_type text not null default 'return' check (request_type in ('return', 'cancellation'));
