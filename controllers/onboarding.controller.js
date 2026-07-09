@@ -1,6 +1,6 @@
-const { createClerkClient } = require("@clerk/backend");
-const crypto = require("crypto");
 const { brandExists, createBrand, deleteBrand, getBrandById, updateBrand } = require("../services/brand.service");
+const { getClerkClient, getMetadataBrandId, getUserPublicMetadata } = require("../services/clerkMetadata.service");
+const { encryptValue } = require("../services/shopifyCredentials.service");
 
 const SHOPIFY_ADMIN_API_VERSION = process.env.SHOPIFY_ADMIN_API_VERSION || "2024-10";
 
@@ -15,44 +15,8 @@ const BRAND_CATEGORIES = new Set([
 
 const SUPPORT_LANGUAGES = new Set(["Hindi", "English", "Hinglish"]);
 
-function getClerkClient() {
-  if (!process.env.CLERK_SECRET_KEY) {
-    const error = new Error("Clerk secret key is not configured.");
-    error.statusCode = 503;
-    error.code = "auth_not_configured";
-    throw error;
-  }
-
-  return createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-}
-
 function normalizeText(value) {
   return String(value || "").trim();
-}
-
-function getCredentialSecret() {
-  const secret = process.env.SHOPIFY_CREDENTIALS_SECRET || process.env.CLERK_SECRET_KEY || "";
-  if (!secret) {
-    const error = new Error("Shopify credential encryption is not configured.");
-    error.statusCode = 503;
-    error.code = "credential_storage_not_configured";
-    throw error;
-  }
-  return crypto.createHash("sha256").update(secret).digest();
-}
-
-function encryptValue(value) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", getCredentialSecret(), iv);
-  const encrypted = Buffer.concat([cipher.update(String(value), "utf8"), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-
-  return {
-    algorithm: "aes-256-gcm",
-    iv: iv.toString("base64"),
-    authTag: authTag.toString("base64"),
-    value: encrypted.toString("base64")
-  };
 }
 
 function slugifyBrandName(brandName) {
@@ -67,10 +31,6 @@ function slugifyBrandName(brandName) {
     .slice(0, 60);
 }
 
-function getMetadataBrandId(metadata = {}) {
-  return metadata.brandId || metadata.brand_id || metadata.workspaceBrandId || metadata.workspace_brand_id || "";
-}
-
 function ensureClerkSession(req, res) {
   if (!req.auth?.userId || req.auth.sessionType === "demo") {
     res.status(403).json({
@@ -81,12 +41,6 @@ function ensureClerkSession(req, res) {
   }
 
   return true;
-}
-
-async function getUserPublicMetadata(userId) {
-  const clerkClient = getClerkClient();
-  const user = await clerkClient.users.getUser(userId);
-  return user.publicMetadata || {};
 }
 
 async function ensureBrandAccess(req, res, brandId) {

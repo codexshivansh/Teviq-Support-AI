@@ -1,18 +1,5 @@
-const { getBrandById } = require("../services/brand.service");
 const shopifySyncService = require("../integrations/shopify/shopifySync.service");
-
-async function getBrandOrRespond(req, res) {
-  const brand = await getBrandById(req.params.brandId);
-  if (!brand) {
-    res.status(404).json({
-      error: "brand_not_found",
-      message: "Brand not found."
-    });
-    return null;
-  }
-
-  return brand;
-}
+const { getBrandOrRespond } = require("./helpers/brandLookup");
 
 async function getStatus(req, res) {
   const brand = await getBrandOrRespond(req, res);
