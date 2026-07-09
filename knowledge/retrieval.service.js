@@ -1,8 +1,8 @@
-const { embedText } = require("./embedding.service");
+const { embedForQuery } = require("./embedding.service");
 const vectorStore = require("./vectorStore.service");
 
-const HIGH_CONFIDENCE = 0.34;
-const MIN_CONFIDENCE = 0.16;
+const HIGH_CONFIDENCE = 0.80;
+const MIN_CONFIDENCE = 0.74;
 
 const SOURCE_PRIORITY = {
   faq: 0,
@@ -84,7 +84,23 @@ function buildContextText(chunks) {
 }
 
 async function retrieveKnowledge({ brandId, query, topK = 5 }) {
-  const queryEmbedding = embedText(query);
+  let queryEmbedding;
+  try {
+    queryEmbedding = await embedForQuery(query);
+  } catch (error) {
+    console.error(`[retrieval] embedForQuery failed for brand "${brandId}": ${error.message}`);
+    return {
+      brandId,
+      query,
+      confidence: 0,
+      confidenceLabel: "low",
+      lowConfidence: true,
+      matches: [],
+      citations: [],
+      contextText: ""
+    };
+  }
+
   console.log("[RETRIEVAL] Calling RPC for brand:", brandId, "query:", query);
   const matches = (await vectorStore.search({
     brandId,
@@ -110,7 +126,7 @@ async function retrieveKnowledge({ brandId, query, topK = 5 }) {
 
 function shouldBlockAIForLowConfidence({ intent, knowledgeResult }) {
   if (!knowledgeResult?.lowConfidence) return false;
-  return ["unknown", "product_recommendation"].includes(intent);
+  return ["unknown", "product_recommendation", "size_help", "payment_cod", "shipping_policy"].includes(intent);
 }
 
 function buildLowConfidenceReply(brand) {

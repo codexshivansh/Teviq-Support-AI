@@ -1,0 +1,56 @@
+-- Migration 0001: Add 768-dimension embedding_v2 column (Gemini embedding migration, Phase 3)
+--
+-- Additive only. Does NOT touch:
+--   - the existing `embedding` column (256-dim, hash-based embeddings)
+--   - the existing `match_knowledge_chunks` function
+--   - the existing `knowledge_chunks_embedding_idx` index
+--
+-- Safe to re-run: every statement uses IF NOT EXISTS / CREATE OR REPLACE.
+--
+-- Rollback: see 0001_rollback_embedding_v2_768.sql in this same folder.
+
+alter table public.knowledge_chunks
+  add column if not exists embedding_v2 vector(768);
+
+create or replace function public.match_knowledge_chunks_v2(
+  p_brand_id text,
+  p_query_embedding vector(768),
+  p_min_score double precision,
+  p_match_count integer
+)
+returns table (
+  id text,
+  brand_id text,
+  document_id text,
+  source_id text,
+  source_type text,
+  text text,
+  metadata jsonb,
+  created_at timestamptz,
+  score double precision
+)
+language sql
+stable
+as $$
+  select
+    kc.id,
+    kc.brand_id,
+    kc.document_id,
+    kc.source_id,
+    kc.source_type,
+    kc.text,
+    kc.metadata,
+    kc.created_at,
+    1 - (kc.embedding_v2 <=> p_query_embedding) as score
+  from public.knowledge_chunks kc
+  where kc.brand_id = p_brand_id
+    and kc.embedding_v2 is not null
+    and 1 - (kc.embedding_v2 <=> p_query_embedding) >= p_min_score
+  order by kc.embedding_v2 <=> p_query_embedding
+  limit p_match_count;
+$$;
+
+create index if not exists knowledge_chunks_embedding_v2_idx
+on public.knowledge_chunks
+using ivfflat (embedding_v2 vector_cosine_ops)
+with (lists = 100);

@@ -1,0 +1,23 @@
+-- Migration 0006: Drop leftover mis-ordered match_knowledge_chunks overload (Phase 6 fix-up)
+--
+-- Root cause: migration 0004's `drop function if exists
+-- public.match_knowledge_chunks(text, vector(256), double precision, integer)`
+-- did not match the actual registered function, because its real parameter
+-- order was (p_brand_id, p_query_embedding, p_match_count, p_min_score) —
+-- match_count before min_score — not (..., min_score, match_count) as our
+-- migration files assumed. Since `IF EXISTS` silently no-ops on a signature
+-- mismatch, the drop did nothing, and 0005's `CREATE OR REPLACE FUNCTION`
+-- (declared with the min_score/match_count order) was treated as a distinct
+-- overload rather than a replacement — leaving two functions named
+-- `match_knowledge_chunks`, which makes every call ambiguous (PGRST203).
+--
+-- This migration drops only the leftover mis-ordered one, confirmed via
+-- pg_proc introspection: (p_brand_id text, p_query_embedding vector,
+-- p_match_count integer, p_min_score double precision).
+--
+-- Rollback: see 0006_rollback_drop_leftover_legacy_function.sql (recreates
+-- the same mis-ordered function — NOT recommended, since it reintroduces
+-- the exact ambiguity this migration fixes. Included only for symmetry with
+-- the rest of this migration set.)
+
+drop function if exists public.match_knowledge_chunks(text, vector, integer, double precision);

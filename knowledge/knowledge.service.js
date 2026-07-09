@@ -1,6 +1,6 @@
 const { extractText } = require("./extraction.service");
 const { chunkText } = require("./chunking.service");
-const { embedChunks } = require("./embedding.service");
+const { embedBatchForStorage } = require("./embedding.service");
 const vectorStore = require("./vectorStore.service");
 
 async function ingestKnowledgeDocument(uploadMetadata) {
@@ -13,7 +13,8 @@ async function ingestKnowledgeDocument(uploadMetadata) {
     throw error;
   }
 
-  const embeddedChunks = embedChunks(chunks);
+  const embeddingValues = await embedBatchForStorage(chunks.map((chunk) => chunk.text));
+  const embeddedChunks = chunks.map((chunk, index) => ({ ...chunk, embedding: embeddingValues[index] }));
   const document = {
     brandId: uploadMetadata.brandId,
     documentId: uploadMetadata.documentId,
