@@ -1,10 +1,17 @@
-const fs = require("fs");
-const path = require("path");
+require("dotenv").config();
 
 const baseUrl = process.env.CHAT_TEST_URL || "http://localhost:5000";
 const brandId = process.env.CHAT_TEST_BRAND || "vastra-demo";
 const customerId = "journey_test_user";
-const logFile = path.join(__dirname, "..", "logs", "chat-logs.json");
+
+function getSupabaseConfig() {
+  const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing in backend/.env.");
+  }
+  return { url, key };
+}
 
 const QUERIES = [
   { label: "Exact FAQ match", message: "Sahi size kaise choose karu?" },
@@ -25,10 +32,16 @@ async function sendChat(message) {
   return { status: response.status, data };
 }
 
-function getLastLogEntry() {
+async function getLastLogEntry() {
   try {
-    const logs = JSON.parse(fs.readFileSync(logFile, "utf8"));
-    return logs[logs.length - 1] || null;
+    const { url, key } = getSupabaseConfig();
+    const headers = { apikey: key, Authorization: `Bearer ${key}` };
+    const response = await fetch(
+      `${url}/rest/v1/chat_logs?brand_id=eq.${encodeURIComponent(brandId)}&customer_id=eq.${encodeURIComponent(customerId)}&order=created_at.desc&limit=1&select=*`,
+      { headers }
+    );
+    const rows = await response.json().catch(() => null);
+    return Array.isArray(rows) && rows.length ? rows[0] : null;
   } catch (error) {
     return null;
   }
@@ -45,15 +58,15 @@ async function run() {
     console.log(`Message: "${query.message}"`);
 
     const { status, data } = await sendChat(query.message);
-    const logEntry = getLastLogEntry();
+    const logEntry = await getLastLogEntry();
 
     console.log(`HTTP status: ${status}`);
     console.log(`Reply: ${data?.reply}`);
     console.log(`Source: ${data?.source}`);
     console.log(`Intent: ${data?.intent}`);
     console.log(`Escalated: ${data?.escalated}`);
-    console.log(`Confidence (from chat-logs.json): ${logEntry?.knowledgeConfidence ?? "n/a"}`);
-    console.log(`Citations: ${JSON.stringify(logEntry?.knowledgeCitations || [])}`);
+    console.log(`Confidence (from Supabase chat_logs): ${logEntry?.knowledge_confidence ?? "n/a"}`);
+    console.log(`Citations: ${JSON.stringify(logEntry?.knowledge_citations || [])}`);
 
     results.push({
       label: query.label,
@@ -63,8 +76,8 @@ async function run() {
       source: data?.source,
       intent: data?.intent,
       escalated: data?.escalated,
-      confidence: logEntry?.knowledgeConfidence ?? "n/a",
-      citations: logEntry?.knowledgeCitations || []
+      confidence: logEntry?.knowledge_confidence ?? "n/a",
+      citations: logEntry?.knowledge_citations || []
     });
   }
 

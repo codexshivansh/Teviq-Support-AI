@@ -1,39 +1,65 @@
-const fs = require("fs");
-const path = require("path");
+function getSupabaseConfig() {
+  const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-const logsDir = path.join(__dirname, "..", "logs");
-const logFile = path.join(logsDir, "chat-logs.json");
-
-function ensureLogFile() {
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
+  if (!url || !serviceRoleKey) {
+    const error = new Error("Supabase chat_logs store is not configured.");
+    error.statusCode = 503;
+    error.code = "supabase_not_configured";
+    throw error;
   }
 
-  if (!fs.existsSync(logFile)) {
-    fs.writeFileSync(logFile, "[]\n");
-  }
+  return { url, serviceRoleKey };
 }
 
-function appendChatLog(entry) {
-  try {
-    ensureLogFile();
-    const logs = JSON.parse(fs.readFileSync(logFile, "utf8"));
-    logs.push({
-      timestamp: new Date().toISOString(),
-      brandId: entry.brandId,
-      customerId: entry.customerId,
+function getHeaders(extra = {}) {
+  const { serviceRoleKey } = getSupabaseConfig();
+  return {
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+    "Content-Type": "application/json",
+    ...extra
+  };
+}
+
+function getRestUrl(path) {
+  const { url } = getSupabaseConfig();
+  return `${url}/rest/v1/chat_logs${path}`;
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(getRestUrl(path), {
+    ...options,
+    headers: getHeaders(options.headers)
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const error = new Error(data?.message || `Supabase chat_logs request failed with ${response.status}`);
+    error.statusCode = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+}
+
+async function appendChatLog(entry) {
+  await request("", {
+    method: "POST",
+    body: JSON.stringify({
+      brand_id: entry.brandId,
+      customer_id: entry.customerId,
       message: entry.message,
-      detectedIntent: entry.detectedIntent,
+      detected_intent: entry.detectedIntent,
       escalated: Boolean(entry.escalated),
       source: entry.source,
       reply: entry.reply,
-      knowledgeConfidence: entry.knowledgeConfidence,
-      knowledgeCitations: entry.knowledgeCitations || []
-    });
-    fs.writeFileSync(logFile, `${JSON.stringify(logs, null, 2)}\n`);
-  } catch (error) {
-    console.warn("Failed to write chat log:", error.message);
-  }
+      knowledge_confidence: entry.knowledgeConfidence,
+      knowledge_citations: entry.knowledgeCitations || []
+    })
+  });
 }
 
 module.exports = { appendChatLog };

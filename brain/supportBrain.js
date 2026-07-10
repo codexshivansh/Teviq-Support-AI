@@ -53,17 +53,21 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
     const escalationReply = buildEscalationReply(brand);
     addConversationMessage(brandId, customerId, "user", message);
     addConversationMessage(brandId, customerId, "assistant", escalationReply);
-    appendChatLog({
-      brandId,
-      customerId,
-      message,
-      detectedIntent: "escalation",
-      escalated: true,
-      source: "system",
-      reply: escalationReply,
-      knowledgeCitations: [],
-      knowledgeConfidence: 0
-    });
+    try {
+      await appendChatLog({
+        brandId,
+        customerId,
+        message,
+        detectedIntent: "escalation",
+        escalated: true,
+        source: "system",
+        reply: escalationReply,
+        knowledgeCitations: [],
+        knowledgeConfidence: 0
+      });
+    } catch (error) {
+      console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
+    }
     return buildSimpleReplyResult({ reply: escalationReply, escalated: true, intent: "escalation", analysis });
   }
 
@@ -151,17 +155,21 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
 
   addConversationMessage(brandId, customerId, "user", message);
   addConversationMessage(brandId, customerId, "assistant", finalReply);
-  appendChatLog({
-    brandId,
-    customerId,
-    message,
-    detectedIntent: "return_exchange",
-    escalated: false,
-    source: "system",
-    reply: finalReply,
-    knowledgeCitations: [],
-    knowledgeConfidence: 0
-  });
+  try {
+    await appendChatLog({
+      brandId,
+      customerId,
+      message,
+      detectedIntent: "return_exchange",
+      escalated: false,
+      source: "system",
+      reply: finalReply,
+      knowledgeCitations: [],
+      knowledgeConfidence: 0
+    });
+  } catch (error) {
+    console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
+  }
 
   return buildSimpleReplyResult({ reply: finalReply, escalated: false, intent: "return_exchange", analysis });
 }
@@ -185,17 +193,21 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
     const escalationReply = buildEscalationReply(brand);
     addConversationMessage(brandId, customerId, "user", message);
     addConversationMessage(brandId, customerId, "assistant", escalationReply);
-    appendChatLog({
-      brandId,
-      customerId,
-      message,
-      detectedIntent: "escalation",
-      escalated: true,
-      source: "system",
-      reply: escalationReply,
-      knowledgeCitations: [],
-      knowledgeConfidence: 0
-    });
+    try {
+      await appendChatLog({
+        brandId,
+        customerId,
+        message,
+        detectedIntent: "escalation",
+        escalated: true,
+        source: "system",
+        reply: escalationReply,
+        knowledgeCitations: [],
+        knowledgeConfidence: 0
+      });
+    } catch (error) {
+      console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
+    }
     return buildSimpleReplyResult({ reply: escalationReply, escalated: true, intent: "escalation", analysis });
   }
 
@@ -294,17 +306,21 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
 
   addConversationMessage(brandId, customerId, "user", message);
   addConversationMessage(brandId, customerId, "assistant", finalReply);
-  appendChatLog({
-    brandId,
-    customerId,
-    message,
-    detectedIntent: "cancellation",
-    escalated: false,
-    source: "system",
-    reply: finalReply,
-    knowledgeCitations: [],
-    knowledgeConfidence: 0
-  });
+  try {
+    await appendChatLog({
+      brandId,
+      customerId,
+      message,
+      detectedIntent: "cancellation",
+      escalated: false,
+      source: "system",
+      reply: finalReply,
+      knowledgeCitations: [],
+      knowledgeConfidence: 0
+    });
+  } catch (error) {
+    console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
+  }
 
   return buildSimpleReplyResult({ reply: finalReply, escalated: false, intent: "cancellation", analysis });
 }
@@ -328,17 +344,21 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
     const escalationReply = buildEscalationReply(brand);
     addConversationMessage(brandId, customerId, "user", message);
     addConversationMessage(brandId, customerId, "assistant", escalationReply);
-    appendChatLog({
-      brandId,
-      customerId,
-      message,
-      detectedIntent: "escalation",
-      escalated: true,
-      source: "system",
-      reply: escalationReply,
-      knowledgeCitations: [],
-      knowledgeConfidence: 0
-    });
+    try {
+      await appendChatLog({
+        brandId,
+        customerId,
+        message,
+        detectedIntent: "escalation",
+        escalated: true,
+        source: "system",
+        reply: escalationReply,
+        knowledgeCitations: [],
+        knowledgeConfidence: 0
+      });
+    } catch (error) {
+      console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
+    }
     return buildSimpleReplyResult({ reply: escalationReply, escalated: true, intent: "escalation", analysis });
   }
 
@@ -362,17 +382,21 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
 
   addConversationMessage(brandId, customerId, "user", message);
   addConversationMessage(brandId, customerId, "assistant", finalReply);
-  appendChatLog({
-    brandId,
-    customerId,
-    message,
-    detectedIntent: "product_recommendation",
-    escalated: false,
-    source: "system",
-    reply: finalReply,
-    knowledgeCitations: [],
-    knowledgeConfidence: 0
-  });
+  try {
+    await appendChatLog({
+      brandId,
+      customerId,
+      message,
+      detectedIntent: "product_recommendation",
+      escalated: false,
+      source: "system",
+      reply: finalReply,
+      knowledgeCitations: [],
+      knowledgeConfidence: 0
+    });
+  } catch (error) {
+    console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
+  }
 
   return buildSimpleReplyResult({ reply: finalReply, escalated: false, intent: "product_recommendation", analysis });
 }
@@ -556,17 +580,21 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
 
   addConversationMessage(brandId, customerId, "assistant", validation.finalReply);
 
-  appendChatLog({
-    brandId,
-    customerId,
-    message,
-    detectedIntent: intent,
-    escalated: toolResult.escalated,
-    source,
-    reply: validation.finalReply,
-    knowledgeCitations: knowledge?.citations || [],
-    knowledgeConfidence: knowledge?.confidence || 0
-  });
+  try {
+    await appendChatLog({
+      brandId,
+      customerId,
+      message,
+      detectedIntent: intent,
+      escalated: toolResult.escalated,
+      source,
+      reply: validation.finalReply,
+      knowledgeCitations: knowledge?.citations || [],
+      knowledgeConfidence: knowledge?.confidence || 0
+    });
+  } catch (error) {
+    console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
+  }
 
   return {
     reply: validation.finalReply,
