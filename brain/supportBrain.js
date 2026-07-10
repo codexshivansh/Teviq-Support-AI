@@ -413,8 +413,10 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
   return buildSimpleReplyResult({ reply: finalReply, escalated: false, intent: "product_recommendation", analysis });
 }
 
-async function processMessage({ brandId, message, customerId = "guest", channel = "widget" }) {
+async function processMessage({ brandId, message, customerId = "guest", channel = "widget", context: requestContext }) {
   const startTime = Date.now();
+  const presetOrderId =
+    requestContext?.orderId && typeof requestContext.orderId === "string" ? requestContext.orderId.trim() : null;
   const brand = await getBrandById(brandId);
   if (!brand) {
     return {
@@ -436,6 +438,19 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   }
 
   const entities = extractEntities(message);
+
+  // F7: if the host page supplied an order ID (e.g. a real order-status
+  // page embedding the widget), seed it whenever the message doesn't
+  // already name a different order, and treat a message with no
+  // recognizable intent as an implicit order-status check — the widget
+  // being embedded on an order page IS the context, so "hi" shouldn't
+  // trigger the normal collecting_order_id ask.
+  if (presetOrderId) {
+    entities.orderId = entities.orderId || presetOrderId;
+    if (intent === "unknown") {
+      intent = "order_tracking";
+    }
+  }
 
   // Conversation-state resume: if this customer was just asked for their
   // order ID and this message supplies one, resume the intent that asked
@@ -498,8 +513,16 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     conversationState.state === "collecting_order_id" &&
     isConversationStateFresh &&
     entities.orderId &&
-    conversationState.context?.pendingIntent
+    conversationState.context?.pendingIntent &&
+    (intent === "unknown" || intent === conversationState.context.pendingIntent)
   ) {
+    // Only resume the stale pendingIntent when this message doesn't already
+    // express something more specific on its own (e.g. a bare order code,
+    // which detectIntent classifies as "unknown"). Otherwise a freshly and
+    // clearly expressed intent (e.g. "return karna hai") would get silently
+    // clobbered by leftover context from an unrelated earlier ask — a risk
+    // that grew sharply once F7's context-seeding made entities.orderId
+    // present on nearly every message, not just ones with a typed order code.
     intent = conversationState.context.pendingIntent;
   }
 

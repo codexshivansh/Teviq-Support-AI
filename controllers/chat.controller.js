@@ -11,7 +11,7 @@ function normalizeBrandId(value) {
 
 async function handleChat(req, res, next) {
   try {
-    const { customerId = "guest", message } = req.body || {};
+    const { customerId = "guest", message, context } = req.body || {};
     const brandId = normalizeBrandId(req.body?.brand_id || req.body?.brandId);
     const cleanMessage = normalizeMessage(message);
 
@@ -54,7 +54,8 @@ async function handleChat(req, res, next) {
     const result = await processMessage({
       brandId,
       message: cleanMessage,
-      customerId
+      customerId,
+      context
     });
 
     return res.status(result.statusCode || 200).json({
