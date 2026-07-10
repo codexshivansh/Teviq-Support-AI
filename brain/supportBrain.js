@@ -42,7 +42,7 @@ function buildSimpleReplyResult({ reply, escalated, intent, analysis }) {
 // takes priority over the flow itself. Everything else is delegated to the
 // pure decision function in returnFlow.service.js; this function is only
 // responsible for the I/O (state writes, Shopify call, return_requests row).
-async function handleCheckingReturnState({ brand, brandId, customerId, channel, message, context, analysis }) {
+async function handleCheckingReturnState({ brand, brandId, customerId, channel, message, context, analysis, startTime }) {
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
     try {
@@ -63,7 +63,9 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
         source: "system",
         reply: escalationReply,
         knowledgeCitations: [],
-        knowledgeConfidence: 0
+        knowledgeConfidence: 0,
+        isFallback: false,
+        responseTimeMs: Date.now() - startTime
       });
     } catch (error) {
       console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
@@ -165,7 +167,9 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
       source: "system",
       reply: finalReply,
       knowledgeCitations: [],
-      knowledgeConfidence: 0
+      knowledgeConfidence: 0,
+      isFallback: flowResult.action === "ambiguous",
+      responseTimeMs: Date.now() - startTime
     });
   } catch (error) {
     console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
@@ -182,7 +186,7 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
 // returnRequest provided one; (2) an idempotency check runs first, since
 // orderCancel has real, immediate side effects and must not fire twice for
 // the same order.
-async function handleCheckingCancellationState({ brand, brandId, customerId, channel, message, context, analysis }) {
+async function handleCheckingCancellationState({ brand, brandId, customerId, channel, message, context, analysis, startTime }) {
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
     try {
@@ -203,7 +207,9 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
         source: "system",
         reply: escalationReply,
         knowledgeCitations: [],
-        knowledgeConfidence: 0
+        knowledgeConfidence: 0,
+        isFallback: false,
+        responseTimeMs: Date.now() - startTime
       });
     } catch (error) {
       console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
@@ -316,7 +322,9 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
       source: "system",
       reply: finalReply,
       knowledgeCitations: [],
-      knowledgeConfidence: 0
+      knowledgeConfidence: 0,
+      isFallback: flowResult.action === "ambiguous",
+      responseTimeMs: Date.now() - startTime
     });
   } catch (error) {
     console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
@@ -333,7 +341,7 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
 // of two unrelated turns. Unlike return/cancellation, there is no confirm
 // step and no Shopify side effect, so this only ever needs one round-trip
 // before resetting to idle (or staying put if still ambiguous).
-async function handleNarrowingProductsState({ brand, brandId, customerId, channel, message, context, analysis }) {
+async function handleNarrowingProductsState({ brand, brandId, customerId, channel, message, context, analysis, startTime }) {
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
     try {
@@ -354,7 +362,9 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
         source: "system",
         reply: escalationReply,
         knowledgeCitations: [],
-        knowledgeConfidence: 0
+        knowledgeConfidence: 0,
+        isFallback: false,
+        responseTimeMs: Date.now() - startTime
       });
     } catch (error) {
       console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
@@ -392,7 +402,9 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
       source: "system",
       reply: finalReply,
       knowledgeCitations: [],
-      knowledgeConfidence: 0
+      knowledgeConfidence: 0,
+      isFallback: !recommendationReply,
+      responseTimeMs: Date.now() - startTime
     });
   } catch (error) {
     console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
@@ -402,6 +414,7 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
 }
 
 async function processMessage({ brandId, message, customerId = "guest", channel = "widget" }) {
+  const startTime = Date.now();
   const brand = await getBrandById(brandId);
   if (!brand) {
     return {
@@ -450,7 +463,8 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
       channel,
       message,
       context: conversationState.context,
-      analysis
+      analysis,
+      startTime
     });
   }
 
@@ -462,7 +476,8 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
       channel,
       message,
       context: conversationState.context,
-      analysis
+      analysis,
+      startTime
     });
   }
 
@@ -474,7 +489,8 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
       channel,
       message,
       context: conversationState.context,
-      analysis
+      analysis,
+      startTime
     });
   }
 
@@ -552,10 +568,12 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
 
   let reply = toolResult.reply;
   let source = toolResult.source || "system";
+  let isFallback = false;
 
   if (toolResult.allowAI && shouldBlockAIForLowConfidence({ intent, knowledgeResult: knowledge })) {
     reply = toolResult.fallbackReply || buildLowConfidenceReply(brand);
     source = "system";
+    isFallback = true;
   } else if (toolResult.allowAI) {
     const aiResponse = await generateSupportReply({
       brand,
@@ -590,7 +608,9 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
       source,
       reply: validation.finalReply,
       knowledgeCitations: knowledge?.citations || [],
-      knowledgeConfidence: knowledge?.confidence || 0
+      knowledgeConfidence: knowledge?.confidence || 0,
+      isFallback,
+      responseTimeMs: Date.now() - startTime
     });
   } catch (error) {
     console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);

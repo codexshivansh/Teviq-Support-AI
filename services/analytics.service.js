@@ -57,7 +57,9 @@ async function appendChatLog(entry) {
       source: entry.source,
       reply: entry.reply,
       knowledge_confidence: entry.knowledgeConfidence,
-      knowledge_citations: entry.knowledgeCitations || []
+      knowledge_citations: entry.knowledgeCitations || [],
+      is_fallback: Boolean(entry.isFallback),
+      response_time_ms: entry.responseTimeMs ?? null
     })
   });
 }
