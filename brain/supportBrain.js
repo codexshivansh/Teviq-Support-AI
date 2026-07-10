@@ -6,6 +6,7 @@ const { detectEscalation, buildEscalationReply } = require("../services/escalati
 const { handleReturnFlowMessage, buildReturnReasonPrompt } = require("../services/returnFlow.service");
 const { handleCancellationFlowMessage, buildCancellationReasonPrompt } = require("../services/cancellationFlow.service");
 const { createReturnRequestRecord, findActiveRequest } = require("../services/returnRequestRecord.service");
+const { getRecommendedProducts, buildProductRecommendationReply } = require("../services/product.service");
 const { decryptValue } = require("../services/shopifyCredentials.service");
 const { fetchFulfillmentLineItems, createReturnRequest: createShopifyReturnRequest } = require("../integrations/shopify/shopifyReturns.service");
 const { cancelOrder } = require("../integrations/shopify/shopifyOrderCancel.service");
@@ -308,6 +309,74 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
   return buildSimpleReplyResult({ reply: finalReply, escalated: false, intent: "cancellation", analysis });
 }
 
+// Handles a message that arrives while the customer is mid-product-narrowing
+// (conversation_states.state === "narrowing_products"). The follow-up
+// message (typically a budget or category detail) is combined with the
+// original query and re-scored together — this is what lets "kuch achha
+// suggest karo" -> "2000 ke andar" resolve as one connected request instead
+// of two unrelated turns. Unlike return/cancellation, there is no confirm
+// step and no Shopify side effect, so this only ever needs one round-trip
+// before resetting to idle (or staying put if still ambiguous).
+async function handleNarrowingProductsState({ brand, brandId, customerId, channel, message, context, analysis }) {
+  const hardEscalation = detectEscalation(message, brand);
+  if (hardEscalation.escalated) {
+    try {
+      await setState(brandId, customerId, channel, "idle", {});
+    } catch (error) {
+      console.error(`[BRAIN] Failed to reset conversation state after escalation for ${brandId}:${customerId}: ${error.message}`);
+    }
+    const escalationReply = buildEscalationReply(brand);
+    addConversationMessage(brandId, customerId, "user", message);
+    addConversationMessage(brandId, customerId, "assistant", escalationReply);
+    appendChatLog({
+      brandId,
+      customerId,
+      message,
+      detectedIntent: "escalation",
+      escalated: true,
+      source: "system",
+      reply: escalationReply,
+      knowledgeCitations: [],
+      knowledgeConfidence: 0
+    });
+    return buildSimpleReplyResult({ reply: escalationReply, escalated: true, intent: "escalation", analysis });
+  }
+
+  const combinedQuery = `${context?.originalQuery || ""} ${message}`.trim();
+  const products = getRecommendedProducts({ brandId: brand.brandId, message: combinedQuery });
+  const recommendationReply = buildProductRecommendationReply({ brand, products, message: combinedQuery });
+
+  let finalReply;
+  if (recommendationReply) {
+    finalReply = recommendationReply;
+    try {
+      await setState(brandId, customerId, channel, "idle", {});
+    } catch (error) {
+      console.error(`[BRAIN] Failed to reset conversation state for ${brandId}:${customerId}: ${error.message}`);
+    }
+  } else {
+    // Still no keyword match and no budget — leave the state in place and
+    // give the customer another chance to narrow it down.
+    finalReply = "Maaf kijiye, samajh nahi aaya. Kripya category (jaise kurta, dress) ya budget bataiye taaki main sahi products suggest kar sakoon.";
+  }
+
+  addConversationMessage(brandId, customerId, "user", message);
+  addConversationMessage(brandId, customerId, "assistant", finalReply);
+  appendChatLog({
+    brandId,
+    customerId,
+    message,
+    detectedIntent: "product_recommendation",
+    escalated: false,
+    source: "system",
+    reply: finalReply,
+    knowledgeCitations: [],
+    knowledgeConfidence: 0
+  });
+
+  return buildSimpleReplyResult({ reply: finalReply, escalated: false, intent: "product_recommendation", analysis });
+}
+
 async function processMessage({ brandId, message, customerId = "guest", channel = "widget" }) {
   const brand = await getBrandById(brandId);
   if (!brand) {
@@ -324,7 +393,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   }
 
   const analysis = analyzeConversation(message);
-  let intent = detectIntent(message);
+  let intent = detectIntent(message, brand.brandId);
   if (analysis.messageType === "complaint" && intent === "unknown") {
     intent = "complaint";
   }
@@ -363,6 +432,18 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
 
   if (conversationState.state === "checking_cancellation" && isConversationStateFresh) {
     return handleCheckingCancellationState({
+      brand,
+      brandId,
+      customerId,
+      channel,
+      message,
+      context: conversationState.context,
+      analysis
+    });
+  }
+
+  if (conversationState.state === "narrowing_products" && isConversationStateFresh) {
+    return handleNarrowingProductsState({
       brand,
       brandId,
       customerId,
@@ -414,6 +495,11 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
         step: "awaiting_reason"
       });
       toolResult.reply = buildCancellationReasonPrompt();
+    } else if (intent === "product_recommendation" && toolResult.needsProductNarrowing) {
+      await setState(brandId, customerId, channel, "narrowing_products", {
+        originalQuery: message,
+        category: toolResult.detectedCategory || null
+      });
     } else if (entities.orderId && toolResult.order) {
       await setState(brandId, customerId, channel, "idle", {});
     }

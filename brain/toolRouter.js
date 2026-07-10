@@ -4,7 +4,8 @@ const { buildEscalationReply, detectEscalation } = require("../services/escalati
 const { buildLeadCaptureReply, extractContactInfo, hasContactInfo } = require("../services/lead.service");
 const {
   getRecommendedProducts,
-  buildProductRecommendationReply
+  buildProductRecommendationReply,
+  detectCategory
 } = require("../services/product.service");
 
 const ORDER_INTENTS = ["order_tracking", "return_exchange", "refund_status", "cancellation"];
@@ -23,6 +24,10 @@ function buildOrderTrackingReply(order, brand, entities) {
     ""
   );
   return `Order ${order.orderId} is currently ${order.status}. ${order.trackingText} Expected update: ${estimatedUpdate}.`;
+}
+
+function buildProductNarrowingQuestion() {
+  return "Bataiye aapko kis type ka product chahiye (jaise category) ya aapka budget kitna hai — main us hisaab se best options suggest kar sakta hoon.";
 }
 
 function buildKnowledgeReply(brand, intent) {
@@ -138,6 +143,22 @@ function routeTools({ brand, intent, entities, message }) {
         reply: recommendationReply
       };
     }
+
+    // No keyword match and no budget in this message — ask a narrowing
+    // question instead of falling through to Knowledge Brain/AI, which has
+    // no product catalog coverage (see knowledge/retrieval.service.js).
+    return {
+      allowAI: false,
+      source: "system",
+      escalated: false,
+      order: null,
+      policyResult: null,
+      leadState: null,
+      products: [],
+      needsProductNarrowing: true,
+      detectedCategory: detectCategory(brand.brandId, message),
+      reply: buildProductNarrowingQuestion()
+    };
   }
 
   const knowledgeReply = buildKnowledgeReply(brand, intent);

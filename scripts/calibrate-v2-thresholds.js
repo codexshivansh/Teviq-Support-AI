@@ -42,7 +42,7 @@ async function getTopMatch(brandId, queryEmbedding) {
   const { url, key } = getSupabaseConfig();
   const headers = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 
-  const response = await fetch(`${url}/rest/v1/rpc/match_knowledge_chunks_v2`, {
+  const response = await fetch(`${url}/rest/v1/rpc/match_knowledge_chunks`, {
     method: "POST",
     headers,
     body: JSON.stringify({

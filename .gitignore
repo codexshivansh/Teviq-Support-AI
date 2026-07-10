@@ -5,3 +5,4 @@ data/knowledge/structured-knowledge.json
 data/secure/
 logs/
 .DS_Store
+.claude/

@@ -1,3 +1,5 @@
+const { parseBudget, hasProductKeywordMatch } = require("../services/product.service");
+
 const INTENT_RULES = [
   {
     intent: "complaint",
@@ -53,12 +55,24 @@ const INTENT_RULES = [
   }
 ];
 
-function detectIntent(message) {
+function detectIntent(message, brandId) {
   const matchedRule = INTENT_RULES.find((rule) =>
     rule.patterns.some((pattern) => pattern.test(message))
   );
 
-  return matchedRule ? matchedRule.intent : "unknown";
+  if (matchedRule) return matchedRule.intent;
+
+  // No explicit keyword fired (e.g. no "recommend"/"suggest"). If the
+  // message names an actual product (title/handle/category/tags/keywords)
+  // AND carries a budget, treat it as a product query anyway — this is
+  // what lets "kurta 1500 ke andar" resolve without needing filler words.
+  // Requiring both signals together keeps this from misfiring on unrelated
+  // messages that merely contain a number.
+  if (brandId && parseBudget(message) != null && hasProductKeywordMatch(brandId, message)) {
+    return "product_recommendation";
+  }
+
+  return "unknown";
 }
 
 module.exports = { detectIntent };
