@@ -1,0 +1,26 @@
+[
+  {
+    "cartId": "CART-UG-001",
+    "brandId": "urban-demo",
+    "customerId": "guest_cart101",
+    "customerPhone": "+919876500101",
+    "items": ["SwiftBuds Pro"],
+    "cartValue": 2999,
+    "currency": "INR",
+    "status": "active",
+    "createdAt": "2026-07-10T15:32:14.000Z",
+    "checkoutUrl": "https://urban-demo.myshopify.com/checkout/c/def001"
+  },
+  {
+    "cartId": "CART-UG-002",
+    "brandId": "urban-demo",
+    "customerId": "guest_cart102",
+    "customerPhone": "+919876500102",
+    "items": ["PowerPack 10000"],
+    "cartValue": 1799,
+    "currency": "INR",
+    "status": "active",
+    "createdAt": "2026-07-10T17:52:14.000Z",
+    "checkoutUrl": "https://urban-demo.myshopify.com/checkout/c/def002"
+  }
+]

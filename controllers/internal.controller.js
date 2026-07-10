@@ -1,7 +1,12 @@
 const { listBrands } = require("../services/brand.service");
 const { findDelayedOrders } = require("../services/delayDetection.service");
-const { sendDelayAlert } = require("../integrations/twilio/smsAlert.service");
+const { findAbandonedCarts } = require("../services/abandonedCartDetection.service");
+const { sendDelayAlert, sendAbandonedCartAlert } = require("../integrations/twilio/smsAlert.service");
 const { hasAlertBeenSent, recordAlertAttempt } = require("../services/delayAlertRecord.service");
+const {
+  hasAlertBeenSent: hasCartAlertBeenSent,
+  recordAlertAttempt: recordCartAlertAttempt
+} = require("../services/cartRecoveryAlertRecord.service");
 
 async function runDelayCheck(req, res) {
   const brands = await listBrands();
@@ -78,4 +83,83 @@ async function runDelayCheck(req, res) {
   return res.json({ ok: true, ...results });
 }
 
-module.exports = { runDelayCheck };
+async function runCartRecoveryCheck(req, res) {
+  const brands = await listBrands();
+
+  const results = {
+    checked: 0,
+    newAlerts: 0,
+    skippedAlreadyProcessed: 0,
+    failed: 0,
+    details: []
+  };
+
+  for (const brand of brands) {
+    const abandonedCarts = findAbandonedCarts(brand.brandId);
+
+    for (const cart of abandonedCarts) {
+      results.checked += 1;
+
+      let alreadySent = false;
+      try {
+        alreadySent = await hasCartAlertBeenSent({ brandId: brand.brandId, cartId: cart.cartId });
+      } catch (error) {
+        console.error(
+          `[internal] Idempotency check failed for ${brand.brandId}/${cart.cartId}: ${error.message}`
+        );
+        results.failed += 1;
+        results.details.push({ brandId: brand.brandId, cartId: cart.cartId, outcome: "idempotency_check_failed" });
+        continue;
+      }
+
+      if (alreadySent) {
+        results.skippedAlreadyProcessed += 1;
+        results.details.push({ brandId: brand.brandId, cartId: cart.cartId, outcome: "already_processed" });
+        continue;
+      }
+
+      let sendResult = { sent: false, reason: "send_failed" };
+      let sendError = null;
+      try {
+        sendResult = await sendAbandonedCartAlert({
+          phone: cart.customerPhone,
+          cartId: cart.cartId,
+          brandName: brand.brandName,
+          items: cart.items,
+          cartValue: cart.cartValue,
+          currency: cart.currency,
+          checkoutUrl: cart.checkoutUrl
+        });
+      } catch (error) {
+        sendError = error.message;
+      }
+
+      const status = sendResult.sent
+        ? "sent"
+        : sendResult.reason === "not_configured"
+          ? "skipped_not_configured"
+          : "failed";
+
+      try {
+        await recordCartAlertAttempt({
+          brandId: brand.brandId,
+          cartId: cart.cartId,
+          customerPhone: cart.customerPhone,
+          status,
+          errorMessage: sendError
+        });
+      } catch (error) {
+        console.error(
+          `[internal] Failed to record cart-recovery-alert attempt for ${brand.brandId}/${cart.cartId}: ${error.message}`
+        );
+      }
+
+      results.newAlerts += 1;
+      results.details.push({ brandId: brand.brandId, cartId: cart.cartId, outcome: status });
+    }
+  }
+
+  return res.json({ ok: true, ...results });
+}
+
+module.exports = { runDelayCheck, runCartRecoveryCheck };

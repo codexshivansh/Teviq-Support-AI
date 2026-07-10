@@ -1,0 +1,50 @@
+[
+  {
+    "cartId": "CART-VS-001",
+    "brandId": "vastra-demo",
+    "customerId": "guest_cart001",
+    "customerPhone": "+919876500001",
+    "items": ["Cotton Kurta Set"],
+    "cartValue": 1899,
+    "currency": "INR",
+    "status": "active",
+    "createdAt": "2026-07-10T15:02:14.000Z",
+    "checkoutUrl": "https://vastra-demo.myshopify.com/checkout/c/abc001"
+  },
+  {
+    "cartId": "CART-VS-002",
+    "brandId": "vastra-demo",
+    "customerId": "guest_cart002",
+    "customerPhone": "+919876500002",
+    "items": ["Festive Anarkali"],
+    "cartValue": 3499,
+    "currency": "INR",
+    "status": "active",
+    "createdAt": "2026-07-10T17:32:14.000Z",
+    "checkoutUrl": "https://vastra-demo.myshopify.com/checkout/c/abc002"
+  },
+  {
+    "cartId": "CART-VS-003",
+    "brandId": "vastra-demo",
+    "customerId": "guest_cart003",
+    "customerPhone": "+919876500003",
+    "items": ["Linen Co-ord Set"],
+    "cartValue": 2499,
+    "currency": "INR",
+    "status": "converted",
+    "createdAt": "2026-07-10T13:02:14.000Z",
+    "checkoutUrl": "https://vastra-demo.myshopify.com/checkout/c/abc003"
+  },
+  {
+    "cartId": "CART-VS-004",
+    "brandId": "vastra-demo",
+    "customerId": "guest_cart004",
+    "customerPhone": "+919876500004",
+    "items": ["Cotton Kurta Set"],
+    "cartValue": 1899,
+    "currency": "INR",
+    "status": "recovered",
+    "createdAt": "2026-07-10T14:02:14.000Z",
+    "checkoutUrl": "https://vastra-demo.myshopify.com/checkout/c/abc004"
+  }
+]

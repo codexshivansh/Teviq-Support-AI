@@ -1,0 +1,38 @@
+[
+  {
+    "cartId": "CART-GC-001",
+    "brandId": "beauty-demo",
+    "customerId": "guest_cart201",
+    "customerPhone": "+919876500201",
+    "items": ["Glow-C Vitamin Serum"],
+    "cartValue": 899,
+    "currency": "INR",
+    "status": "active",
+    "createdAt": "2026-07-10T12:02:14.000Z",
+    "checkoutUrl": "https://beauty-demo.myshopify.com/checkout/c/ghi001"
+  },
+  {
+    "cartId": "CART-GC-002",
+    "brandId": "beauty-demo",
+    "customerId": "guest_cart202",
+    "customerPhone": "+919876500202",
+    "items": ["Daily Sunscreen Gel"],
+    "cartValue": 699,
+    "currency": "INR",
+    "status": "active",
+    "createdAt": "2026-07-10T17:02:14.000Z",
+    "checkoutUrl": "https://beauty-demo.myshopify.com/checkout/c/ghi002"
+  },
+  {
+    "cartId": "CART-GC-003",
+    "brandId": "beauty-demo",
+    "customerId": "guest_cart203",
+    "customerPhone": "+919876500203",
+    "items": ["Barrier Repair Moisturizer"],
+    "cartValue": 749,
+    "currency": "INR",
+    "status": "converted",
+    "createdAt": "2026-07-10T15:02:14.000Z",
+    "checkoutUrl": "https://beauty-demo.myshopify.com/checkout/c/ghi003"
+  }
+]

@@ -34,6 +34,12 @@ function getOrders(brandId) {
   return readJson(filePath).filter((order) => order.brandId === brandId);
 }
 
+function getCarts(brandId) {
+  const filePath = getBrandFile(brandId, "carts");
+  if (!filePath) return [];
+  return readJson(filePath).filter((cart) => cart.brandId === brandId);
+}
+
 function normalizeOrder(order) {
   if (!order) return null;
   return {
@@ -97,6 +103,7 @@ function getStoreSummary(brandId) {
 module.exports = {
   getOrderById,
   getOrders,
+  getCarts,
   getProducts,
   getProductByName,
   getStoreSummary
