@@ -50,6 +50,10 @@ const INTENT_RULES = [
     patterns: [/\b(recommend|suggest|best|which one|what should i buy|gift|occasion|wedding|office|daily wear|routine)\b/i]
   },
   {
+    intent: "subjective_opinion",
+    patterns: [/\bworth/i, /\bsahi rahega\b/i, /\bachha hai kya\b/i]
+  },
+  {
     intent: "general_faq",
     patterns: [/\b(policy|faq|help|support|how do i|how to|available|hours|warranty|patch test)\b/i]
   }

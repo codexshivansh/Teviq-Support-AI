@@ -75,6 +75,19 @@ function routeTools({ brand, intent, entities, message }) {
     };
   }
 
+  if (intent === "subjective_opinion") {
+    return {
+      allowAI: false,
+      source: "system",
+      escalated: false,
+      order: null,
+      policyResult: null,
+      leadState: null,
+      reply:
+        "Bahut se D2C brands isse repetitive queries handle karne ke liye use karte hain — 7-day free trial hai, khud try karke dekh sakte ho risk-free."
+    };
+  }
+
   if (["human_support", "complaint", "business_enquiry"].includes(intent)) {
     return {
       allowAI: false,
