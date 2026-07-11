@@ -112,12 +112,22 @@ async function retrieveKnowledge({ brandId, query, topK = 5 }) {
 
   const topScore = matches.reduce((max, match) => Math.max(max, match.score || 0), 0);
 
+  // Chunks embed the full "Q: ...\nA: ..." text, so a long answer dilutes
+  // cosine similarity even when the customer's message is an exact (or
+  // near-exact) match for a known FAQ's question — the raw score can land
+  // under MIN_CONFIDENCE despite this being the most confident kind of
+  // match retrieval can produce. isExactFaqMatch is already trusted
+  // elsewhere in this file to re-rank such matches to the top; extending
+  // that same trust to the confidence gate keeps a verbatim FAQ-question
+  // match from being blocked just because its answer happens to be long.
+  const hasExactFaqMatch = matches.some((match) => isExactFaqMatch(match, query));
+
   return {
     brandId,
     query,
     confidence: Number(topScore.toFixed(4)),
     confidenceLabel: topScore >= HIGH_CONFIDENCE ? "high" : topScore >= MIN_CONFIDENCE ? "medium" : "low",
-    lowConfidence: topScore < MIN_CONFIDENCE,
+    lowConfidence: !hasExactFaqMatch && topScore < MIN_CONFIDENCE,
     matches,
     citations: buildCitations(matches),
     contextText: buildContextText(matches)

@@ -109,6 +109,10 @@ function getWelcomeBody(row) {
   return row.welcome_body || "I can help with orders, returns, warranty, and product questions.";
 }
 
+function getInputPlaceholder(row) {
+  return row.input_placeholder || "Ask about orders, returns, size...";
+}
+
 function getQuickReplies(row) {
   return Array.isArray(row.quick_replies) && row.quick_replies.length > 0
     ? row.quick_replies
@@ -148,6 +152,7 @@ function normalizeBrand(row) {
       widgetTitle: `${brandName} Help`,
       welcomeTitle: getWelcomeTitle(row),
       welcomeBody: getWelcomeBody(row),
+      inputPlaceholder: getInputPlaceholder(row),
       themeColor: "#0f172a",
       position: "bottom-right",
       quickReplies: getQuickReplies(row)
@@ -218,6 +223,7 @@ async function createBrand(brandData) {
     welcome_title: brandData.welcome_title || null,
     welcome_body: brandData.welcome_body || null,
     quick_replies: brandData.quick_replies || [],
+    input_placeholder: brandData.input_placeholder || null,
     is_active: brandData.is_active !== false
   };
 
@@ -249,6 +255,7 @@ async function updateBrand(brandId, updates) {
     "welcome_title",
     "welcome_body",
     "quick_replies",
+    "input_placeholder",
     "is_active"
   ];
   const payload = {};
@@ -292,6 +299,7 @@ async function getPublicBrandConfig(brandId) {
     widgetTitle: widgetConfig.widgetTitle,
     welcomeTitle: widgetConfig.welcomeTitle,
     welcomeBody: widgetConfig.welcomeBody,
+    inputPlaceholder: widgetConfig.inputPlaceholder,
     themeColor: widgetConfig.themeColor,
     position: widgetConfig.position,
     quickReplies: widgetConfig.quickReplies || []
