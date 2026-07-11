@@ -6,11 +6,14 @@ const REQUIRED_FIELDS = [
   "is_active"
 ];
 
-const QUICK_REPLIES = [
-  "Track my order",
-  "Return / Exchange",
-  "Shipping & Delivery",
-  "Talk to Support"
+// Fallback only — used when a brand has no quick_replies set (null or []).
+// Mirrors widget.js's own hardcoded getDefaultActions() so brands that
+// never configure this keep seeing exactly what they see today.
+const DEFAULT_QUICK_REPLIES = [
+  { label: "📦 Track my order", message: "Track my order" },
+  { label: "↩ Return / Exchange", message: "Return / Exchange" },
+  { label: "🚚 Shipping & Delivery", message: "Shipping & Delivery" },
+  { label: "👤 Talk to Support", message: "Talk to human" }
 ];
 
 function isSafeBrandId(brandId) {
@@ -98,6 +101,20 @@ function buildTone(row) {
   return `${language} first, helpful, concise, professional`;
 }
 
+function getWelcomeTitle(row) {
+  return row.welcome_title || "How can I help?";
+}
+
+function getWelcomeBody(row) {
+  return row.welcome_body || "I can help with orders, returns, warranty, and product questions.";
+}
+
+function getQuickReplies(row) {
+  return Array.isArray(row.quick_replies) && row.quick_replies.length > 0
+    ? row.quick_replies
+    : DEFAULT_QUICK_REPLIES;
+}
+
 function normalizeBrand(row) {
   if (!row) return null;
 
@@ -129,10 +146,11 @@ function normalizeBrand(row) {
     faqs: [],
     widgetConfig: {
       widgetTitle: `${brandName} Help`,
-      welcomeMessage: `Welcome to ${brandName} support. I can help with orders, returns, shipping, or products.`,
+      welcomeTitle: getWelcomeTitle(row),
+      welcomeBody: getWelcomeBody(row),
       themeColor: "#0f172a",
       position: "bottom-right",
-      quickReplies: QUICK_REPLIES
+      quickReplies: getQuickReplies(row)
     },
     escalationRules: {
       hardKeywords: [
@@ -197,6 +215,9 @@ async function createBrand(brandData) {
     escalation_whatsapp: brandData.escalation_whatsapp || "",
     shopify_store_url: brandData.shopify_store_url || "",
     shopify_token_encrypted: brandData.shopify_token_encrypted || "",
+    welcome_title: brandData.welcome_title || null,
+    welcome_body: brandData.welcome_body || null,
+    quick_replies: brandData.quick_replies || [],
     is_active: brandData.is_active !== false
   };
 
@@ -225,6 +246,9 @@ async function updateBrand(brandId, updates) {
     "escalation_whatsapp",
     "shopify_store_url",
     "shopify_token_encrypted",
+    "welcome_title",
+    "welcome_body",
+    "quick_replies",
     "is_active"
   ];
   const payload = {};
@@ -266,7 +290,8 @@ async function getPublicBrandConfig(brandId) {
   return {
     brandName: brand.brandName,
     widgetTitle: widgetConfig.widgetTitle,
-    welcomeMessage: widgetConfig.welcomeMessage,
+    welcomeTitle: widgetConfig.welcomeTitle,
+    welcomeBody: widgetConfig.welcomeBody,
     themeColor: widgetConfig.themeColor,
     position: widgetConfig.position,
     quickReplies: widgetConfig.quickReplies || []
