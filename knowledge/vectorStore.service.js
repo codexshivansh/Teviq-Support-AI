@@ -244,9 +244,15 @@ async function search({ brandId, queryEmbedding, topK = 5, minScore = 0.12 }) {
 }
 
 async function getStats(brandId) {
+  // Scoped to source_type=document only — knowledge_chunks also holds FAQ/
+  // policy chunks (structuredKnowledge.service.js writes those into the same
+  // table with source_type "faq"/"policy"). Counting all of them here made
+  // the Documents tab show "0 documents, 23 chunks" whenever a brand had
+  // FAQs/policies but no uploaded files — a confusing, seemingly-broken
+  // stat for anyone reading it as "chunks belonging to these 0 documents".
   const [documents, chunks] = await Promise.all([
     request(`knowledge_documents?brand_id=eq.${encodeFilter(brandId)}&select=document_id`),
-    request(`knowledge_chunks?brand_id=eq.${encodeFilter(brandId)}&select=id`)
+    request(`knowledge_chunks?brand_id=eq.${encodeFilter(brandId)}&source_type=eq.document&select=id`)
   ]);
 
   return {
