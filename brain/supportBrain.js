@@ -676,7 +676,11 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     intent,
     language: analysis.language,
     sentiment: analysis.sentiment,
-    warnings: validation.warnings
+    warnings: validation.warnings,
+    // Lets the widget tell apart "please share your details" from "thanks,
+    // noted" without guessing off the reply text — the lead-capture form
+    // uses this to swap from the input form to a plain confirmation card.
+    leadCaptured: Boolean(toolResult.leadState?.hasContact)
   };
 }
 

@@ -65,7 +65,8 @@ async function handleChat(req, res, next) {
       intent: result.intent,
       language: result.language,
       sentiment: result.sentiment,
-      warnings: result.warnings || []
+      warnings: result.warnings || [],
+      leadCaptured: result.leadCaptured || false
     });
   } catch (error) {
     next(error);
