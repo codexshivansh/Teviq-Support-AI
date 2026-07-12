@@ -36,7 +36,7 @@ function corsOrigin(origin, callback) {
 const corsOptions = {
   origin: corsOrigin,
   credentials: true,
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With", "x-teviq-demo-auth"],
   optionsSuccessStatus: 204
 };
