@@ -11,6 +11,7 @@ const knowledgeRoutes = require("./routes/knowledge.routes");
 const onboardingRoutes = require("./routes/onboarding.routes");
 const shopifyRoutes = require("./routes/shopify.routes");
 const analyticsRoutes = require("./routes/analytics.routes");
+const conversationsRoutes = require("./routes/conversations.routes");
 const internalRoutes = require("./routes/internal.routes");
 const { corsOptions } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
@@ -60,6 +61,7 @@ app.use("/api/knowledge", requireClerkAuth, knowledgeRoutes);
 app.use("/api/integrations/shopify", requireClerkAuth, shopifyRoutes);
 app.use("/api/onboarding", requireClerkAuth, onboardingRoutes);
 app.use("/api/analytics", requireClerkAuth, analyticsRoutes);
+app.use("/api/conversations", requireClerkAuth, conversationsRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
 app.use("/internal", requireInternalCronSecret, internalRoutes);
 
