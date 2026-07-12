@@ -27,6 +27,18 @@ async function postJson(url, payload, options = {}) {
   }
 }
 
+function getLanguageInstruction(language) {
+  if (language === "english") {
+    return "Reply in English only. Do not use Hindi or Hinglish words.";
+  }
+
+  if (language === "hindi") {
+    return "Reply in Hindi, written in Devanagari script only. Do not use English or Hinglish.";
+  }
+
+  return "Reply in Hinglish (Hindi-English mix, written in Roman script), matching how the customer wrote.";
+}
+
 function buildPrompt({ brand, faqs, message, customerId, intent, language, memory, knowledge }) {
   const faqText = faqs
     .map((faq) => `Q: ${faq.question}\nA: ${faq.answer}`)
@@ -56,12 +68,12 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     `Customer ID: ${customerId}.`,
     `Detected intent: ${intent}.`,
     `Detected language style: ${language}.`,
+    `Language instruction: ${getLanguageInstruction(language)}`,
     "",
     "Rules:",
     "- Reply only as the brand support assistant.",
     "- Keep replies short, clear, helpful, and aligned with the brand tone.",
-    "- Use Hinglish/Hindi only if the customer writes in Hinglish or Hindi.",
-    "- Use English if the customer writes in English.",
+    "- Strictly follow the language instruction above for the entire reply. Do not mix in another language or script.",
     "- Never invent order status, refund status, return approval, discounts, coupons, or timelines.",
     "- Never promise refund, return, exchange, or cancellation unless the policy explicitly allows it.",
     "- If the user asks about an order but no order ID is known, ask for the order ID.",
