@@ -22,13 +22,45 @@ function normalizeSearchText(value) {
     .trim();
 }
 
+// Widget quick-action buttons send their short label text as the chat
+// message verbatim (e.g. "Setup time"), not a full sentence — so they
+// rarely appear as a literal substring of the matching FAQ's full question
+// ("How long does setup take?"), even though a human would obviously read
+// them as the same thing. Without this, those clicks fall through to the
+// low-confidence fallback instead of the FAQ that was written specifically
+// to answer them.
+const FAQ_MATCH_STOPWORDS = new Set([
+  "a", "an", "the", "is", "are", "am", "do", "does", "did", "can", "could",
+  "will", "would", "should", "what", "when", "where", "how", "why", "who",
+  "which", "long", "you", "your", "i", "my", "me", "to", "for", "of", "in",
+  "on", "at", "and", "or", "about", "with", "this", "that",
+  "kya", "hai", "hain", "ho", "hota", "hoti", "kaise", "karu", "karta",
+  "karte", "karna", "ke", "ki", "ka", "se", "mein", "me", "aap", "aapka",
+  "aapke", "kitna", "kitni"
+]);
+
+function significantWords(text) {
+  return text.split(" ").filter((word) => word.length > 2 && !FAQ_MATCH_STOPWORDS.has(word));
+}
+
 function isExactFaqMatch(chunk, query) {
   if (getSourceType(chunk) !== "faq") return false;
   const question = normalizeSearchText(chunk.metadata?.question || "");
   const normalizedQuery = normalizeSearchText(query);
   if (!question || !normalizedQuery) return false;
 
-  return question.includes(normalizedQuery) || normalizedQuery.includes(question);
+  if (question.includes(normalizedQuery) || normalizedQuery.includes(question)) {
+    return true;
+  }
+
+  const queryWords = significantWords(normalizedQuery);
+  // Only for short, keyword-style queries (quick-action clicks) — free-text
+  // questions stay on the stricter embedding-similarity path so this can't
+  // quietly start over-trusting unrelated FAQs for longer messages.
+  if (queryWords.length === 0 || queryWords.length > 4) return false;
+
+  const questionWords = new Set(significantWords(question));
+  return queryWords.some((word) => questionWords.has(word));
 }
 
 function getPriorityScore(chunk, query) {
