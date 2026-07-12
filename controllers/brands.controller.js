@@ -1,5 +1,27 @@
-const { getBrandById, listBrands } = require("../services/brand.service");
+const { getBrandById, listBrands, updateBrand } = require("../services/brand.service");
 const { getMetadataBrandId, getUserPublicMetadata } = require("../services/clerkMetadata.service");
+
+const HEX_COLOR_PATTERN = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+// Editable-settings projection — everything the Settings page needs to
+// display and save, minus Shopify secrets and internal ranking data.
+function toEditableSettings(brand) {
+  return {
+    id: brand.id,
+    brandName: brand.brandName,
+    industry: brand.industry,
+    themeColor: brand.widgetConfig?.themeColor || "#0f172a",
+    welcomeMessage: brand.widgetConfig?.welcomeBody || "",
+    quickActions: (brand.widgetConfig?.quickReplies || []).map((reply) => reply.label),
+    supportPhone: brand.contactPhone || "",
+    supportEmail: brand.contactEmail || "",
+    businessHours: brand.businessHours || ""
+  };
+}
+
+function normalizeText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
 
 // Slim, public-safe projection — the workspace switcher only needs enough to
 // render a list. Full brand rows carry shopifyTokenEncrypted, policies, FAQs
@@ -37,4 +59,69 @@ async function listBrandsForCurrentUser(req, res, next) {
   }
 }
 
-module.exports = { listBrandsForCurrentUser };
+async function getBrandSettings(req, res, next) {
+  try {
+    const brand = await getBrandById(req.params.brandId);
+    if (!brand) {
+      return res.status(404).json({ error: "brand_not_found", message: "Brand not found." });
+    }
+
+    return res.json({ ok: true, settings: toEditableSettings(brand) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateBrandSettings(req, res, next) {
+  try {
+    const brandId = req.params.brandId;
+    const existing = await getBrandById(brandId);
+    if (!existing) {
+      return res.status(404).json({ error: "brand_not_found", message: "Brand not found." });
+    }
+
+    const body = req.body || {};
+    const updates = {};
+
+    if (body.welcomeMessage !== undefined) {
+      updates.welcome_body = normalizeText(body.welcomeMessage) || null;
+    }
+
+    if (body.quickActions !== undefined) {
+      if (!Array.isArray(body.quickActions)) {
+        return res.status(400).json({ error: "invalid_quick_actions", message: "quickActions must be a list." });
+      }
+      updates.quick_replies = body.quickActions
+        .map((label) => normalizeText(label))
+        .filter(Boolean)
+        .map((label) => ({ label, message: label }));
+    }
+
+    if (body.supportPhone !== undefined) {
+      updates.contact_phone = normalizeText(body.supportPhone) || null;
+    }
+
+    if (body.supportEmail !== undefined) {
+      updates.contact_email = normalizeText(body.supportEmail) || null;
+    }
+
+    if (body.businessHours !== undefined) {
+      updates.business_hours = normalizeText(body.businessHours) || null;
+    }
+
+    if (body.themeColor !== undefined) {
+      const themeColor = normalizeText(body.themeColor);
+      if (themeColor && !HEX_COLOR_PATTERN.test(themeColor)) {
+        return res.status(400).json({ error: "invalid_theme_color", message: "themeColor must be a hex color like #0f172a." });
+      }
+      updates.theme_color = themeColor || null;
+    }
+
+    const updated = await updateBrand(brandId, updates);
+    return res.json({ ok: true, settings: toEditableSettings(updated) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { listBrandsForCurrentUser, getBrandSettings, updateBrandSettings };

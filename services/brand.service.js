@@ -124,6 +124,9 @@ function normalizeBrand(row) {
 
   const brandName = row.brand_name || row.id;
   const escalationWhatsapp = row.escalation_whatsapp || "";
+  const contactPhone = row.contact_phone || "";
+  const contactEmail = row.contact_email || "";
+  const businessHours = row.business_hours || "";
 
   return {
     id: row.id,
@@ -134,17 +137,20 @@ function normalizeBrand(row) {
     supportLanguage: row.support_language || "English",
     tone: buildTone(row),
     isActive: row.is_active !== false,
+    contactPhone,
+    contactEmail,
+    businessHours,
     managerContact: {
       name: `${brandName} Support`,
-      whatsapp: escalationWhatsapp,
-      email: "",
-      hours: "Business hours configured by brand owner"
+      whatsapp: escalationWhatsapp || contactPhone,
+      email: contactEmail,
+      hours: businessHours || "Business hours configured by brand owner"
     },
     escalationContact: {
       name: `${brandName} Support`,
-      whatsapp: escalationWhatsapp,
-      email: "",
-      hours: "Business hours configured by brand owner"
+      whatsapp: escalationWhatsapp || contactPhone,
+      email: contactEmail,
+      hours: businessHours || "Business hours configured by brand owner"
     },
     policies: {},
     faqs: [],
@@ -153,7 +159,7 @@ function normalizeBrand(row) {
       welcomeTitle: getWelcomeTitle(row),
       welcomeBody: getWelcomeBody(row),
       inputPlaceholder: getInputPlaceholder(row),
-      themeColor: "#0f172a",
+      themeColor: row.theme_color || "#0f172a",
       position: "bottom-right",
       quickReplies: getQuickReplies(row)
     },
@@ -224,6 +230,10 @@ async function createBrand(brandData) {
     welcome_body: brandData.welcome_body || null,
     quick_replies: brandData.quick_replies || [],
     input_placeholder: brandData.input_placeholder || null,
+    contact_phone: brandData.contact_phone || null,
+    contact_email: brandData.contact_email || null,
+    business_hours: brandData.business_hours || null,
+    theme_color: brandData.theme_color || null,
     is_active: brandData.is_active !== false
   };
 
@@ -256,6 +266,10 @@ async function updateBrand(brandId, updates) {
     "welcome_body",
     "quick_replies",
     "input_placeholder",
+    "contact_phone",
+    "contact_email",
+    "business_hours",
+    "theme_color",
     "is_active"
   ];
   const payload = {};
