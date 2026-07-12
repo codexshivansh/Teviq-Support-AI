@@ -15,7 +15,7 @@ const { analyzeConversation } = require("./conversationAnalyzer");
 const { detectIntent } = require("./intentEngine");
 const { extractEntities } = require("./entityExtractor");
 const { buildContext } = require("./contextBuilder");
-const { routeTools, ORDER_INTENTS } = require("./toolRouter");
+const { routeTools, ORDER_INTENTS, LEAD_CAPTURE_INTENTS } = require("./toolRouter");
 const { validateResponse } = require("./responseValidator");
 const {
   retrieveKnowledge,
@@ -526,6 +526,24 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     intent = conversationState.context.pendingIntent;
   }
 
+  // Same resume pattern as collecting_order_id, for the lead-capture flow
+  // (human_support/complaint/business_enquiry): buildLeadCaptureReply() asks
+  // the customer for name+phone/email, but nothing previously remembered
+  // that the *next* message was the answer to that ask. A bare reply like
+  // "Shivansh - 9919036696" has no keyword for intentEngine.js to match, so
+  // it fell through to "unknown" and got misrouted into the low-confidence
+  // knowledge fallback instead of being recognized as the contact details
+  // the bot itself had just requested. Only fires when this message doesn't
+  // already express something more specific on its own, same guard as above.
+  if (
+    conversationState.state === "collecting_contact" &&
+    isConversationStateFresh &&
+    conversationState.context?.pendingIntent &&
+    (intent === "unknown" || intent === conversationState.context.pendingIntent)
+  ) {
+    intent = conversationState.context.pendingIntent;
+  }
+
   addConversationMessage(brandId, customerId, "user", message);
   const memory = getConversationMemory(brandId, customerId);
 
@@ -563,6 +581,18 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
         originalQuery: message,
         category: toolResult.detectedCategory || null
       });
+    } else if (LEAD_CAPTURE_INTENTS.includes(intent) && toolResult.leadState) {
+      // Mirrors the collecting_order_id write above: remember that we're
+      // waiting on contact details so the resume block can catch the reply,
+      // and clear it the moment hasContact is true (either this message
+      // already had it, or a resumed collecting_contact turn just supplied it).
+      await setState(
+        brandId,
+        customerId,
+        channel,
+        toolResult.leadState.hasContact ? "idle" : "collecting_contact",
+        toolResult.leadState.hasContact ? {} : { pendingIntent: intent }
+      );
     } else if (entities.orderId && toolResult.order) {
       await setState(brandId, customerId, channel, "idle", {});
     }

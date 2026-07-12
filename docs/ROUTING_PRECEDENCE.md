@@ -110,7 +110,7 @@ order:
 6. **Conversation-state resume** — reads `conversation_states` for
    `(brandId, customerId, channel)`, gated by `isConversationStateFresh`
    (updated within the last `CONVERSATION_STATE_STALE_MS` = 10 minutes).
-   Four different states are handled, with different precedence behavior:
+   Five different states are handled, with different precedence behavior:
 
    - `checking_return`, `checking_cancellation`, `narrowing_products` — each
      is an **early return**: control passes entirely to a dedicated handler
@@ -145,6 +145,29 @@ order:
      message) meant a stale `pendingIntent` could silently clobber a fresh,
      clearly-different intent.
 
+   - `collecting_contact` — same non-early-return, intent-overwrite shape as
+     `collecting_order_id`, minus the `entities.orderId` guard (a contact
+     reply has no entity to check for):
+     ```js
+     if (
+       conversationState.state === "collecting_contact" &&
+       isConversationStateFresh &&
+       conversationState.context?.pendingIntent &&
+       (intent === "unknown" || intent === conversationState.context.pendingIntent)
+     ) {
+       intent = conversationState.context.pendingIntent;
+     }
+     ```
+     Added because `LEAD_CAPTURE_INTENTS`
+     (`human_support`/`complaint`/`business_enquiry`) previously never wrote
+     *any* state — `buildLeadCaptureReply()` asks the customer for
+     name+phone/email, but the next turn had no memory that this ask had
+     just happened. A bare reply like "Shivansh - 9919036696" has no keyword
+     for `intentEngine.js` to match, so it fell through to `"unknown"` and
+     was misrouted into Layer 5's low-confidence fallback instead of back
+     into the lead-capture branch that would have recognized it as the
+     answer and confirmed the lead. See Layer 4 for the write side.
+
 At the end of Layer 2's pre-routing section, exactly one `intent` value and
 one `entities` object exist and are handed to Layer 3 — **unless** one of
 the three early-return states fired, in which case Layers 3-6 as described
@@ -160,8 +183,10 @@ statement order in the source:
 1. **Hard escalation** (`detectEscalation`) — always checked first,
    regardless of `intent`. If it fires, nothing else in this function runs;
    `allowAI = false`, `escalated = true`.
-2. `human_support` / `complaint` / `business_enquiry` → lead capture
-   (`buildLeadCaptureReply`). `complaint` also sets `escalated = true`.
+2. `LEAD_CAPTURE_INTENTS` (`human_support` / `complaint` / `business_enquiry`)
+   → lead capture (`buildLeadCaptureReply`). `complaint` also sets
+   `escalated = true`. Returns `leadState: { contact, hasContact }` — read by
+   Layer 4 (below) to decide whether to start/clear `collecting_contact`.
 3. `ORDER_INTENTS` (`order_tracking`, `return_exchange`, `refund_status`,
    `cancellation`) with `entities.orderId` present → order lookup via
    `getOrderById`. The lookup itself doesn't branch on intent — it always
@@ -198,9 +223,14 @@ row:
    `buildCancellationReasonPrompt()`).
 4. `intent === "product_recommendation" && toolResult.needsProductNarrowing`
    → `narrowing_products`.
-5. `entities.orderId && toolResult.order` (any other case with a resolved
+5. `LEAD_CAPTURE_INTENTS.includes(intent) && toolResult.leadState` →
+   `toolResult.leadState.hasContact ? "idle" : "collecting_contact"`, with
+   `{ pendingIntent: intent }` as the context in the latter case (remembers
+   which of the three lead-capture intents asked, for the resume rule in
+   Layer 2, step 6). Mirrors rule 1's `collecting_order_id` shape.
+6. `entities.orderId && toolResult.order` (any other case with a resolved
    order) → reset to `idle`.
-6. None of the above → state is left untouched (this is deliberate for the
+7. None of the above → state is left untouched (this is deliberate for the
    "order ID given but not found" case, so a corrected ID on the next turn
    still resumes against the existing `collecting_order_id` state).
 

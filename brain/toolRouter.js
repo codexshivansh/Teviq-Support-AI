@@ -9,6 +9,7 @@ const {
 } = require("../services/product.service");
 
 const ORDER_INTENTS = ["order_tracking", "return_exchange", "refund_status", "cancellation"];
+const LEAD_CAPTURE_INTENTS = ["human_support", "complaint", "business_enquiry"];
 
 function buildOrderTrackingReply(order, brand, entities) {
   if (!entities.orderId) {
@@ -88,7 +89,7 @@ function routeTools({ brand, intent, entities, message }) {
     };
   }
 
-  if (["human_support", "complaint", "business_enquiry"].includes(intent)) {
+  if (LEAD_CAPTURE_INTENTS.includes(intent)) {
     return {
       allowAI: false,
       source: "system",
@@ -199,4 +200,4 @@ function routeTools({ brand, intent, entities, message }) {
   };
 }
 
-module.exports = { routeTools, ORDER_INTENTS };
+module.exports = { routeTools, ORDER_INTENTS, LEAD_CAPTURE_INTENTS };
