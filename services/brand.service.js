@@ -62,13 +62,26 @@ async function requestSupabase(path, options = {}) {
     ...options,
     headers
   });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  
+  let data = null;
+  try {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : null;
+  } catch (parseError) {
+    const error = new Error(`Failed to parse Supabase brands response: ${parseError.message}`);
+    error.statusCode = 502;
+    error.supabaseStatus = response.status;
+    error.originalError = parseError;
+    console.error(`[Supabase Parse Error] Brands on ${path}:`, parseError.message);
+    throw error;
+  }
 
   if (!response.ok) {
     const error = new Error(data?.message || `Supabase brands request failed with ${response.status}`);
     error.statusCode = response.status;
+    error.supabaseStatus = response.status;
     error.data = data;
+    console.error(`[Supabase Error] ${response.status} Brands on ${path}:`, data);
     throw error;
   }
 
@@ -79,169 +92,102 @@ async function callSupabaseSafely(operationLabel, path, options) {
   try {
     return await requestSupabase(path, options);
   } catch (error) {
-    console.error(`[brand] ${operationLabel} failed: ${error.message}`);
-    const wrapped = new Error(`${operationLabel} failed: ${error.message}`);
-    wrapped.statusCode = error.statusCode || 503;
-    wrapped.code = error.code || "brand_supabase_error";
-    throw wrapped;
+    console.error(`[Brand operation failed] ${operationLabel}:`, error.message);
+    // Ensure statusCode is always set
+    if (!error.statusCode) {
+      error.statusCode = 503;
+    }
+    throw error;
   }
-}
-
-function validateBrandRow(row) {
-  const missingFields = REQUIRED_FIELDS.filter((field) => row?.[field] == null);
-
-  return {
-    valid: missingFields.length === 0,
-    missingFields
-  };
-}
-
-function buildTone(row) {
-  const language = row.support_language || "English";
-  return `${language} first, helpful, concise, professional`;
-}
-
-function getWelcomeTitle(row) {
-  return row.welcome_title || "How can I help?";
-}
-
-function getWelcomeBody(row) {
-  return row.welcome_body || "I can help with orders, returns, warranty, and product questions.";
-}
-
-function getInputPlaceholder(row) {
-  return row.input_placeholder || "Ask about orders, returns, size...";
-}
-
-function getQuickReplies(row) {
-  return Array.isArray(row.quick_replies) && row.quick_replies.length > 0
-    ? row.quick_replies
-    : DEFAULT_QUICK_REPLIES;
 }
 
 function normalizeBrand(row) {
   if (!row) return null;
-
-  const brandName = row.brand_name || row.id;
-  const escalationWhatsapp = row.escalation_whatsapp || "";
-  const contactPhone = row.contact_phone || "";
-  const contactEmail = row.contact_email || "";
-  const businessHours = row.business_hours || "";
+  if (!row.id || !row.brand_name) return null;
 
   return {
-    id: row.id,
     brandId: row.id,
-    brandName,
-    name: brandName,
-    industry: row.brand_category || "Other",
-    supportLanguage: row.support_language || "English",
-    tone: buildTone(row),
-    isActive: row.is_active !== false,
-    contactPhone,
-    contactEmail,
-    businessHours,
-    managerContact: {
-      name: `${brandName} Support`,
-      whatsapp: escalationWhatsapp || contactPhone,
-      email: contactEmail,
-      hours: businessHours || "Business hours configured by brand owner"
-    },
-    escalationContact: {
-      name: `${brandName} Support`,
-      whatsapp: escalationWhatsapp || contactPhone,
-      email: contactEmail,
-      hours: businessHours || "Business hours configured by brand owner"
-    },
-    policies: {},
-    faqs: [],
+    brandName: row.brand_name,
+    brandCategory: row.brand_category || "",
+    supportLanguage: row.support_language || "en",
+    isActive: Boolean(row.is_active),
     widgetConfig: {
-      widgetTitle: `${brandName} Help`,
-      welcomeTitle: getWelcomeTitle(row),
-      welcomeBody: getWelcomeBody(row),
-      inputPlaceholder: getInputPlaceholder(row),
-      themeColor: row.theme_color || "#0f172a",
-      position: "bottom-right",
-      quickReplies: getQuickReplies(row)
+      widgetTitle: row.welcome_title || "Support",
+      welcomeTitle: row.welcome_title || "Welcome to Support",
+      welcomeBody:
+        row.welcome_body || "Hi there! How can we help you today?",
+      inputPlaceholder: row.input_placeholder || "Type your question here...",
+      themeColor: row.theme_color || "#4F46E5",
+      position: row.position || "bottom-right",
+      quickReplies: row.quick_replies || DEFAULT_QUICK_REPLIES
     },
-    escalationRules: {
-      hardKeywords: [
-        "fraud",
-        "scam",
-        "legal",
-        "police",
-        "consumer court",
-        "abuse"
-      ],
-      response: "This needs priority attention. I am routing this to a senior support specialist."
+    integrations: {
+      shopify: row.shopify_store_url ? { storeUrl: row.shopify_store_url } : null
     },
-    shopifyStoreUrl: row.shopify_store_url || "",
-    shopifyTokenEncrypted: row.shopify_token_encrypted || ""
+    contact: {
+      phone: row.contact_phone || null,
+      email: row.contact_email || null
+    },
+    businessHours: row.business_hours || null,
+    escalationWhatsapp: row.escalation_whatsapp || null,
+    createdAt: row.created_at
   };
 }
 
-async function getBrandById(brandId) {
-  if (!isSafeBrandId(brandId)) return null;
-
-  const encodedId = encodeURIComponent(brandId);
-  const { data } = await callSupabaseSafely(
-    `Brand lookup for "${brandId}"`,
-    `?id=eq.${encodedId}&is_active=eq.true&select=*`
-  );
-  const row = Array.isArray(data) ? data[0] : null;
-
-  if (!row) return null;
-
-  const validation = validateBrandRow(row);
-  if (!validation.valid) {
-    console.warn(`[brand] ${brandId} is missing required fields: ${validation.missingFields.join(", ")}`);
-    return null;
+function validateBrandRow(row) {
+  const missingFields = REQUIRED_FIELDS.filter((field) => !row[field]);
+  if (missingFields.length > 0) {
+    return {
+      ok: false,
+      errors: [`Missing required fields: ${missingFields.join(", ")}`]
+    };
   }
 
-  return normalizeBrand(row);
+  return { ok: true };
 }
 
 async function brandExists(brandId) {
   if (!isSafeBrandId(brandId)) return false;
 
-  const encodedId = encodeURIComponent(brandId);
-  const { data } = await callSupabaseSafely(
-    `Brand existence check for "${brandId}"`,
-    `?id=eq.${encodedId}&select=id`
-  );
-  return Array.isArray(data) && data.length > 0;
+  try {
+    const encodedId = encodeURIComponent(brandId);
+    const { data } = await callSupabaseSafely(
+      `Brand exists check for "${brandId}"`,
+      `?id=eq.${encodedId}&select=id`
+    );
+    return Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
+  }
 }
 
-async function createBrand(brandData) {
-  if (!isSafeBrandId(brandData?.id)) {
-    const error = new Error("Invalid brand ID.");
+async function getBrandById(brandId) {
+  if (!isSafeBrandId(brandId)) {
+    const error = new Error(`Invalid brand ID format: ${brandId}`);
     error.statusCode = 400;
     throw error;
   }
 
-  const payload = {
-    id: brandData.id,
-    brand_name: brandData.brand_name,
-    brand_category: brandData.brand_category,
-    support_language: brandData.support_language,
-    escalation_whatsapp: brandData.escalation_whatsapp || "",
-    shopify_store_url: brandData.shopify_store_url || "",
-    shopify_token_encrypted: brandData.shopify_token_encrypted || "",
-    welcome_title: brandData.welcome_title || null,
-    welcome_body: brandData.welcome_body || null,
-    quick_replies: brandData.quick_replies || [],
-    input_placeholder: brandData.input_placeholder || null,
-    contact_phone: brandData.contact_phone || null,
-    contact_email: brandData.contact_email || null,
-    business_hours: brandData.business_hours || null,
-    theme_color: brandData.theme_color || null,
-    is_active: brandData.is_active !== false
-  };
+  const encodedId = encodeURIComponent(brandId);
+  const { data } = await callSupabaseSafely(
+    `Brand lookup for "${brandId}"`,
+    `?id=eq.${encodedId}&limit=1`
+  );
 
-  const { data } = await callSupabaseSafely(`Brand creation for "${brandData.id}"`, "", {
+  const brand = Array.isArray(data) ? data[0] : data;
+  return normalizeBrand(brand) || null;
+}
+
+async function createBrand(payload) {
+  const { ok, errors } = validateBrandRow(payload);
+  if (!ok) {
+    const error = new Error(`Validation failed: ${errors.join("; ")}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { data } = await callSupabaseSafely("Brand creation", "", {
     method: "POST",
-    headers: {
-      Prefer: "return=representation"
-    },
     body: JSON.stringify(payload)
   });
 
@@ -250,7 +196,7 @@ async function createBrand(brandData) {
 
 async function updateBrand(brandId, updates) {
   if (!isSafeBrandId(brandId)) {
-    const error = new Error("Invalid brand ID.");
+    const error = new Error(`Invalid brand ID format: ${brandId}`);
     error.statusCode = 400;
     throw error;
   }
