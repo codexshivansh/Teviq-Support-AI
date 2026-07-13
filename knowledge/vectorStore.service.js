@@ -50,8 +50,19 @@ async function request(path, options = {}) {
     });
     clearTimeout(timeoutId);
 
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
+    let data = null;
+    try {
+      const text = await response.text();
+      data = text ? JSON.parse(text) : null;
+    } catch (parseError) {
+      const error = new Error(`Failed to parse Supabase response: ${parseError.message}`);
+      error.statusCode = 502;
+      error.supabaseStatus = response.status;
+      error.supabasePath = path;
+      error.originalError = parseError;
+      console.error(`[Supabase Parse Error] on ${path}:`, parseError.message);
+      throw error;
+    }
 
     if (!response.ok) {
       const error = new Error(data?.message || `Supabase vector request failed with ${response.status}`);
@@ -66,6 +77,7 @@ async function request(path, options = {}) {
     return data;
   } catch (error) {
     clearTimeout(timeoutId);
+    
     if (error.name === 'AbortError') {
       const timeoutError = new Error('Supabase request timeout (10s)');
       timeoutError.statusCode = 504;
@@ -73,6 +85,19 @@ async function request(path, options = {}) {
       console.error('[Supabase Timeout]', path);
       throw timeoutError;
     }
+
+    // If error already has statusCode (from above), rethrow as-is
+    if (error.statusCode) {
+      throw error;
+    }
+
+    // For any other error (network, etc.), set a default status code
+    if (!error.statusCode) {
+      error.statusCode = 503;
+      error.supabaseStatus = 503;
+      error.supabasePath = path;
+    }
+    
     console.error('[Supabase Request Error]', path, error.message);
     throw error;
   }

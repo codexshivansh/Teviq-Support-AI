@@ -166,18 +166,21 @@ app.use((error, req, res, next) => {
     });
   }
 
-  console.error("Unhandled error:", {
+  console.error("[Unhandled error]", {
     message: error.message,
     code: error.code,
     context: error.context,
-    stack: error.stack
+    path: error.supabasePath,
+    statusCode: error.statusCode,
+    stack: error.stack?.split('\n').slice(0, 3).join('\n')
   });
 
   res.status(500).json({
     reply: "Sorry, support is temporarily unavailable. Please try again in a few minutes.",
     source: "system",
     escalated: false,
-    intent: "general"
+    intent: "general",
+    error: NODE_ENV === "production" ? undefined : error.message
   });
 });
 
