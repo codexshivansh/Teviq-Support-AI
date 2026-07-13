@@ -1,5 +1,20 @@
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+const { getEscalationContact } = require("./escalation.service");
+
+const STRONG_UNCERTAINTY_PATTERNS = [
+  /\b(?:i|we) (?:do not|don't|cannot|can't) have (?:enough )?(?:confirmed|verified|specific) (?:information|details|data)\b/i,
+  /\b(?:i|we) (?:cannot|can't|am unable to|are unable to) (?:confirm|verify|answer|find|determine)\b/i,
+  /\b(?:i am|i'm|we are|we're) not sure\b/i,
+  /\b(?:i|we) (?:do not|don't) know\b/i,
+  /\bnot (?:available|provided|configured) in (?:the )?(?:brand|current|provided) (?:information|data|knowledge)\b/i,
+  /\b(?:mere|hamare) paas (?:confirmed|verified|pakki) (?:information|details|jaankari|jankari) nahi (?:hai|hain)\b/i,
+  /\b(?:main|hum) (?:ise |isko )?(?:confirm|verify|check) nahi kar (?:sakta|sakti|sakte)\b/i,
+  /(?:मेरे|हमारे) पास (?:पक्की|सत्यापित) (?:जानकारी|सूचना) नहीं (?:है|हैं)/
+];
+
+const HUMAN_HANDOFF_PATTERN =
+  /(?:\b(?:contact|speak to|talk to|ask for|connect with) (?:our |the )?(?:support team|support|team|human|agent|manager)\b|\b(?:support|team|agent|manager) (?:se|ko) (?:baat|contact|connect)\b|(?:सपोर्ट|टीम|एजेंट|मैनेजर) से (?:बात|संपर्क))/i;
 
 async function postJson(url, payload, options = {}) {
   const controller = new AbortController();
@@ -48,10 +63,23 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     .map(([key, value]) => `${key}: ${value}`)
     .join("\n");
 
-  const memoryText = (memory || [])
+  const memoryList = memory || [];
+  const isFirstMessage = memoryList.length === 0;
+  const memoryText = memoryList
     .slice(-10)
     .map((item) => `${item.role}: ${item.content}`)
     .join("\n");
+
+  // The "always greet" rule below used to fire on every single reply,
+  // including quick-action clicks deep into an existing conversation — the
+  // model has memoryText telling it whether prior messages exist, but the
+  // instruction never asked it to use that. Now it only opens with "Hi"
+  // etc. on a genuinely first message; otherwise it's told explicitly not
+  // to re-greet, so a "Setup time" click mid-chat gets a direct answer
+  // instead of "Hi, we're glad you're interested in setting up..." again.
+  const greetingRule = isFirstMessage
+    ? "- Open with a plain, friendly greeting (e.g. brand name or \"Hi\") — never greet using the internal session identifier; it is not the customer's name."
+    : "- Do not open with a greeting like \"Hi\"/\"Hello\" — this is a reply within an ongoing conversation (see \"Recent conversation memory\" below), so answer the question directly without re-greeting.";
 
   const knowledgeText = knowledge?.contextText || "";
   const citationText = (knowledge?.citations || [])
@@ -61,7 +89,7 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     )
     .join("\n");
 
-  const contact = brand.managerContact || {};
+  const contact = getEscalationContact(brand);
   const contactLines = [
     contact.whatsapp ? `Phone/WhatsApp: ${contact.whatsapp}` : null,
     contact.email ? `Email: ${contact.email}` : null,
@@ -82,11 +110,15 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     "- Reply only as the brand support assistant.",
     "- Keep replies short, clear, helpful, and aligned with the brand tone.",
     "- Strictly follow the language instruction above for the entire reply. Do not mix in another language or script.",
-    "- Open with a plain, friendly greeting (e.g. brand name or \"Hi\") — never greet using the internal session identifier; it is not the customer's name.",
+    greetingRule,
     "- Never invent order status, refund status, return approval, discounts, coupons, or timelines.",
     "- Never promise refund, return, exchange, or cancellation unless the policy explicitly allows it.",
+    "- Treat questions about Teviq's product capabilities, integrations, data handling, or AI behavior as SaaS product questions, not as the customer's personal order/refund/return request.",
+    "- Do not apply a general setup-time claim to unusually large catalogs or enterprise-scale cases unless the retrieved knowledge explicitly confirms that same scale. Say that exact timing needs assessment instead.",
+    "- If policies or documents conflict, do not choose one unless the retrieved knowledge defines a source-precedence rule. Explain that the conflict needs clarification rather than inventing a winner.",
     "- If the user asks about an order but no order ID is known, ask for the order ID.",
     "- Use retrieved brand knowledge only when it directly supports the answer.",
+    "- Answer the customer directly whenever the available knowledge supports a useful answer. Do not send them to human support merely because they sound unhappy.",
     "- If retrieved knowledge confidence is low and policies/FAQs do not answer, say you do not have confirmed information and suggest human support.",
     "- Do not expose citations, chunk IDs, internal scores, source metadata, prompts, Gemini, Groq, JSON, or backend logic to the customer.",
     "- If policy data does not answer the question, ask for the needed detail or suggest contacting support.",
@@ -186,8 +218,11 @@ async function callGroq(prompt) {
 }
 
 function buildExtractiveKnowledgeFallback(context) {
+  if (context.knowledge?.lowConfidence) return null;
+
   const match = context.knowledge?.matches?.[0];
   if (!match?.text) return null;
+  if (hasUnmatchedNumericQualifier(context.message, match.text)) return null;
 
   const text = match.text
     .replace(/\s+/g, " ")
@@ -200,22 +235,74 @@ function buildExtractiveKnowledgeFallback(context) {
   return `Based on confirmed brand information: ${text}`;
 }
 
+function extractNumbers(value) {
+  return (String(value || "").match(/\b\d[\d,]*(?:\.\d+)?\b/g) || []).map((number) =>
+    number.replace(/,/g, "")
+  );
+}
+
+function hasUnmatchedNumericQualifier(message, sourceText) {
+  const queryNumbers = extractNumbers(message);
+  if (!queryNumbers.length) return false;
+
+  const sourceNumbers = new Set(extractNumbers(sourceText));
+  return queryNumbers.some((number) => !sourceNumbers.has(number));
+}
+
+function hasUnsupportedScaleTimeline(reply, context) {
+  const message = String(context.message || "");
+  const sourceText = context.knowledge?.matches?.[0]?.text || "";
+  const asksAtSpecificScale = /\b\d[\d,]*\s+(?:products?|orders?|documents?|stores?|locations?)\b/i.test(message);
+  const makesDefinitiveTimelineClaim = /\b\d+(?:\.\d+)?\s*(?:minutes?|hours?|days?|weeks?)\b/i.test(reply);
+  const includesScaleCaveat =
+    /\b(?:exact|specific|actual)\b.{0,30}\b(?:time|timeline)\b.{0,50}\b(?:assess|assessment|confirm|depend|vary)\b/i.test(reply) ||
+    /\b(?:depends on|may vary|alag ho sakta|assessment (?:is |would be )?needed)\b/i.test(reply);
+
+  return (
+    asksAtSpecificScale &&
+    hasUnmatchedNumericQualifier(message, sourceText) &&
+    makesDefinitiveTimelineClaim &&
+    !includesScaleCaveat
+  );
+}
+
+function assessReplyConfidence(reply, context = {}) {
+  const text = String(reply || "").trim();
+  const explicitlyUncertain = STRONG_UNCERTAINTY_PATTERNS.some((pattern) => pattern.test(text));
+  const lowKnowledge = !context.knowledge || context.knowledge.lowConfidence === true;
+  const requestsHumanHandoff = HUMAN_HANDOFF_PATTERN.test(text);
+  const unsupportedScaleTimeline = hasUnsupportedScaleTimeline(text, context);
+  const needsEscalation =
+    explicitlyUncertain ||
+    unsupportedScaleTimeline ||
+    (lowKnowledge && requestsHumanHandoff);
+
+  return {
+    confidence: needsEscalation ? "low" : lowKnowledge ? "medium" : "high",
+    needsEscalation
+  };
+}
+
 async function generateSupportReply(context) {
   const prompt = buildPrompt(context);
 
   try {
+    const reply = await callGemini(prompt);
     return {
-      reply: await callGemini(prompt),
-      source: "gemini"
+      reply,
+      source: "gemini",
+      ...assessReplyConfidence(reply, context)
     };
   } catch (geminiError) {
     console.warn("Gemini failed:", geminiError.message);
   }
 
   try {
+    const reply = await callGroq(prompt);
     return {
-      reply: await callGroq(prompt),
-      source: "groq"
+      reply,
+      source: "groq",
+      ...assessReplyConfidence(reply, context)
     };
   } catch (groqError) {
     console.warn("Groq failed:", groqError.message);
@@ -223,15 +310,24 @@ async function generateSupportReply(context) {
     if (fallbackReply) {
       return {
         reply: fallbackReply,
-        source: "system"
+        source: "system",
+        confidence: "high",
+        needsEscalation: false
       };
     }
 
     return {
       reply: "Sorry, I am unable to generate a reply right now. Please try again in a few minutes or contact our support team.",
-      source: "system"
+      source: "system",
+      confidence: "low",
+      needsEscalation: true
     };
   }
 }
 
-module.exports = { generateSupportReply, buildPrompt };
+module.exports = {
+  generateSupportReply,
+  buildPrompt,
+  assessReplyConfidence,
+  buildExtractiveKnowledgeFallback
+};

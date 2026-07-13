@@ -2,7 +2,11 @@ const { getBrandById } = require("../services/brand.service");
 const { generateSupportReply } = require("../services/ai.service");
 const { getConversationMemory, addConversationMessage } = require("../services/memory.service");
 const { getState, setState } = require("../services/conversationState.service");
-const { detectEscalation, buildEscalationReply } = require("../services/escalation.service");
+const {
+  detectEscalation,
+  buildEscalationReply,
+  buildConfidenceEscalationReply
+} = require("../services/escalation.service");
 const { handleReturnFlowMessage, buildReturnReasonPrompt } = require("../services/returnFlow.service");
 const { handleCancellationFlowMessage, buildCancellationReasonPrompt } = require("../services/cancellationFlow.service");
 const { createReturnRequestRecord, findActiveRequest } = require("../services/returnRequestRecord.service");
@@ -17,11 +21,7 @@ const { extractEntities } = require("./entityExtractor");
 const { buildContext } = require("./contextBuilder");
 const { routeTools, ORDER_INTENTS, LEAD_CAPTURE_INTENTS } = require("./toolRouter");
 const { validateResponse } = require("./responseValidator");
-const {
-  retrieveKnowledge,
-  shouldBlockAIForLowConfidence,
-  buildLowConfidenceReply
-} = require("../knowledge/retrieval.service");
+const { retrieveKnowledge } = require("../knowledge/retrieval.service");
 
 const CONVERSATION_STATE_STALE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -539,6 +539,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     conversationState.state === "collecting_contact" &&
     isConversationStateFresh &&
     conversationState.context?.pendingIntent &&
+    (entities.phone || entities.email) &&
     (intent === "unknown" || intent === conversationState.context.pendingIntent)
   ) {
     intent = conversationState.context.pendingIntent;
@@ -581,6 +582,11 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
         originalQuery: message,
         category: toolResult.detectedCategory || null
       });
+    } else if (
+      conversationState.state === "collecting_contact" &&
+      !LEAD_CAPTURE_INTENTS.includes(intent)
+    ) {
+      await setState(brandId, customerId, channel, "idle", {});
     } else if (LEAD_CAPTURE_INTENTS.includes(intent) && toolResult.leadState) {
       // Mirrors the collecting_order_id write above: remember that we're
       // waiting on contact details so the resume block can catch the reply,
@@ -622,12 +628,9 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   let reply = toolResult.reply;
   let source = toolResult.source || "system";
   let isFallback = false;
+  let escalated = toolResult.escalated;
 
-  if (toolResult.allowAI && shouldBlockAIForLowConfidence({ intent, knowledgeResult: knowledge })) {
-    reply = toolResult.fallbackReply || buildLowConfidenceReply(brand);
-    source = "system";
-    isFallback = true;
-  } else if (toolResult.allowAI) {
+  if (toolResult.allowAI) {
     const aiResponse = await generateSupportReply({
       brand,
       faqs: brand.faqs || [],
@@ -640,13 +643,20 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     });
     reply = aiResponse.reply;
     source = aiResponse.source;
+
+    if (aiResponse.needsEscalation) {
+      reply = buildConfidenceEscalationReply(brand, analysis.language);
+      source = "system";
+      escalated = true;
+      isFallback = true;
+    }
   }
 
   const validation = validateResponse({
     reply,
     context,
     source,
-    escalated: toolResult.escalated
+    escalated
   });
 
   addConversationMessage(brandId, customerId, "assistant", validation.finalReply);
@@ -657,7 +667,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
       customerId,
       message,
       detectedIntent: intent,
-      escalated: toolResult.escalated,
+      escalated,
       source,
       reply: validation.finalReply,
       knowledgeCitations: knowledge?.citations || [],
@@ -672,7 +682,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   return {
     reply: validation.finalReply,
     source,
-    escalated: toolResult.escalated,
+    escalated,
     intent,
     language: analysis.language,
     sentiment: analysis.sentiment,

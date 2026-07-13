@@ -9,6 +9,8 @@
     "smoke:test": "node scripts/smoke-test.js",
     "validate:brands": "node scripts/validate-brands.js",
     "test:brain": "node scripts/test-brain.js",
+    "test:analytics": "node scripts/test-analytics-escalation.js",
+    "test:escalation": "node scripts/test-escalation-routing.js",
     "test:knowledge": "node scripts/test-knowledge.js",
     "test:shopify-demo": "node scripts/test-shopify-demo.js"
   },

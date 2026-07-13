@@ -94,7 +94,7 @@ function sessionize(rows) {
     for (const row of rowsForCustomer) {
       const timestamp = new Date(row.created_at).getTime();
       if (!current || timestamp - current.lastTimestamp > SESSION_GAP_MS) {
-        current = { escalated: false, lastTimestamp: timestamp };
+        current = { escalated: false, startedAt: row.created_at, lastTimestamp: timestamp };
         sessions.push(current);
       }
       current.lastTimestamp = timestamp;
@@ -111,15 +111,15 @@ async function getTotalConversations(brandId, days = 30) {
 }
 
 async function getEscalationRate(brandId, days = 30) {
-  const [total, escalated] = await Promise.all([
-    countRows({ brandId, days }),
-    countRows({ brandId, days, extraFilter: "&escalated=eq.true" })
-  ]);
+  const rows = await fetchRows({ brandId, days, select: "customer_id,created_at,escalated" });
+  const sessions = sessionize(rows);
+  const escalated = sessions.filter((session) => session.escalated).length;
 
   return {
-    rate: total > 0 ? escalated / total : 0,
+    rate: sessions.length > 0 ? escalated / sessions.length : 0,
     escalatedCount: escalated,
-    totalMessages: total
+    totalConversations: sessions.length,
+    totalMessages: rows.length
   };
 }
 
@@ -209,19 +209,19 @@ function buildDayRange(days) {
   return dates;
 }
 
-// Honestly relabeled from "resolution trend" — there is no explicit
-// "resolved" signal in chat_logs (conversation_states' 'resolved' state
-// value is defined but never set by any code path). This trend is exactly
-// what the name says: escalated vs non-escalated message counts per day.
+// There is no explicit "resolved" signal in chat_logs. Keep this trend
+// conversation-scoped so it uses the same 30-minute session definition as
+// total conversations, deflection rate, and escalation rate.
 async function getEscalationTrend(brandId, days = 30) {
-  const rows = await fetchRows({ brandId, days, select: "created_at,escalated" });
+  const rows = await fetchRows({ brandId, days, select: "customer_id,created_at,escalated" });
+  const sessions = sessionize(rows);
   const buckets = new Map(buildDayRange(days).map((date) => [date, { escalatedCount: 0, nonEscalatedCount: 0 }]));
 
-  for (const row of rows) {
-    const key = dayKey(row.created_at);
+  for (const session of sessions) {
+    const key = dayKey(session.startedAt);
     const bucket = buckets.get(key);
     if (!bucket) continue; // outside the requested range due to a clock edge
-    if (row.escalated) bucket.escalatedCount += 1;
+    if (session.escalated) bucket.escalatedCount += 1;
     else bucket.nonEscalatedCount += 1;
   }
 

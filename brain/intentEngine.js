@@ -1,10 +1,19 @@
 const { parseBudget, hasProductKeywordMatch } = require("../services/product.service");
+const { extractOrderId } = require("./entityExtractor");
+
+const TEVIQ_PRODUCT_QUESTION_PATTERNS = [
+  /\bteviq\b/i,
+  /\b(?:widget|knowledge base|uploaded (?:pdf|document|file)|multiple storefronts?)\b/i,
+  /\b(?:ai response|ai answer|resolution rate|resolved response)\b/i,
+  /\b(?:one brand|another brand|brand data|customer data)\b/i,
+  /\b(?:contradictory|conflicting) (?:documents?|policies|rules|sources?)\b/i,
+  /\b(?:manually add|training time|train (?:the )?ai|which source)\b/i
+];
+
+const POLICY_INFORMATION_PATTERN =
+  /\b(?:return|exchange|refund|cancellation|shipping) (?:policy|rules?|process|window|conditions?|eligibility)\b/i;
 
 const INTENT_RULES = [
-  {
-    intent: "complaint",
-    patterns: [/\b(complaint|complain|not satisfied|bad experience|terrible|worst)\b/i]
-  },
   {
     intent: "business_enquiry",
     patterns: [/\b(bulk order|wholesale|b2b|collaboration|collab|partnership|business enquiry|business inquiry|influencer)\b/i]
@@ -15,7 +24,11 @@ const INTENT_RULES = [
   },
   {
     intent: "refund_status",
-    patterns: [/\b(refund|money back|credited|bank transfer|upi refund|refund status)\b/i]
+    patterns: [
+      /\b(refund status|money back|credited|bank transfer|upi refund)\b/i,
+      /\b(?:where is|when (?:will|do|did)|track)\b.{0,24}\b(?:my )?refund\b/i,
+      /\brefund\b.{0,24}\b(?:pending|processed|received|credited|bank|upi|account)\b/i
+    ]
   },
   {
     intent: "return_exchange",
@@ -54,12 +67,34 @@ const INTENT_RULES = [
     patterns: [/\bworth/i, /\bsahi rahega\b/i, /\bachha hai kya\b/i]
   },
   {
+    intent: "complaint",
+    patterns: [
+      /\b(complaint|complain|not satisfied|bad experience|terrible|worst)\b/i,
+      /\b(slapped|hit me|punched|kicked|assaulted|attacked|harassed|threatened|touched me|misbehaved with me)\b/i
+    ]
+  },
+  {
     intent: "general_faq",
     patterns: [/\b(policy|faq|help|support|how do i|how to|available|hours|warranty|patch test)\b/i]
   }
 ];
 
 function detectIntent(message, brandId) {
+  if (
+    brandId === "teviq" &&
+    TEVIQ_PRODUCT_QUESTION_PATTERNS.some((pattern) => pattern.test(message))
+  ) {
+    return "general_faq";
+  }
+
+  if (
+    POLICY_INFORMATION_PATTERN.test(message) &&
+    !extractOrderId(message) &&
+    !/\b(?:my|mera|meri) (?:order|item|return|exchange|refund|cancellation)\b/i.test(message)
+  ) {
+    return "general_faq";
+  }
+
   const matchedRule = INTENT_RULES.find((rule) =>
     rule.patterns.some((pattern) => pattern.test(message))
   );

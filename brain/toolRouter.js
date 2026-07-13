@@ -9,7 +9,7 @@ const {
 } = require("../services/product.service");
 
 const ORDER_INTENTS = ["order_tracking", "return_exchange", "refund_status", "cancellation"];
-const LEAD_CAPTURE_INTENTS = ["human_support", "complaint", "business_enquiry"];
+const LEAD_CAPTURE_INTENTS = ["human_support", "business_enquiry"];
 
 function buildOrderTrackingReply(order, brand, entities) {
   if (!entities.orderId) {
@@ -93,7 +93,7 @@ function routeTools({ brand, intent, entities, message }) {
     return {
       allowAI: false,
       source: "system",
-      escalated: intent === "complaint",
+      escalated: intent === "human_support",
       order: null,
       policyResult: null,
       leadState: {

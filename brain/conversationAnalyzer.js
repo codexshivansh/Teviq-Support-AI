@@ -27,7 +27,7 @@ function detectSentiment(message) {
     return "confused";
   }
 
-  if (/\b(angry|terrible|worst|fraud|scam|cheat|hate|useless|police|legal)\b/i.test(text)) {
+  if (/\b(angry|terrible|worst|fraud|scam|cheat|hate|useless|police|legal|slapped|hit me|punched|kicked|assaulted|attacked|harassed|threatened)\b/i.test(text)) {
     return "angry";
   }
 
@@ -41,7 +41,7 @@ function detectMessageType(message) {
     return "spam";
   }
 
-  if (/\b(complaint|complain|fraud|scam|legal|police|not satisfied|angry)\b/i.test(text)) {
+  if (/\b(complaint|complain|fraud|scam|legal|police|not satisfied|angry|slapped|hit me|punched|kicked|assaulted|attacked|harassed|threatened|misbehaved)\b/i.test(text)) {
     return "complaint";
   }
 

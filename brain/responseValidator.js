@@ -1,4 +1,5 @@
 const { ORDER_INTENTS } = require("./toolRouter");
+const { getEscalationContact } = require("../services/escalation.service");
 
 function stripInternalJson(reply) {
   return reply
@@ -14,7 +15,7 @@ function trimToWordLimit(reply, maxWords = 80) {
 }
 
 function hasManagerContact(reply, brand) {
-  const contact = brand.managerContact || {};
+  const contact = getEscalationContact(brand);
   return Boolean(
     (contact.whatsapp && reply.includes(contact.whatsapp)) ||
       (contact.email && reply.includes(contact.email))
@@ -33,7 +34,7 @@ function validateResponse({ reply, context, source, escalated }) {
   if (escalated) {
     if (!hasManagerContact(finalReply, context.brand)) {
       warnings.push("manager_contact_added");
-      const contact = context.brand.managerContact || {};
+      const contact = getEscalationContact(context.brand);
       finalReply = [finalReply, contact.whatsapp && `WhatsApp: ${contact.whatsapp}`, contact.email && `Email: ${contact.email}`]
         .filter(Boolean)
         .join(" ");
