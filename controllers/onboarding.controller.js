@@ -1,8 +1,11 @@
 const { brandExists, createBrand, deleteBrand, getBrandById, updateBrand } = require("../services/brand.service");
 const { getClerkClient, getMetadataBrandId, getUserPublicMetadata } = require("../services/clerkMetadata.service");
 const { encryptValue } = require("../services/shopifyCredentials.service");
+const shopifyIntegrationService = require("../integrations/shopify/shopifyIntegration.service");
+const shopifyConnectionStore = require("../integrations/shopify/shopifyConnection.store");
+const { normalizeShopDomain } = require("../integrations/shopify/shopifyOAuth.service");
 
-const SHOPIFY_ADMIN_API_VERSION = process.env.SHOPIFY_ADMIN_API_VERSION || "2024-10";
+const SHOPIFY_ADMIN_API_VERSION = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
 
 const BRAND_CATEGORIES = new Set([
   "Fashion",
@@ -75,16 +78,7 @@ async function updateUserPublicMetadata(userId, updates) {
 }
 
 function normalizeShopifyStoreUrl(value) {
-  const rawValue = normalizeText(value);
-  if (!rawValue) return "";
-
-  const withProtocol = /^https?:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`;
-  try {
-    const url = new URL(withProtocol);
-    return url.hostname.toLowerCase().replace(/^www\./, "");
-  } catch (error) {
-    return "";
-  }
+  return normalizeShopDomain(value);
 }
 
 async function validateShopifyCredentials({ storeHost, adminAccessToken }) {
@@ -123,10 +117,31 @@ async function validateShopifyCredentials({ storeHost, adminAccessToken }) {
 async function saveShopifyConnection({ brandId, storeHost, adminAccessToken, shop }) {
   const now = new Date().toISOString();
   const encryptedToken = encryptValue(adminAccessToken);
+  const encryptedTokenJson = JSON.stringify(encryptedToken);
 
   await updateBrand(brandId, {
     shopify_store_url: storeHost,
-    shopify_token_encrypted: JSON.stringify(encryptedToken)
+    shopify_token_encrypted: encryptedTokenJson
+  });
+  await shopifyConnectionStore.upsertConnection({
+    brand_id: brandId,
+    shop_domain: storeHost,
+    shop_name: shop.name || storeHost,
+    primary_domain_url: shop.primaryDomain?.url || "",
+    access_token_encrypted: encryptedTokenJson,
+    refresh_token_encrypted: null,
+    access_token_expires_at: null,
+    refresh_token_expires_at: null,
+    scopes: [],
+    status: "active",
+    connected_at: now,
+    updated_at: now,
+    last_synced_at: now,
+    last_sync_status: "success",
+    last_sync_error: null,
+    product_count: 0,
+    order_count: 0,
+    categories: []
   });
 
   return {
@@ -141,18 +156,18 @@ async function saveShopifyConnection({ brandId, storeHost, adminAccessToken, sho
 }
 
 async function getStoredShopifyConnection(brandId) {
-  const brand = await getBrandById(brandId);
-  if (!brand?.shopifyStoreUrl || !brand?.shopifyTokenEncrypted) return null;
+  const status = await shopifyIntegrationService.getStatus(brandId);
+  if (!status.connected) return null;
 
   return {
     brandId,
-    provider: "shopify",
-    storeHost: brand.shopifyStoreUrl,
-    shopName: brand.shopifyStoreUrl,
-    myshopifyDomain: brand.shopifyStoreUrl,
-    primaryDomainUrl: "",
-    connectedAt: null,
-    updatedAt: null
+    provider: status.provider,
+    storeHost: status.storeHost || "",
+    shopName: status.shopName || status.storeHost || "Shopify store",
+    primaryDomainUrl: status.primaryDomainUrl || "",
+    connectedAt: status.connectedAt || null,
+    updatedAt: status.updatedAt || null,
+    mode: status.mode
   };
 }
 

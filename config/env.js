@@ -42,6 +42,18 @@ function validateEnv() {
     console.warn("[env] SUPABASE_SERVICE_ROLE_KEY is missing. Brand lookup will be unavailable.");
   }
 
+  if (isProduction() && (!process.env.SHOPIFY_CLIENT_ID || !process.env.SHOPIFY_CLIENT_SECRET)) {
+    console.warn(
+      "[env] SHOPIFY_CLIENT_ID or SHOPIFY_CLIENT_SECRET is missing. Shopify OAuth connections will be unavailable."
+    );
+  }
+
+  if (isProduction() && !process.env.SHOPIFY_CREDENTIALS_SECRET) {
+    console.warn(
+      "[env] SHOPIFY_CREDENTIALS_SECRET is missing. Configure a dedicated encryption secret before connecting stores."
+    );
+  }
+
   if (!isProduction() && process.env.ENABLE_DEMO_LOGIN !== "false") {
     console.warn("[env] Demo login bypass is enabled for non-production dashboard presentations.");
   }
