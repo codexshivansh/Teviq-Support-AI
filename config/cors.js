@@ -37,7 +37,7 @@ const corsOptions = {
   origin: corsOrigin,
   credentials: true,
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With", "x-teviq-demo-auth"],
+  allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With", "x-teviq-demo-auth", "x-debug-secret"],
   optionsSuccessStatus: 204
 };
 
