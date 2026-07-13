@@ -8,6 +8,7 @@ function buildContext({
   memory,
   order,
   policyResult,
+  policyConflict,
   leadState,
   knowledge
 }) {
@@ -25,6 +26,7 @@ function buildContext({
     memory,
     order,
     policyResult,
+    policyConflict,
     leadState,
     knowledge
   };

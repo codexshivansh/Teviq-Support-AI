@@ -54,7 +54,7 @@ function getLanguageInstruction(language) {
   return "Reply in Hinglish (Hindi-English mix, written in Roman script), matching how the customer wrote.";
 }
 
-function buildPrompt({ brand, faqs, message, customerId, intent, language, memory, knowledge }) {
+function buildPrompt({ brand, faqs, message, customerId, intent, language, memory, knowledge, policyConflict }) {
   const faqText = faqs
     .map((faq) => `Q: ${faq.question}\nA: ${faq.answer}`)
     .join("\n\n");
@@ -105,6 +105,13 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     `Detected intent: ${intent}.`,
     `Detected language style: ${language}.`,
     `Language instruction: ${getLanguageInstruction(language)}`,
+    `Policy source-precedence check: ${
+      policyConflict?.isConflict
+        ? policyConflict.configured
+          ? `Confirmed authoritative source: ${policyConflict.authoritativeSourceLabel}.`
+          : "No confirmed precedence rule was found."
+        : "Not applicable."
+    }`,
     "",
     "Rules:",
     "- Reply only as the brand support assistant.",

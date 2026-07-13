@@ -3,6 +3,12 @@ const { detectIntent } = require("../brain/intentEngine");
 const { routeTools } = require("../brain/toolRouter");
 const { assessReplyConfidence, buildExtractiveKnowledgeFallback } = require("../services/ai.service");
 const { detectEscalation } = require("../services/escalation.service");
+const {
+  evaluatePolicySourceConflict,
+  findConfirmedPrecedence,
+  isPolicySourceConflictQuery
+} = require("../services/policyConflict.service");
+const { validateResponse } = require("../brain/responseValidator");
 
 const brand = {
   brandId: "test-brand",
@@ -30,6 +36,13 @@ function createSupportBrainHarness() {
   let aiMode = "confident";
   let aiCalls = 0;
   let conversationState = { state: "idle", context: {}, updatedAt: null };
+  let knowledgeResult = {
+    confidence: 0.2,
+    lowConfidence: true,
+    matches: [],
+    citations: [],
+    contextText: ""
+  };
 
   installModuleMock("../services/brand.service", {
     getBrandById: async (brandId) => ({ ...brand, brandId })
@@ -48,13 +61,7 @@ function createSupportBrainHarness() {
     appendChatLog: async () => {}
   });
   installModuleMock("../knowledge/retrieval.service", {
-    retrieveKnowledge: async () => ({
-      confidence: 0.2,
-      lowConfidence: true,
-      matches: [],
-      citations: [],
-      contextText: ""
-    })
+    retrieveKnowledge: async () => knowledgeResult
   });
   installModuleMock("../services/ai.service", {
     generateSupportReply: async () => {
@@ -85,6 +92,9 @@ function createSupportBrainHarness() {
     },
     setConversationState(state) {
       conversationState = state;
+    },
+    setKnowledge(result) {
+      knowledgeResult = result;
     },
     getConversationState() {
       return conversationState;
@@ -126,6 +136,119 @@ const cases = [
         detectIntent("Check return eligibility for order TVQ1001", "test-brand"),
         "return_exchange"
       );
+    }
+  },
+  {
+    name: "Shopify and uploaded PDF conflict question is detected",
+    run() {
+      assert.equal(
+        isPolicySourceConflictQuery(
+          "Agar meri return policy Shopify aur uploaded PDF mein different ho, AI kis source ko follow karega?"
+        ),
+        true
+      );
+      assert.equal(
+        isPolicySourceConflictQuery("What is the return policy in my uploaded PDF?"),
+        false
+      );
+    }
+  },
+  {
+    name: "policy precedence requires an explicit positive rule",
+    run() {
+      const uploadedRule = findConfirmedPrecedence({
+        matches: [
+          {
+            id: "chunk-uploaded-rule",
+            text: "If policies conflict, the uploaded PDF is the source of truth.",
+            metadata: { source_id: "policy-precedence" }
+          }
+        ]
+      });
+      const shopifyRule = findConfirmedPrecedence({
+        matches: [
+          {
+            id: "chunk-shopify-rule",
+            text: "When sources disagree, follow the Shopify policy.",
+            metadata: { source_id: "policy-precedence" }
+          }
+        ]
+      });
+      const negativeRule = findConfirmedPrecedence({
+        matches: [
+          {
+            id: "chunk-negative-rule",
+            text: "The uploaded PDF does not take precedence over Shopify. Ask the support team."
+          }
+        ]
+      });
+      const genericUsage = findConfirmedPrecedence({
+        matches: [
+          {
+            id: "chunk-generic-usage",
+            text: "Teviq uses uploaded PDFs to answer brand questions."
+          }
+        ]
+      });
+      const directFaqAnswer = findConfirmedPrecedence({
+        matches: [
+          {
+            id: "chunk-direct-answer",
+            text: "Q: Which source wins?\nA: Follow the uploaded policy."
+          }
+        ]
+      });
+
+      assert.equal(uploadedRule.configured, true);
+      assert.equal(uploadedRule.authoritativeSource, "uploaded_policy");
+      assert.equal(shopifyRule.configured, true);
+      assert.equal(shopifyRule.authoritativeSource, "shopify");
+      assert.equal(negativeRule.configured, false);
+      assert.equal(genericUsage.configured, false);
+      assert.equal(directFaqAnswer.authoritativeSource, "uploaded_policy");
+    }
+  },
+  {
+    name: "unconfigured policy conflict gets a deterministic safe answer",
+    run() {
+      const result = evaluatePolicySourceConflict({
+        message:
+          "Agar meri return policy Shopify aur uploaded PDF mein different ho, AI kis source ko follow karega?",
+        knowledge: { matches: [] },
+        language: "hinglish"
+      });
+
+      assert.equal(result.isConflict, true);
+      assert.equal(result.configured, false);
+      assert.match(result.safeReply, /confirmed source-precedence rule/i);
+      assert.match(result.safeReply, /escalate/i);
+    }
+  },
+  {
+    name: "response validator removes invented policy precedence",
+    run() {
+      const policyConflict = evaluatePolicySourceConflict({
+        message: "Shopify and uploaded PDF disagree. Which source wins?",
+        knowledge: { matches: [] },
+        language: "english"
+      });
+      const result = validateResponse({
+        reply:
+          "If there is a conflict between Shopify and the uploaded policy, Teviq will guide the customer based on the uploaded PDF.",
+        context: {
+          brand,
+          policyConflict,
+          entities: {},
+          intent: "general_faq"
+        },
+        source: "gemini",
+        escalated: false
+      });
+
+      assert.equal(result.forceEscalation, true);
+      assert.ok(result.warnings.includes("unsupported_policy_precedence_removed"));
+      assert.match(result.finalReply, /No confirmed source-precedence rule/i);
+      assert.match(result.finalReply, /WhatsApp|Email/i);
     }
   },
   {
@@ -306,6 +429,67 @@ const cases = [
       assert.equal(result.intent, "complaint");
       assert.equal(result.source, "system");
       assert.equal(result.escalated, true);
+    }
+  },
+  {
+    name: "support brain bypasses AI for unconfigured source conflict",
+    async run() {
+      supportBrainHarness.setAiMode("confident");
+      const callsBefore = supportBrainHarness.getAiCalls();
+      const result = await supportBrainHarness.processMessage({
+        brandId: brand.brandId,
+        message:
+          "Agar meri return policy Shopify aur uploaded PDF mein different ho, AI kis source ko follow karega?",
+        customerId: "policy-source-conflict"
+      });
+
+      assert.equal(supportBrainHarness.getAiCalls(), callsBefore);
+      assert.equal(result.source, "system");
+      assert.equal(result.escalated, true);
+      assert.match(result.reply, /source-precedence rule/i);
+      assert.match(result.reply, /WhatsApp|Email/i);
+    }
+  },
+  {
+    name: "support brain uses AI only when source precedence is explicit",
+    async run() {
+      supportBrainHarness.setAiMode("confident");
+      supportBrainHarness.setKnowledge({
+        confidence: 0.95,
+        lowConfidence: false,
+        matches: [
+          {
+            id: "chunk-precedence",
+            text: "When Shopify and an uploaded PDF conflict, always follow the Shopify policy.",
+            metadata: { source_id: "source-precedence" }
+          }
+        ],
+        citations: [],
+        contextText: "When Shopify and an uploaded PDF conflict, always follow the Shopify policy."
+      });
+      const callsBefore = supportBrainHarness.getAiCalls();
+
+      try {
+        const result = await supportBrainHarness.processMessage({
+          brandId: brand.brandId,
+          message:
+            "Agar meri return policy Shopify aur uploaded PDF mein different ho, AI kis source ko follow karega?",
+          customerId: "configured-policy-source-conflict"
+        });
+
+        assert.equal(supportBrainHarness.getAiCalls(), callsBefore + 1);
+        assert.equal(result.intent, "general_faq");
+        assert.equal(result.source, "gemini");
+        assert.equal(result.escalated, false);
+      } finally {
+        supportBrainHarness.setKnowledge({
+          confidence: 0.2,
+          lowConfidence: true,
+          matches: [],
+          citations: [],
+          contextText: ""
+        });
+      }
     }
   },
   {

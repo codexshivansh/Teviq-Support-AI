@@ -15,6 +15,10 @@ const { decryptValue } = require("../services/shopifyCredentials.service");
 const { fetchFulfillmentLineItems, createReturnRequest: createShopifyReturnRequest } = require("../integrations/shopify/shopifyReturns.service");
 const { cancelOrder } = require("../integrations/shopify/shopifyOrderCancel.service");
 const { appendChatLog } = require("../services/analytics.service");
+const {
+  evaluatePolicySourceConflict,
+  isPolicySourceConflictQuery
+} = require("../services/policyConflict.service");
 const { analyzeConversation } = require("./conversationAnalyzer");
 const { detectIntent } = require("./intentEngine");
 const { extractEntities } = require("./entityExtractor");
@@ -432,7 +436,8 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   }
 
   const analysis = analyzeConversation(message);
-  let intent = detectIntent(message, brand.brandId);
+  const policyConflictQuery = isPolicySourceConflictQuery(message);
+  let intent = policyConflictQuery ? "general_faq" : detectIntent(message, brand.brandId);
   if (analysis.messageType === "complaint" && intent === "unknown") {
     intent = "complaint";
   }
@@ -607,10 +612,15 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   }
 
   console.log("[BRAIN] Starting retrieval for brand:", brandId);
-  const knowledge = toolResult.allowAI
+  const knowledge = toolResult.allowAI || policyConflictQuery
     ? await retrieveKnowledge({ brandId: brand.brandId, query: message, topK: 5 })
     : null;
   console.log("[BRAIN] Retrieved chunks:", knowledge?.matches?.length || 0);
+  const policyConflict = evaluatePolicySourceConflict({
+    message,
+    knowledge,
+    language: analysis.language
+  });
   const context = buildContext({
     brand,
     message,
@@ -621,6 +631,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     memory,
     order: toolResult.order,
     policyResult: toolResult.policyResult,
+    policyConflict,
     leadState: toolResult.leadState,
     knowledge
   });
@@ -630,7 +641,12 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   let isFallback = false;
   let escalated = toolResult.escalated;
 
-  if (toolResult.allowAI) {
+  if (policyConflict.isConflict && !policyConflict.configured) {
+    reply = policyConflict.safeReply;
+    source = "system";
+    escalated = true;
+    isFallback = true;
+  } else if (toolResult.allowAI) {
     const aiResponse = await generateSupportReply({
       brand,
       faqs: brand.faqs || [],
@@ -639,7 +655,8 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
       intent,
       language: analysis.language,
       memory,
-      knowledge
+      knowledge,
+      policyConflict
     });
     reply = aiResponse.reply;
     source = aiResponse.source;
@@ -658,6 +675,12 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     source,
     escalated
   });
+
+  if (validation.forceEscalation) {
+    escalated = true;
+    source = "system";
+    isFallback = true;
+  }
 
   addConversationMessage(brandId, customerId, "assistant", validation.finalReply);
 

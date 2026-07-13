@@ -1,5 +1,6 @@
 const { ORDER_INTENTS } = require("./toolRouter");
 const { getEscalationContact } = require("../services/escalation.service");
+const { containsSourcePrecedenceClaim } = require("../services/policyConflict.service");
 
 function stripInternalJson(reply) {
   return reply
@@ -25,13 +26,24 @@ function hasManagerContact(reply, brand) {
 function validateResponse({ reply, context, source, escalated }) {
   const warnings = [];
   let finalReply = stripInternalJson(reply || "");
+  let shouldEscalate = escalated;
 
   if (!finalReply) {
     warnings.push("empty_reply_replaced");
     finalReply = "Sorry, I could not prepare a response. Please try again.";
   }
 
-  if (escalated) {
+  if (
+    context.policyConflict?.isConflict &&
+    !context.policyConflict.configured &&
+    containsSourcePrecedenceClaim(finalReply)
+  ) {
+    warnings.push("unsupported_policy_precedence_removed");
+    finalReply = context.policyConflict.safeReply;
+    shouldEscalate = true;
+  }
+
+  if (shouldEscalate) {
     if (!hasManagerContact(finalReply, context.brand)) {
       warnings.push("manager_contact_added");
       const contact = getEscalationContact(context.brand);
@@ -43,7 +55,8 @@ function validateResponse({ reply, context, source, escalated }) {
     return {
       valid: warnings.length === 0,
       finalReply: trimToWordLimit(finalReply),
-      warnings
+      warnings,
+      forceEscalation: !escalated
     };
   }
 
@@ -70,7 +83,8 @@ function validateResponse({ reply, context, source, escalated }) {
   return {
     valid: warnings.length === 0,
     finalReply,
-    warnings
+    warnings,
+    forceEscalation: false
   };
 }
 
