@@ -99,6 +99,82 @@ app.get("/health/supabase", async (req, res) => {
   }
 });
 
+// Diagnostic endpoint - tests the entire knowledge documents pipeline
+// without requiring Clerk auth. Useful for debugging deployment issues.
+// Guarded by an env-var secret so it can't be freely called in production.
+app.get("/health/knowledge/:brandId", async (req, res) => {
+  const debugSecret = req.query.secret || req.get("x-debug-secret") || "";
+  const expectedSecret = process.env.DEBUG_SECRET || "teviq-debug-2026";
+
+  if (debugSecret !== expectedSecret) {
+    return res.status(403).json({ error: "forbidden", message: "Debug secret required." });
+  }
+
+  const results = {
+    brandId: req.params.brandId,
+    steps: []
+  };
+
+  try {
+    // Step 1: Look up brand
+    results.steps.push({ step: "brand_lookup", status: "starting" });
+    const { getBrandById } = require("./services/brand.service");
+    const brand = await getBrandById(req.params.brandId);
+    results.steps[results.steps.length - 1].status = "ok";
+    results.steps[results.steps.length - 1].brand = brand ? { id: brand.brandId, name: brand.brandName } : null;
+
+    if (!brand) {
+      return res.json({ ok: false, reason: "brand_not_found", ...results });
+    }
+
+    // Step 2: List documents
+    results.steps.push({ step: "list_documents", status: "starting" });
+    const vectorStore = require("./knowledge/vectorStore.service");
+    const documents = await vectorStore.listDocuments(brand.brandId);
+    results.steps[results.steps.length - 1].status = "ok";
+    results.steps[results.steps.length - 1].count = documents.length;
+
+    // Step 3: Get stats
+    results.steps.push({ step: "get_stats", status: "starting" });
+    const stats = await vectorStore.getStats(brand.brandId);
+    results.steps[results.steps.length - 1].status = "ok";
+    results.steps[results.steps.length - 1].stats = stats;
+
+    return res.json({
+      ok: true,
+      brandId: brand.brandId,
+      documents,
+      stats,
+      steps: results.steps
+    });
+  } catch (error) {
+    if (results.steps.length > 0) {
+      results.steps[results.steps.length - 1].status = "failed";
+      results.steps[results.steps.length - 1].error = {
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        supabaseStatus: error.supabaseStatus,
+        supabasePath: error.supabasePath,
+        supabaseData: error.supabaseData
+      };
+    }
+    console.error("[Debug knowledge] Failed:", error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        supabaseStatus: error.supabaseStatus,
+        supabasePath: error.supabasePath,
+        stack: error.stack?.split('\n').slice(0, 5)
+      },
+      ...results
+    });
+  }
+});
+
 app.use("/api/brand-config", brandConfigRoutes);
 app.use("/api/brands", requireClerkAuth, brandsRoutes);
 app.use("/api/knowledge", requireClerkAuth, knowledgeRoutes);
@@ -175,12 +251,22 @@ app.use((error, req, res, next) => {
     stack: error.stack?.split('\n').slice(0, 3).join('\n')
   });
 
+  // Return the actual error message so the frontend can display it
+  // instead of a generic "temporarily unavailable" message. This helps
+  // both users and developers understand what went wrong.
+  const errorMessage = error.message || "An unexpected error occurred.";
   res.status(500).json({
-    reply: "Sorry, support is temporarily unavailable. Please try again in a few minutes.",
+    error: "internal_error",
+    message: errorMessage,
+    reply: `Error: ${errorMessage}`,
     source: "system",
     escalated: false,
     intent: "general",
-    error: NODE_ENV === "production" ? undefined : error.message
+    context: error.context || undefined,
+    debug: NODE_ENV === "production" ? undefined : {
+      code: error.code,
+      stack: error.stack?.split('\n').slice(0, 5)
+    }
   });
 });
 
