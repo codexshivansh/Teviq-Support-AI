@@ -40,46 +40,63 @@ async function uploadKnowledgeDocument(req, res, next) {
   }
 }
 
-async function listKnowledgeDocuments(req, res) {
-  const brand = await getBrandOrRespond(req, res);
-  if (!brand) return;
+async function listKnowledgeDocuments(req, res, next) {
+  try {
+    const brand = await getBrandOrRespond(req, res);
+    if (!brand) return;
 
-  return res.json({
-    brandId: brand.brandId,
-    documents: await vectorStore.listDocuments(brand.brandId),
-    stats: await vectorStore.getStats(brand.brandId)
-  });
+    const [documents, stats] = await Promise.all([
+      vectorStore.listDocuments(brand.brandId),
+      vectorStore.getStats(brand.brandId)
+    ]);
+
+    return res.json({
+      brandId: brand.brandId,
+      documents: documents || [],
+      stats: stats || { documentCount: 0, chunkCount: 0 }
+    });
+  } catch (error) {
+    // Pass to error handler with context
+    error.context = "listKnowledgeDocuments";
+    next(error);
+  }
 }
 
-async function deleteKnowledgeDocument(req, res) {
-  const brand = await getBrandOrRespond(req, res);
-  if (!brand) return;
+async function deleteKnowledgeDocument(req, res, next) {
+  try {
+    const brand = await getBrandOrRespond(req, res);
+    if (!brand) return;
 
-  const document = (await vectorStore.listDocuments(brand.brandId))
-    .find((item) => item.documentId === req.params.documentId);
-  const result = await vectorStore.deleteDocument({
-    brandId: brand.brandId,
-    documentId: req.params.documentId
-  });
+    const documents = await vectorStore.listDocuments(brand.brandId);
+    const document = documents.find((item) => item.documentId === req.params.documentId);
 
-  if (!result.deleted) {
-    return res.status(404).json({
-      error: "document_not_found",
-      message: "Document not found for this brand."
+    const result = await vectorStore.deleteDocument({
+      brandId: brand.brandId,
+      documentId: req.params.documentId
     });
-  }
 
-  if (document?.storedFileName) {
-    const filePath = `${uploadRoot}/${brand.brandId}/${document.storedFileName}`;
-    fs.rm(filePath, { force: true }, () => {});
-  }
+    if (!result.deleted) {
+      return res.status(404).json({
+        error: "document_not_found",
+        message: "Document not found for this brand."
+      });
+    }
 
-  return res.json({
-    ok: true,
-    brandId: brand.brandId,
-    documentId: req.params.documentId,
-    deletedChunks: result.deletedChunks
-  });
+    if (document?.storedFileName) {
+      const filePath = `${uploadRoot}/${brand.brandId}/${document.storedFileName}`;
+      fs.rm(filePath, { force: true }, () => {});
+    }
+
+    return res.json({
+      ok: true,
+      brandId: brand.brandId,
+      documentId: req.params.documentId,
+      deletedChunks: result.deletedChunks
+    });
+  } catch (error) {
+    error.context = "deleteKnowledgeDocument";
+    next(error);
+  }
 }
 
 async function retrieveKnowledgeForDebug(req, res) {

@@ -55,6 +55,50 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Diagnostic endpoint to test Supabase connectivity
+app.get("/health/supabase", async (req, res) => {
+  try {
+    const vectorStore = require("./knowledge/vectorStore.service");
+
+    // Try a simple query to test connectivity
+    const response = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/knowledge_documents?select=count&limit=1`,
+      {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        ok: false,
+        supabase: "error",
+        status: response.status,
+        message: data?.message || "Supabase request failed",
+        details: data
+      });
+    }
+
+    res.json({
+      ok: true,
+      supabase: "connected",
+      message: "Supabase connectivity verified"
+    });
+  } catch (error) {
+    console.error("[Supabase Health Check Error]", error.message);
+    res.status(503).json({
+      ok: false,
+      supabase: "error",
+      message: error.message
+    });
+  }
+});
+
 app.use("/api/brand-config", brandConfigRoutes);
 app.use("/api/brands", requireClerkAuth, brandsRoutes);
 app.use("/api/knowledge", requireClerkAuth, knowledgeRoutes);
@@ -94,7 +138,41 @@ app.use((error, req, res, next) => {
     });
   }
 
-  console.error("Unhandled error:", error);
+  // Handle Supabase configuration errors
+  if (error.code === "supabase_not_configured") {
+    console.error("[Supabase Config Error]", error.message);
+    return res.status(503).json({
+      error: "vector_store_unavailable",
+      message: "Knowledge vector store is not configured. Please contact support."
+    });
+  }
+
+  // Handle Supabase timeout errors
+  if (error.code === "supabase_timeout") {
+    console.error("[Supabase Timeout]", error.message);
+    return res.status(504).json({
+      error: "vector_store_timeout",
+      message: "Knowledge store request timed out. Please try again."
+    });
+  }
+
+  // Handle Supabase connection errors
+  if (error.supabaseStatus) {
+    const status = error.supabaseStatus >= 500 ? 503 : error.supabaseStatus;
+    console.error(`[Supabase ${error.supabaseStatus}]`, error.supabasePath, error.message);
+    return res.status(status).json({
+      error: "vector_store_error",
+      message: error.message || "Failed to access knowledge store. Please try again."
+    });
+  }
+
+  console.error("Unhandled error:", {
+    message: error.message,
+    code: error.code,
+    context: error.context,
+    stack: error.stack
+  });
+
   res.status(500).json({
     reply: "Sorry, support is temporarily unavailable. Please try again in a few minutes.",
     source: "system",

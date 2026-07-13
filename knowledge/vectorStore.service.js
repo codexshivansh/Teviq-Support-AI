@@ -38,21 +38,44 @@ function formatVector(embedding) {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(getRestUrl(path), {
-    ...options,
-    headers: getHeaders(options.headers)
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  const url = getRestUrl(path);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-  if (!response.ok) {
-    const error = new Error(data?.message || `Supabase vector request failed with ${response.status}`);
-    error.statusCode = response.status;
-    error.data = data;
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: getHeaders(options.headers),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
+
+    if (!response.ok) {
+      const error = new Error(data?.message || `Supabase vector request failed with ${response.status}`);
+      error.statusCode = response.status;
+      error.supabaseStatus = response.status;
+      error.supabaseData = data;
+      error.supabasePath = path;
+      console.error(`[Supabase Error] ${response.status} on ${path}:`, data);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      const timeoutError = new Error('Supabase request timeout (10s)');
+      timeoutError.statusCode = 504;
+      timeoutError.code = 'supabase_timeout';
+      console.error('[Supabase Timeout]', path);
+      throw timeoutError;
+    }
+    console.error('[Supabase Request Error]', path, error.message);
     throw error;
   }
-
-  return data;
 }
 
 function toDocumentRow(document) {
