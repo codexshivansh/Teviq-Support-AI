@@ -13,6 +13,7 @@ const shopifyRoutes = require("./routes/shopify.routes");
 const analyticsRoutes = require("./routes/analytics.routes");
 const conversationsRoutes = require("./routes/conversations.routes");
 const internalRoutes = require("./routes/internal.routes");
+const meRoutes = require("./routes/me.routes");
 const { corsOptions } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
 const { requireClerkAuth } = require("./middleware/clerkAuth.middleware");
@@ -175,6 +176,7 @@ app.get("/health/knowledge/:brandId", async (req, res) => {
   }
 });
 
+app.use("/api/me", requireClerkAuth, meRoutes);
 app.use("/api/brand-config", brandConfigRoutes);
 app.use("/api/brands", requireClerkAuth, brandsRoutes);
 app.use("/api/knowledge", requireClerkAuth, knowledgeRoutes);
