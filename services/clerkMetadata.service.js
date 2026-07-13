@@ -21,8 +21,22 @@ async function getUserPublicMetadata(userId) {
   return user.publicMetadata || {};
 }
 
+async function setUserBrandId(userId, brandId) {
+  const clerkClient = getClerkClient();
+  const user = await clerkClient.users.getUser(userId);
+  const publicMetadata = {
+    ...(user.publicMetadata || {}),
+    brandId
+  };
+  const updatedUser = await clerkClient.users.updateUserMetadata(userId, {
+    publicMetadata
+  });
+  return updatedUser.publicMetadata || publicMetadata;
+}
+
 module.exports = {
   getClerkClient,
   getMetadataBrandId,
-  getUserPublicMetadata
+  getUserPublicMetadata,
+  setUserBrandId
 };
