@@ -7,14 +7,14 @@ const HEX_COLOR_PATTERN = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 // display and save, minus Shopify secrets and internal ranking data.
 function toEditableSettings(brand) {
   return {
-    id: brand.id,
+    id: brand.brandId,
     brandName: brand.brandName,
-    industry: brand.industry,
+    industry: brand.brandCategory,
     themeColor: brand.widgetConfig?.themeColor || "#0f172a",
     welcomeMessage: brand.widgetConfig?.welcomeBody || "",
     quickActions: (brand.widgetConfig?.quickReplies || []).map((reply) => reply.label),
-    supportPhone: brand.contactPhone || "",
-    supportEmail: brand.contactEmail || "",
+    supportPhone: brand.contact?.phone || "",
+    supportEmail: brand.contact?.email || "",
     businessHours: brand.businessHours || ""
   };
 }
@@ -28,9 +28,9 @@ function normalizeText(value) {
 // and contact info that the dashboard shell has no reason to receive.
 function toWorkspaceSummary(brand) {
   return {
-    id: brand.id,
+    id: brand.brandId,
     name: brand.brandName,
-    industry: brand.industry,
+    industry: brand.brandCategory,
     themeColor: brand.widgetConfig?.themeColor || "#0f172a"
   };
 }
