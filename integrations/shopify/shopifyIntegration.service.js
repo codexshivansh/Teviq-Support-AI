@@ -84,7 +84,7 @@ async function listProducts(brandId) {
   const connection = await getLiveConnection(brandId);
   if (!connection) return shopifyDemoService.listProducts(brandId);
   if (connection.status !== "active") return [];
-  return shopifyAdminProvider.getProducts(brandId, { first: 50 });
+  return cacheStore.listProducts(brandId, 50);
 }
 
 async function beginConnection({ brandId, clerkUserId, shopDomain, returnPath }) {

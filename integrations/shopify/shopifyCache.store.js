@@ -186,6 +186,32 @@ async function deleteProduct(brandId, shopifyProductId) {
   );
 }
 
+async function listProducts(brandId, limit = 50) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
+  const data = await requestTable(
+    "shopify_products",
+    `?brand_id=eq.${encodeFilter(brandId)}` +
+      "&select=shopify_product_id,legacy_resource_id,title,handle,category,tags,status,price,currency,available,image_url,image_alt,shopify_updated_at" +
+      `&order=shopify_updated_at.desc.nullslast&limit=${safeLimit}`
+  );
+
+  return (Array.isArray(data) ? data : []).map((product) => ({
+    id: product.shopify_product_id,
+    legacyResourceId: product.legacy_resource_id,
+    title: product.title,
+    handle: product.handle,
+    category: product.category,
+    tags: Array.isArray(product.tags) ? product.tags : [],
+    status: product.status,
+    price: product.price,
+    currency: product.currency,
+    available: Boolean(product.available),
+    imageUrl: product.image_url,
+    imageAlt: product.image_alt,
+    updatedAt: product.shopify_updated_at
+  }));
+}
+
 async function getOrderByLegacyId(brandId, legacyResourceId) {
   const data = await requestTable(
     "shopify_orders",
@@ -274,6 +300,7 @@ module.exports = {
   deleteProduct,
   finishWebhookEvent,
   getOrderByLegacyId,
+  listProducts,
   orderRow,
   productRow,
   reconcileBrand,
