@@ -1,6 +1,7 @@
 const { decryptValue, encryptValue } = require("../../services/shopifyCredentials.service");
 const { getShopifyConfig } = require("./shopifyConfig");
 const connectionStore = require("./shopifyConnection.store");
+const cacheStore = require("./shopifyCache.store");
 
 const refreshLocks = new Map();
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -167,15 +168,17 @@ const SUMMARY_QUERY = `query TeviqShopifySummary {
   ordersCount(limit: 10000) { count precision }
 }`;
 
-const PRODUCTS_QUERY = `query TeviqProductPreview($first: Int!) {
-  products(first: $first, sortKey: UPDATED_AT, reverse: true) {
+const PRODUCTS_QUERY = `query TeviqProducts($first: Int!, $after: String) {
+  products(first: $first, after: $after, sortKey: UPDATED_AT, reverse: true) {
     nodes {
       id
+      legacyResourceId
       title
       handle
       productType
       tags
       status
+      updatedAt
       totalInventory
       priceRangeV2 {
         minVariantPrice { amount currencyCode }
@@ -186,6 +189,39 @@ const PRODUCTS_QUERY = `query TeviqProductPreview($first: Int!) {
         }
       }
     }
+    pageInfo { hasNextPage endCursor }
+  }
+}`;
+
+const ORDERS_QUERY = `query TeviqOrders($first: Int!, $after: String) {
+  orders(first: $first, after: $after, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      displayFulfillmentStatus
+      displayFinancialStatus
+      cancelledAt
+      processedAt
+      updatedAt
+      lineItems(first: 100) {
+        nodes {
+          title
+          quantity
+          sku
+          product { id }
+          variant { id }
+        }
+      }
+      fulfillments(first: 50) {
+        id
+        legacyResourceId
+        status
+        updatedAt
+        trackingInfo(first: 10) { company number url }
+      }
+    }
+    pageInfo { hasNextPage endCursor }
   }
 }`;
 
@@ -193,15 +229,51 @@ function mapProduct(product) {
   const money = product.priceRangeV2?.minVariantPrice || {};
   return {
     id: product.id,
+    legacyResourceId: product.legacyResourceId ? String(product.legacyResourceId) : null,
     title: product.title,
     handle: product.handle,
     category: product.productType || "Uncategorized",
     tags: product.tags || [],
+    status: product.status || null,
     price: money.amount || "0.00",
     currency: money.currencyCode || "INR",
     available: product.status === "ACTIVE" && product.totalInventory !== 0,
     imageUrl: product.featuredMedia?.image?.url || "",
-    imageAlt: product.featuredMedia?.image?.altText || product.title
+    imageAlt: product.featuredMedia?.image?.altText || product.title,
+    updatedAt: product.updatedAt || null
+  };
+}
+
+function mapOrder(order) {
+  return {
+    id: order.id,
+    legacyResourceId: order.legacyResourceId ? String(order.legacyResourceId) : null,
+    name: order.name || "",
+    fulfillmentStatus: order.displayFulfillmentStatus || null,
+    financialStatus: order.displayFinancialStatus || null,
+    cancelledAt: order.cancelledAt || null,
+    processedAt: order.processedAt || null,
+    updatedAt: order.updatedAt || null,
+    lineItems: (order.lineItems?.nodes || []).map((item) => ({
+      title: item.title || "",
+      quantity: Number(item.quantity || 0),
+      sku: item.sku || "",
+      productId: item.product?.id || null,
+      variantId: item.variant?.id || null
+    })),
+    fulfillments: (order.fulfillments || []).map((fulfillment) => ({
+      id: fulfillment.id,
+      legacyResourceId: fulfillment.legacyResourceId
+        ? String(fulfillment.legacyResourceId)
+        : null,
+      status: fulfillment.status || "",
+      tracking: (fulfillment.trackingInfo || []).map((tracking) => ({
+        company: tracking.company || "",
+        number: tracking.number || "",
+        url: tracking.url || ""
+      })),
+      updatedAt: fulfillment.updatedAt || null
+    }))
   };
 }
 
@@ -219,14 +291,65 @@ async function getSummaryWithToken({ shopDomain, accessToken }) {
   };
 }
 
-async function getProductsWithToken({ shopDomain, accessToken, first = 50 }) {
+async function getProductPageWithToken({ shopDomain, accessToken, first = 50, after = null }) {
   const data = await executeGraphql({
     shopDomain,
     accessToken,
     query: PRODUCTS_QUERY,
-    variables: { first: Math.max(1, Math.min(Number(first) || 50, 100)) }
+    variables: { first: Math.max(1, Math.min(Number(first) || 50, 100)), after }
   });
-  return (data.products?.nodes || []).map(mapProduct);
+  return {
+    items: (data.products?.nodes || []).map(mapProduct),
+    pageInfo: data.products?.pageInfo || { hasNextPage: false, endCursor: null }
+  };
+}
+
+async function getProductsWithToken(options) {
+  const page = await getProductPageWithToken(options);
+  return page.items;
+}
+
+async function getOrderPageWithToken({ shopDomain, accessToken, first = 50, after = null }) {
+  const data = await executeGraphql({
+    shopDomain,
+    accessToken,
+    query: ORDERS_QUERY,
+    variables: { first: Math.max(1, Math.min(Number(first) || 50, 100)), after }
+  });
+  return {
+    items: (data.orders?.nodes || []).map(mapOrder),
+    pageInfo: data.orders?.pageInfo || { hasNextPage: false, endCursor: null }
+  };
+}
+
+async function collectPages(fetchPage, options = {}) {
+  const maxPages = Math.max(1, Math.min(Number(options.maxPages) || 50, 100));
+  const items = [];
+  let after = null;
+  let complete = false;
+
+  for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
+    const page = await fetchPage({ ...options, first: 100, after });
+    items.push(...page.items);
+    if (!page.pageInfo.hasNextPage || !page.pageInfo.endCursor) {
+      complete = true;
+      break;
+    }
+    after = page.pageInfo.endCursor;
+  }
+
+  return { items, complete };
+}
+
+async function getAllProductsWithToken(options) {
+  return collectPages(getProductPageWithToken, options);
+}
+
+async function getAllOrdersWithToken(options) {
+  return collectPages(getOrderPageWithToken, {
+    ...options,
+    maxPages: Number(process.env.SHOPIFY_ORDER_SYNC_MAX_PAGES) || 20
+  });
 }
 
 async function getProducts(brandId, options = {}) {
@@ -236,14 +359,28 @@ async function getProducts(brandId, options = {}) {
 
 async function syncBrand(brandId) {
   const context = await getAccessContext(brandId);
+  const syncStartedAt = new Date().toISOString();
 
   try {
-    const [summary, products] = await Promise.all([
+    const [summary, productResult, orderResult] = await Promise.all([
       getSummaryWithToken(context),
-      getProductsWithToken({ ...context, first: 100 })
+      getAllProductsWithToken({
+        ...context,
+        maxPages: Number(process.env.SHOPIFY_PRODUCT_SYNC_MAX_PAGES) || 50
+      }),
+      getAllOrdersWithToken(context)
     ]);
+    const products = productResult.items;
+    const orders = orderResult.items;
+    const cacheResult = await cacheStore.reconcileBrand(brandId, context.shopDomain, {
+      products,
+      orders,
+      syncStartedAt,
+      productsComplete: productResult.complete,
+      ordersComplete: orderResult.complete
+    });
     const categories = Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
-    const syncedAt = new Date().toISOString();
+    const syncedAt = cacheResult.syncedAt;
     const updated = await connectionStore.updateConnection(brandId, {
       shop_name: summary.shop.name || context.shopDomain,
       primary_domain_url: summary.shop.primaryDomain?.url || "",
@@ -256,7 +393,16 @@ async function syncBrand(brandId) {
       last_sync_error: null
     });
 
-    return { connection: updated, products, syncedAt };
+    return {
+      connection: updated,
+      products,
+      orders,
+      syncedAt,
+      complete: {
+        products: productResult.complete,
+        orders: orderResult.complete
+      }
+    };
   } catch (error) {
     await connectionStore.updateConnection(brandId, {
       status: error.code === "shopify_reauthorization_required" ? "error" : "active",
@@ -271,9 +417,14 @@ module.exports = {
   addSeconds,
   executeGraphql,
   getAccessContext,
+  getAllOrdersWithToken,
+  getAllProductsWithToken,
+  getOrderPageWithToken,
+  getProductPageWithToken,
   getProducts,
   getProductsWithToken,
   getSummaryWithToken,
+  mapOrder,
   mapProduct,
   requestToken,
   syncBrand,

@@ -142,6 +142,8 @@ function toPublicConnection(row) {
     updatedAt: row.updated_at,
     lastSyncedAt: row.last_synced_at,
     lastSyncStatus: row.last_sync_status,
+    webhooksStatus: row.webhooks_status || "not_registered",
+    webhooksLastRegisteredAt: row.webhooks_last_registered_at || null,
     productCount: Number(row.product_count || 0),
     orderCount: Number(row.order_count || 0),
     categories: Array.isArray(row.categories) ? row.categories : []

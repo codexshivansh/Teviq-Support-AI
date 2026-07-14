@@ -13,7 +13,8 @@
     "test:escalation": "node scripts/test-escalation-routing.js",
     "test:knowledge": "node scripts/test-knowledge.js",
     "test:shopify-demo": "node scripts/test-shopify-demo.js",
-    "test:shopify-oauth": "node scripts/test-shopify-oauth.js"
+    "test:shopify-oauth": "node scripts/test-shopify-oauth.js",
+    "test:shopify-webhooks": "node scripts/test-shopify-webhooks.js"
   },
   "keywords": [
     "support",

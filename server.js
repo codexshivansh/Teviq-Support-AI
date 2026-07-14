@@ -11,6 +11,7 @@ const knowledgeRoutes = require("./routes/knowledge.routes");
 const onboardingRoutes = require("./routes/onboarding.routes");
 const shopifyRoutes = require("./routes/shopify.routes");
 const shopifyPublicRoutes = require("./routes/shopify-public.routes");
+const shopifyWebhookRoutes = require("./routes/shopify-webhook.routes");
 const analyticsRoutes = require("./routes/analytics.routes");
 const conversationsRoutes = require("./routes/conversations.routes");
 const internalRoutes = require("./routes/internal.routes");
@@ -34,6 +35,7 @@ app.use(
 );
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
+app.use("/api/integrations/shopify", shopifyWebhookRoutes);
 app.use(express.json({ limit: "1mb" }));
 
 const chatRateLimit = rateLimit({

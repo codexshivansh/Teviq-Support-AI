@@ -1,4 +1,4 @@
-const DEFAULT_SCOPES = ["read_products", "read_orders"];
+const DEFAULT_SCOPES = ["read_products", "read_orders", "read_fulfillments"];
 
 function normalizeCsv(value) {
   return Array.from(new Set(String(value || "")
@@ -36,6 +36,7 @@ function getShopifyConfig({ required = false } = {}) {
     clientSecret,
     dashboardUrl,
     hasCredentialSecret,
+    publicApiUrl,
     redirectUri,
     scopes: scopes.length ? scopes : DEFAULT_SCOPES
   };

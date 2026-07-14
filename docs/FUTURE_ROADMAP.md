@@ -54,7 +54,7 @@ Move to Supabase/PostgreSQL:
 - Build real Shopify OAuth.
 - Store encrypted access tokens.
 - Sync products/orders/customers.
-- Add webhooks for order status changes.
+- Add mandatory Shopify compliance webhooks before Public Distribution review.
 - Add installation flow in dashboard.
 
 ### Widget

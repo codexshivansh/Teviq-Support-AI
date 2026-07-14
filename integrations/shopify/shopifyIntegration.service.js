@@ -3,6 +3,8 @@ const shopifyDemoProvider = require("./shopifyDemo.provider");
 const shopifyAdminProvider = require("./shopifyAdmin.provider");
 const shopifyOauthService = require("./shopifyOAuth.service");
 const connectionStore = require("./shopifyConnection.store");
+const cacheStore = require("./shopifyCache.store");
+const webhookSubscriptions = require("./shopifyWebhookSubscriptions.service");
 const { isShopifyOauthConfigured } = require("./shopifyConfig");
 
 function disconnectedStatus(brandId) {
@@ -56,6 +58,10 @@ async function syncBrand(brandId) {
   if (!connection) return shopifyDemoService.syncBrand(brandId);
 
   const result = await shopifyAdminProvider.syncBrand(brandId);
+  const webhooks = await webhookSubscriptions.ensureOperationalSubscriptions(brandId).catch((error) => ({
+    status: "error",
+    errors: [error.message]
+  }));
   const publicConnection = connectionStore.toPublicConnection(result.connection);
   return {
     ok: true,
@@ -69,6 +75,7 @@ async function syncBrand(brandId) {
     categories: publicConnection.categories,
     status: publicConnection.status,
     mode: "live",
+    webhooks,
     message: "Shopify sync completed."
   };
 }
@@ -87,6 +94,8 @@ async function beginConnection({ brandId, clerkUserId, shopDomain, returnPath })
 async function disconnect(brandId) {
   const connection = await getLiveConnection(brandId);
   if (!connection) return false;
+  await webhookSubscriptions.removeOperationalSubscriptions(brandId).catch(() => {});
+  await cacheStore.clearBrandCache(brandId).catch(() => {});
   return connectionStore.deleteConnection(brandId);
 }
 

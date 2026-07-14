@@ -3,6 +3,7 @@ const { encryptValue } = require("../../services/shopifyCredentials.service");
 const { getShopifyConfig } = require("./shopifyConfig");
 const connectionStore = require("./shopifyConnection.store");
 const shopifyAdminProvider = require("./shopifyAdmin.provider");
+const webhookSubscriptions = require("./shopifyWebhookSubscriptions.service");
 
 const SHOP_DOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
@@ -159,7 +160,7 @@ async function completeOauth(query) {
     accessToken: tokenData.access_token
   });
   const now = new Date().toISOString();
-  const connection = await connectionStore.upsertConnection({
+  let connection = await connectionStore.upsertConnection({
     brand_id: oauthState.brand_id,
     shop_domain: shopDomain,
     shop_name: summary.shop.name || shopDomain,
@@ -185,6 +186,21 @@ async function completeOauth(query) {
     order_count: summary.orderCount,
     categories: []
   });
+
+  try {
+    await webhookSubscriptions.ensureOperationalSubscriptions(oauthState.brand_id);
+    connection = await connectionStore.getConnectionByBrandId(oauthState.brand_id);
+  } catch (error) {
+    console.error("[shopify-webhooks] Registration after OAuth failed", {
+      brandId: oauthState.brand_id,
+      code: error.code,
+      message: error.message
+    });
+    connection = await connectionStore.updateConnection(oauthState.brand_id, {
+      webhooks_status: "error",
+      webhooks_last_error: String(error.message || "Webhook registration failed.").slice(0, 500)
+    }).catch(() => connection);
+  }
 
   return {
     connection: connectionStore.toPublicConnection(connection),
