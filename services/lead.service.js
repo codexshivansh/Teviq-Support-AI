@@ -1,10 +1,9 @@
-function extractContactInfo(message) {
-  const emailMatch = message.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  const phoneMatch = message.match(/(?:\+?91[-\s]?)?[6-9]\d{9}\b/);
+const { extractEmail, extractPhone } = require("./privacy.service");
 
+function extractContactInfo(message) {
   return {
-    email: emailMatch ? emailMatch[0] : null,
-    phone: phoneMatch ? phoneMatch[0] : null
+    email: extractEmail(message),
+    phone: extractPhone(message)
   };
 }
 

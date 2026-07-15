@@ -74,6 +74,14 @@ function encodeFilter(value) {
   return encodeURIComponent(String(value ?? ""));
 }
 
+function orderNameCandidates(orderReference) {
+  const value = String(orderReference || "").trim();
+  if (!value) return [];
+
+  const withoutHash = value.replace(/^#/, "");
+  return [...new Set([value, withoutHash, `#${withoutHash}`].filter(Boolean))];
+}
+
 function chunkRows(rows, size = 200) {
   const chunks = [];
   for (let index = 0; index < rows.length; index += size) {
@@ -220,6 +228,24 @@ async function getOrderByLegacyId(brandId, legacyResourceId) {
   return Array.isArray(data) ? data[0] || null : data || null;
 }
 
+async function getOrderByReference(brandId, orderReference) {
+  if (!brandId || !orderReference) return null;
+
+  for (const candidate of orderNameCandidates(orderReference)) {
+    const data = await requestTable(
+      "shopify_orders",
+      `?brand_id=eq.${encodeFilter(brandId)}` +
+        `&order_name=ilike.${encodeFilter(candidate)}` +
+        "&select=shopify_order_id,legacy_resource_id,shop_domain,order_name,fulfillment_status,financial_status,cancelled_at,processed_at,shopify_updated_at,line_items,fulfillments,synced_at" +
+        "&limit=1"
+    );
+    const order = Array.isArray(data) ? data[0] || null : data || null;
+    if (order) return order;
+  }
+
+  return null;
+}
+
 async function updateOrder(brandId, shopifyOrderId, updates) {
   const data = await requestTable(
     "shopify_orders",
@@ -300,6 +326,7 @@ module.exports = {
   deleteProduct,
   finishWebhookEvent,
   getOrderByLegacyId,
+  getOrderByReference,
   listProducts,
   orderRow,
   productRow,

@@ -1,3 +1,54 @@
+const demoBrands = new Map(
+  ["vastra-demo", "urban-demo", "beauty-demo"].map((brandId) => [
+    brandId,
+    require(`../data/brands/${brandId}.json`)
+  ])
+);
+const state = new Map();
+
+function replaceModule(relativePath, exports) {
+  const resolved = require.resolve(relativePath);
+  require(resolved);
+  require.cache[resolved].exports = exports;
+}
+
+replaceModule("../services/brand.service", {
+  getBrandById: async (brandId) => demoBrands.get(brandId) || null
+});
+replaceModule("../services/conversationState.service", {
+  getState: async (brandId, customerId, channel = "widget") =>
+    state.get(`${brandId}:${customerId}:${channel}`) || { state: "idle", context: {}, updatedAt: null },
+  setState: async (brandId, customerId, channel = "widget", nextState, context = {}) => {
+    const value = { state: nextState, context, updatedAt: new Date().toISOString() };
+    state.set(`${brandId}:${customerId}:${channel}`, value);
+    return value;
+  }
+});
+replaceModule("../services/analytics.service", { appendChatLog: async () => {} });
+replaceModule("../knowledge/retrieval.service", {
+  retrieveKnowledge: async ({ brandId, query }) => ({
+    brandId,
+    query,
+    confidence: 0,
+    confidenceLabel: "low",
+    lowConfidence: true,
+    matches: [],
+    citations: [],
+    contextText: ""
+  })
+});
+replaceModule("../services/ai.service", {
+  generateSupportReply: async ({ brand, intent }) => ({
+    reply:
+      intent === "payment_cod"
+        ? brand.policies.cod
+        : "I can help with confirmed brand information.",
+    source: "system",
+    confidence: "high",
+    needsEscalation: false
+  })
+});
+
 const { processMessage } = require("../brain/supportBrain");
 
 const tests = [
@@ -19,7 +70,7 @@ const tests = [
   {
     name: "return allowed for Delivered",
     input: { brandId: "vastra-demo", message: "Can I return order TVQ1001?", customerId: "brain_return_yes" },
-    expect: (res) => res.intent === "return_exchange" && /Delivered/i.test(res.reply)
+    expect: (res) => res.intent === "return_exchange" && /reason|wajah/i.test(res.reply)
   },
   {
     name: "return denied for Processing",
@@ -29,7 +80,7 @@ const tests = [
   {
     name: "cancellation allowed for Processing",
     input: { brandId: "vastra-demo", message: "Cancel order TVQ1003", customerId: "brain_cancel_yes" },
-    expect: (res) => res.intent === "cancellation" && /Processing/i.test(res.reply)
+    expect: (res) => res.intent === "cancellation" && /reason|wajah/i.test(res.reply)
   },
   {
     name: "cancellation denied for Delivered",

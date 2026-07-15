@@ -55,7 +55,8 @@ async function handleChat(req, res, next) {
       brandId,
       message: cleanMessage,
       customerId,
-      context
+      context,
+      requestIp: req.ip
     });
 
     return res.status(result.statusCode || 200).json({

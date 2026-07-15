@@ -1,20 +1,5 @@
-function extractOrderId(message) {
-  const match = message.match(
-    /(?:#|\border\s*(?:id|number|no\.?)?\s*(?:is|:)?\s*)?([a-z]{2,6}(?:[-_\s]?[a-z]{2,6})?[-_\s]?\d{3,8})\b/i
-  );
-
-  return match ? match[1].replace(/[-_\s]/g, "").toUpperCase() : null;
-}
-
-function extractPhone(message) {
-  const match = message.match(/(?:\+?91[-\s]?)?[6-9]\d{9}\b/);
-  return match ? match[0] : null;
-}
-
-function extractEmail(message) {
-  const match = message.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  return match ? match[0] : null;
-}
+const { extractOrderId } = require("../services/orderReference.service");
+const { extractEmail, extractPhone } = require("../services/privacy.service");
 
 function extractName(message) {
   const match = message.match(/\b(?:my name is|i am|i'm|name is)\s+([a-z][a-z\s]{1,40})\b/i);

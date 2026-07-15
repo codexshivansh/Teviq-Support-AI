@@ -277,12 +277,12 @@ const cases = [
   },
   {
     name: "physical assault is a hard escalation",
-    run() {
+    async run() {
       const message = "delivery boy slapped me";
       assert.equal(detectEscalation(message, brand).escalated, true);
       assert.equal(detectIntent(message, brand.brandId), "complaint");
 
-      const result = routeTools({ brand, intent: "complaint", entities: {}, message });
+      const result = await routeTools({ brand, intent: "complaint", entities: {}, message });
       assert.equal(result.allowAI, false);
       assert.equal(result.escalated, true);
       assert.match(result.reply, /WhatsApp|Email/i);
@@ -296,8 +296,8 @@ const cases = [
   },
   {
     name: "ordinary complaint routes to AI",
-    run() {
-      const result = routeTools({
+    async run() {
+      const result = await routeTools({
         brand,
         intent: "complaint",
         entities: {},
@@ -309,8 +309,8 @@ const cases = [
   },
   {
     name: "explicit human support request is recorded as escalation",
-    run() {
-      const result = routeTools({
+    async run() {
+      const result = await routeTools({
         brand,
         intent: "human_support",
         entities: {},

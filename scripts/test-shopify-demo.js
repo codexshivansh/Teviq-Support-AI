@@ -2,6 +2,35 @@ const shopifyProvider = require("../integrations/shopify/shopifyDemo.provider");
 const shopifySyncService = require("../integrations/shopify/shopifySync.service");
 const { getOrderById } = require("../services/order.service");
 const { getRecommendedProducts } = require("../services/product.service");
+
+const demoBrands = new Map(
+  ["vastra-demo", "urban-demo", "beauty-demo"].map((brandId) => [
+    brandId,
+    require(`../data/brands/${brandId}.json`)
+  ])
+);
+const state = new Map();
+const brandServicePath = require.resolve("../services/brand.service");
+const stateServicePath = require.resolve("../services/conversationState.service");
+const analyticsServicePath = require.resolve("../services/analytics.service");
+
+require(brandServicePath);
+require(stateServicePath);
+require(analyticsServicePath);
+require.cache[brandServicePath].exports = {
+  getBrandById: async (brandId) => demoBrands.get(brandId) || null
+};
+require.cache[stateServicePath].exports = {
+  getState: async (brandId, customerId, channel = "widget") =>
+    state.get(`${brandId}:${customerId}:${channel}`) || { state: "idle", context: {}, updatedAt: null },
+  setState: async (brandId, customerId, channel = "widget", nextState, context = {}) => {
+    const value = { state: nextState, context, updatedAt: new Date().toISOString() };
+    state.set(`${brandId}:${customerId}:${channel}`, value);
+    return value;
+  }
+};
+require.cache[analyticsServicePath].exports = { appendChatLog: async () => {} };
+
 const { processMessage } = require("../brain/supportBrain");
 
 const tests = [
@@ -32,15 +61,15 @@ const tests = [
   },
   {
     name: "order service checks Shopify demo first",
-    run() {
-      const order = getOrderById("UG-SH-7001", "urban-demo");
+    async run() {
+      const order = await getOrderById("UG-SH-7001", "urban-demo");
       return order?.source === "shopify-demo" && order.status === "Out for Delivery";
     }
   },
   {
     name: "fallback to orders.json works",
-    run() {
-      const order = getOrderById("TVQ1001", "vastra-demo");
+    async run() {
+      const order = await getOrderById("TVQ1001", "vastra-demo");
       return order?.orderId === "TVQ1001" && order.status === "Delivered";
     }
   },

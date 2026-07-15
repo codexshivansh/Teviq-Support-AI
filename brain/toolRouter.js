@@ -7,9 +7,29 @@ const {
   buildProductRecommendationReply,
   detectCategory
 } = require("../services/product.service");
+const {
+  ORDER_VERIFICATION_FAILED_REPLY,
+  ORDER_VERIFICATION_LOCKED_REPLY,
+  ORDER_VERIFICATION_REQUIRED_REPLY,
+  getOrderVerificationRequirement,
+  verifyOrderContact
+} = require("../integrations/shopify/shopifyOrderVerification.service");
 
 const ORDER_INTENTS = ["order_tracking", "return_exchange", "refund_status", "cancellation"];
 const LEAD_CAPTURE_INTENTS = ["human_support", "business_enquiry"];
+
+function orderVerificationResult(status, orderId, reply) {
+  return {
+    allowAI: false,
+    source: "system",
+    escalated: false,
+    order: null,
+    policyResult: null,
+    leadState: null,
+    orderVerification: { status, orderId },
+    reply
+  };
+}
 
 function buildOrderTrackingReply(order, brand, entities) {
   if (!entities.orderId) {
@@ -20,11 +40,10 @@ function buildOrderTrackingReply(order, brand, entities) {
     return `I could not find order ${entities.orderId} for ${brand.brandName}. Please recheck the order ID or share the phone/email used at checkout.`;
   }
 
-  const estimatedUpdate = String(order.estimatedUpdate || "No estimated update available.").replace(
-    /[.。]+$/,
-    ""
-  );
-  return `Order ${order.orderId} is currently ${order.status}. ${order.trackingText} Expected update: ${estimatedUpdate}.`;
+  const replyParts = [`Order ${order.orderId} is currently ${order.status}.`];
+  if (order.trackingText) replyParts.push(order.trackingText);
+  if (order.estimatedUpdate) replyParts.push(`Expected update: ${order.estimatedUpdate}`);
+  return replyParts.join(" ");
 }
 
 function buildProductNarrowingQuestion() {
@@ -62,7 +81,7 @@ function getIntentFallbackReply(brand, intent) {
   return null;
 }
 
-function routeTools({ brand, intent, entities, message }) {
+async function routeTools({ brand, intent, entities, message }) {
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
     return {
@@ -105,8 +124,64 @@ function routeTools({ brand, intent, entities, message }) {
   }
 
   let order = null;
+  let orderVerification = null;
   if (ORDER_INTENTS.includes(intent) && entities.orderId) {
-    order = getOrderById(entities.orderId, brand.brandId);
+    const requirement = await getOrderVerificationRequirement(brand.brandId);
+
+    if (requirement.required && entities.orderVerificationLocked) {
+      return orderVerificationResult(
+        "locked",
+        entities.orderId,
+        ORDER_VERIFICATION_LOCKED_REPLY
+      );
+    }
+
+    if (requirement.required && !entities.orderVerified) {
+      if (!requirement.available) {
+        return orderVerificationResult(
+          "unavailable",
+          entities.orderId,
+          ORDER_VERIFICATION_FAILED_REPLY
+        );
+      }
+
+      if (!entities.email && !entities.phone) {
+        return orderVerificationResult(
+          "required",
+          entities.orderId,
+          ORDER_VERIFICATION_REQUIRED_REPLY
+        );
+      }
+
+      const verification = await verifyOrderContact({
+        brandId: brand.brandId,
+        orderId: entities.orderId,
+        email: entities.email,
+        phone: entities.phone
+      });
+
+      if (!verification.verified) {
+        return orderVerificationResult(
+          verification.status === "unavailable" ? "unavailable" : "failed",
+          entities.orderId,
+          ORDER_VERIFICATION_FAILED_REPLY
+        );
+      }
+
+      orderVerification = verification;
+    } else if (requirement.required) {
+      orderVerification = { status: "verified", orderId: entities.orderId };
+    }
+
+    order = await getOrderById(entities.orderId, brand.brandId);
+
+    if (requirement.required && !order) {
+      return orderVerificationResult(
+        "unavailable",
+        entities.orderId,
+        ORDER_VERIFICATION_FAILED_REPLY
+      );
+    }
   }
 
   if (intent === "order_tracking") {
@@ -117,6 +192,7 @@ function routeTools({ brand, intent, entities, message }) {
       order,
       policyResult: null,
       leadState: null,
+      orderVerification,
       reply: buildOrderTrackingReply(order, brand, entities)
     };
   }
@@ -130,6 +206,7 @@ function routeTools({ brand, intent, entities, message }) {
       order,
       policyResult,
       leadState: null,
+      orderVerification,
       reply: policyResult.reply
     };
   }

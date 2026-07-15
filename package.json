@@ -13,6 +13,8 @@
     "test:escalation": "node scripts/test-escalation-routing.js",
     "test:knowledge": "node scripts/test-knowledge.js",
     "test:shopify-demo": "node scripts/test-shopify-demo.js",
+    "test:shopify-orders": "node scripts/test-shopify-order-tracking.js",
+    "test:order-security": "node scripts/test-order-verification-security.js",
     "test:shopify-oauth": "node scripts/test-shopify-oauth.js",
     "test:shopify-webhooks": "node scripts/test-shopify-webhooks.js"
   },

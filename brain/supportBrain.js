@@ -15,6 +15,12 @@ const { decryptValue } = require("../services/shopifyCredentials.service");
 const { fetchFulfillmentLineItems, createReturnRequest: createShopifyReturnRequest } = require("../integrations/shopify/shopifyReturns.service");
 const { cancelOrder } = require("../integrations/shopify/shopifyOrderCancel.service");
 const { appendChatLog } = require("../services/analytics.service");
+const { redactContactInfo } = require("../services/privacy.service");
+const { normalizeOrderId } = require("../services/orderReference.service");
+const {
+  createOrderVerificationBinding,
+  matchesOrderVerificationBinding
+} = require("../services/orderVerificationSession.service");
 const {
   evaluatePolicySourceConflict,
   isPolicySourceConflictQuery
@@ -28,6 +34,9 @@ const { validateResponse } = require("./responseValidator");
 const { retrieveKnowledge } = require("../knowledge/retrieval.service");
 
 const CONVERSATION_STATE_STALE_MS = 10 * 60 * 1000; // 10 minutes
+const ORDER_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const ORDER_VERIFICATION_LOCK_MS = 15 * 60 * 1000;
+const ORDER_VERIFICATION_MAX_ATTEMPTS = 5;
 
 function buildSimpleReplyResult({ reply, escalated, intent, analysis }) {
   return {
@@ -47,6 +56,7 @@ function buildSimpleReplyResult({ reply, escalated, intent, analysis }) {
 // pure decision function in returnFlow.service.js; this function is only
 // responsible for the I/O (state writes, Shopify call, return_requests row).
 async function handleCheckingReturnState({ brand, brandId, customerId, channel, message, context, analysis, startTime }) {
+  const storedMessage = redactContactInfo(message);
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
     try {
@@ -55,13 +65,13 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
       console.error(`[BRAIN] Failed to reset conversation state after escalation for ${brandId}:${customerId}: ${error.message}`);
     }
     const escalationReply = buildEscalationReply(brand);
-    addConversationMessage(brandId, customerId, "user", message);
+    addConversationMessage(brandId, customerId, "user", storedMessage);
     addConversationMessage(brandId, customerId, "assistant", escalationReply);
     try {
       await appendChatLog({
         brandId,
         customerId,
-        message,
+        message: storedMessage,
         detectedIntent: "escalation",
         escalated: true,
         source: "system",
@@ -159,13 +169,13 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
         : "Aapka return note kar liya gaya hai, hamari team jald aapse contact karegi.";
   }
 
-  addConversationMessage(brandId, customerId, "user", message);
+  addConversationMessage(brandId, customerId, "user", storedMessage);
   addConversationMessage(brandId, customerId, "assistant", finalReply);
   try {
     await appendChatLog({
       brandId,
       customerId,
-      message,
+      message: storedMessage,
       detectedIntent: "return_exchange",
       escalated: false,
       source: "system",
@@ -191,6 +201,7 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
 // orderCancel has real, immediate side effects and must not fire twice for
 // the same order.
 async function handleCheckingCancellationState({ brand, brandId, customerId, channel, message, context, analysis, startTime }) {
+  const storedMessage = redactContactInfo(message);
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
     try {
@@ -199,13 +210,13 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
       console.error(`[BRAIN] Failed to reset conversation state after escalation for ${brandId}:${customerId}: ${error.message}`);
     }
     const escalationReply = buildEscalationReply(brand);
-    addConversationMessage(brandId, customerId, "user", message);
+    addConversationMessage(brandId, customerId, "user", storedMessage);
     addConversationMessage(brandId, customerId, "assistant", escalationReply);
     try {
       await appendChatLog({
         brandId,
         customerId,
-        message,
+        message: storedMessage,
         detectedIntent: "escalation",
         escalated: true,
         source: "system",
@@ -314,13 +325,13 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
     }
   }
 
-  addConversationMessage(brandId, customerId, "user", message);
+  addConversationMessage(brandId, customerId, "user", storedMessage);
   addConversationMessage(brandId, customerId, "assistant", finalReply);
   try {
     await appendChatLog({
       brandId,
       customerId,
-      message,
+      message: storedMessage,
       detectedIntent: "cancellation",
       escalated: false,
       source: "system",
@@ -346,6 +357,7 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
 // step and no Shopify side effect, so this only ever needs one round-trip
 // before resetting to idle (or staying put if still ambiguous).
 async function handleNarrowingProductsState({ brand, brandId, customerId, channel, message, context, analysis, startTime }) {
+  const storedMessage = redactContactInfo(message);
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
     try {
@@ -354,13 +366,13 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
       console.error(`[BRAIN] Failed to reset conversation state after escalation for ${brandId}:${customerId}: ${error.message}`);
     }
     const escalationReply = buildEscalationReply(brand);
-    addConversationMessage(brandId, customerId, "user", message);
+    addConversationMessage(brandId, customerId, "user", storedMessage);
     addConversationMessage(brandId, customerId, "assistant", escalationReply);
     try {
       await appendChatLog({
         brandId,
         customerId,
-        message,
+        message: storedMessage,
         detectedIntent: "escalation",
         escalated: true,
         source: "system",
@@ -394,13 +406,13 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
     finalReply = "Maaf kijiye, samajh nahi aaya. Kripya category (jaise kurta, dress) ya budget bataiye taaki main sahi products suggest kar sakoon.";
   }
 
-  addConversationMessage(brandId, customerId, "user", message);
+  addConversationMessage(brandId, customerId, "user", storedMessage);
   addConversationMessage(brandId, customerId, "assistant", finalReply);
   try {
     await appendChatLog({
       brandId,
       customerId,
-      message,
+      message: storedMessage,
       detectedIntent: "product_recommendation",
       escalated: false,
       source: "system",
@@ -417,8 +429,16 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
   return buildSimpleReplyResult({ reply: finalReply, escalated: false, intent: "product_recommendation", analysis });
 }
 
-async function processMessage({ brandId, message, customerId = "guest", channel = "widget", context: requestContext }) {
+async function processMessage({
+  brandId,
+  message,
+  customerId = "guest",
+  channel = "widget",
+  context: requestContext,
+  requestIp = "unknown"
+}) {
   const startTime = Date.now();
+  const storedMessage = redactContactInfo(message);
   const presetOrderId =
     requestContext?.orderId && typeof requestContext.orderId === "string" ? requestContext.orderId.trim() : null;
   const brand = await getBrandById(brandId);
@@ -474,6 +494,46 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   const isConversationStateFresh =
     Boolean(conversationState.updatedAt) &&
     Date.now() - new Date(conversationState.updatedAt).getTime() < CONVERSATION_STATE_STALE_MS;
+
+  const verificationSessionContext = { brandId, customerId, channel, requestIp };
+  const stateOrderId = conversationState.context?.orderId || null;
+  const typedOrderDiffers =
+    entities.orderId && stateOrderId && normalizeOrderId(entities.orderId) !== normalizeOrderId(stateOrderId);
+  const verificationLockActive =
+    conversationState.state === "order_verification_locked" &&
+    Number(new Date(conversationState.context?.lockedUntil).getTime()) > Date.now();
+
+  if (
+    verificationLockActive &&
+    (intent === "unknown" || ORDER_INTENTS.includes(intent))
+  ) {
+    intent = conversationState.context?.pendingIntent || "order_tracking";
+    entities.orderId = stateOrderId || entities.orderId;
+    entities.orderVerificationLocked = true;
+  } else if (
+    conversationState.state === "collecting_order_contact" &&
+    isConversationStateFresh &&
+    stateOrderId &&
+    (intent === "unknown" || ORDER_INTENTS.includes(intent))
+  ) {
+    intent = conversationState.context?.pendingIntent || "order_tracking";
+    // A newly typed order number starts a fresh verification attempt. When
+    // the follow-up only contains contact details, resume the stored order.
+    entities.orderId = typedOrderDiffers ? entities.orderId : stateOrderId;
+  } else if (
+    conversationState.state === "order_verified" &&
+    Number(new Date(conversationState.context?.expiresAt).getTime()) > Date.now() &&
+    matchesOrderVerificationBinding(conversationState.context?.sessionBinding, verificationSessionContext) &&
+    (intent === "unknown" || ORDER_INTENTS.includes(intent))
+  ) {
+    const verifiedOrderId = stateOrderId;
+    const requestedOrderId = entities.orderId || verifiedOrderId;
+    if (normalizeOrderId(requestedOrderId) === normalizeOrderId(verifiedOrderId)) {
+      intent = intent === "unknown" ? conversationState.context?.pendingIntent || "order_tracking" : intent;
+      entities.orderId = verifiedOrderId;
+      entities.orderVerified = true;
+    }
+  }
 
   if (conversationState.state === "checking_return" && isConversationStateFresh) {
     return handleCheckingReturnState({
@@ -550,10 +610,10 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     intent = conversationState.context.pendingIntent;
   }
 
-  addConversationMessage(brandId, customerId, "user", message);
+  addConversationMessage(brandId, customerId, "user", storedMessage);
   const memory = getConversationMemory(brandId, customerId);
 
-  const toolResult = routeTools({ brand, intent, entities, message });
+  const toolResult = await routeTools({ brand, intent, entities, message });
 
   // Update conversation state based on this turn's outcome. If the order ID
   // was genuinely missing (not just invalid), remember which intent asked
@@ -568,24 +628,66 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   // "collecting_order_id" state untouched so a corrected ID on the next turn
   // still resumes.
   try {
-    if (ORDER_INTENTS.includes(intent) && !entities.orderId && toolResult.allowAI === false) {
+    const verificationStatus = toolResult.orderVerification?.status;
+    const sameVerificationOrder =
+      stateOrderId &&
+      toolResult.orderVerification?.orderId &&
+      normalizeOrderId(stateOrderId) === normalizeOrderId(toolResult.orderVerification.orderId);
+    const existingAttempts = sameVerificationOrder
+      ? Number(conversationState.context?.attempts || 0)
+      : 0;
+
+    if (verificationStatus === "required" || verificationStatus === "unavailable") {
+      await setState(brandId, customerId, channel, "collecting_order_contact", {
+        pendingIntent: intent,
+        orderId: toolResult.orderVerification.orderId,
+        attempts: existingAttempts
+      });
+    } else if (verificationStatus === "failed") {
+      const attempts = existingAttempts + 1;
+      if (attempts >= ORDER_VERIFICATION_MAX_ATTEMPTS) {
+        await setState(brandId, customerId, channel, "order_verification_locked", {
+          pendingIntent: intent,
+          orderId: toolResult.orderVerification.orderId,
+          attempts,
+          lockedUntil: new Date(Date.now() + ORDER_VERIFICATION_LOCK_MS).toISOString()
+        });
+        toolResult.reply =
+          "Too many verification attempts. Please wait 15 minutes before trying again, or talk to support.";
+      } else {
+        await setState(brandId, customerId, channel, "collecting_order_contact", {
+          pendingIntent: intent,
+          orderId: toolResult.orderVerification.orderId,
+          attempts
+        });
+      }
+    } else if (verificationStatus === "locked") {
+      // Keep the existing cooldown state unchanged.
+    } else if (ORDER_INTENTS.includes(intent) && !entities.orderId && toolResult.allowAI === false) {
       await setState(brandId, customerId, channel, "collecting_order_id", { pendingIntent: intent });
     } else if (intent === "return_exchange" && toolResult.order && toolResult.policyResult?.allowed) {
       await setState(brandId, customerId, channel, "checking_return", {
-        orderId: toolResult.order.orderId,
+        orderId: toolResult.order.shopifyOrderId || toolResult.order.orderId,
         step: "awaiting_reason"
       });
       toolResult.reply = buildReturnReasonPrompt();
     } else if (intent === "cancellation" && toolResult.order && toolResult.policyResult?.allowed) {
       await setState(brandId, customerId, channel, "checking_cancellation", {
-        orderId: toolResult.order.orderId,
+        orderId: toolResult.order.shopifyOrderId || toolResult.order.orderId,
         step: "awaiting_reason"
       });
       toolResult.reply = buildCancellationReasonPrompt();
     } else if (intent === "product_recommendation" && toolResult.needsProductNarrowing) {
       await setState(brandId, customerId, channel, "narrowing_products", {
-        originalQuery: message,
+        originalQuery: storedMessage,
         category: toolResult.detectedCategory || null
+      });
+    } else if (verificationStatus === "verified" && toolResult.order) {
+      await setState(brandId, customerId, channel, "order_verified", {
+        pendingIntent: intent,
+        orderId: toolResult.order.orderId,
+        sessionBinding: createOrderVerificationBinding(verificationSessionContext),
+        expiresAt: new Date(Date.now() + ORDER_VERIFICATION_TTL_MS).toISOString()
       });
     } else if (
       conversationState.state === "collecting_contact" &&
@@ -613,7 +715,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
 
   console.log("[BRAIN] Starting retrieval for brand:", brandId);
   const knowledge = toolResult.allowAI || policyConflictQuery
-    ? await retrieveKnowledge({ brandId: brand.brandId, query: message, topK: 5 })
+    ? await retrieveKnowledge({ brandId: brand.brandId, query: storedMessage, topK: 5 })
     : null;
   console.log("[BRAIN] Retrieved chunks:", knowledge?.matches?.length || 0);
   const policyConflict = evaluatePolicySourceConflict({
@@ -623,7 +725,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
   });
   const context = buildContext({
     brand,
-    message,
+    message: storedMessage,
     customerId,
     analysis,
     intent,
@@ -650,7 +752,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     const aiResponse = await generateSupportReply({
       brand,
       faqs: brand.faqs || [],
-      message,
+      message: storedMessage,
       customerId,
       intent,
       language: analysis.language,
@@ -688,7 +790,7 @@ async function processMessage({ brandId, message, customerId = "guest", channel 
     await appendChatLog({
       brandId,
       customerId,
-      message,
+      message: storedMessage,
       detectedIntent: intent,
       escalated,
       source,
