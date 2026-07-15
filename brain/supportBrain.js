@@ -514,7 +514,7 @@ async function processMessage({
     conversationState.state === "collecting_order_contact" &&
     isConversationStateFresh &&
     stateOrderId &&
-    (intent === "unknown" || ORDER_INTENTS.includes(intent))
+    (entities.email || entities.phone || intent === "unknown" || ORDER_INTENTS.includes(intent))
   ) {
     intent = conversationState.context?.pendingIntent || "order_tracking";
     // A newly typed order number starts a fresh verification attempt. When

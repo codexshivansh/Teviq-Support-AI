@@ -151,7 +151,10 @@ async function createSupportBrainHarness() {
     getOrderVerificationRequirement: async () => ({ required: true, available: true }),
     verifyOrderContact: async ({ orderId, email, phone }) => {
       verificationCalls += 1;
-      const contactMatches = email === "owner@example.com" || String(phone || "").replace(/\D/g, "") === "9876543210";
+      const contactMatches =
+        email === "owner@example.com" ||
+        email === "qa-order-verification@teviq.in" ||
+        String(phone || "").replace(/\D/g, "") === "9876543210";
       if (orderId === "#1001" && contactMatches) {
         return {
           verified: true,
@@ -248,6 +251,22 @@ async function testSupportBrainSecurityFlow() {
   assert.match(verified.reply, /Order #1001 is currently Processing/i);
   assert.match(verified.reply, /Payment status is Paid/i);
   assert.equal(harness.orderLookups, 1);
+
+  await harness.processMessage({
+    ...base,
+    customerId: "intent-collision-session",
+    message: "Track order #1001"
+  });
+  const intentCollisionVerified = await harness.processMessage({
+    ...base,
+    customerId: "intent-collision-session",
+    message: "qa-order-verification@teviq.in"
+  });
+  assert.match(
+    intentCollisionVerified.reply,
+    /Order #1001 is currently Processing/i,
+    "A valid contact must resume order verification even if its text resembles another intent"
+  );
 
   const callsBeforeReuse = harness.verificationCalls;
   const reused = await harness.processMessage({
