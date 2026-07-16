@@ -11,6 +11,11 @@ const DEFAULT_ALLOWED_ORIGINS = [
 
 const VERCEL_PREVIEW_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
 
+function isPublicWidgetRequest(req) {
+  const path = String(req?.path || req?.originalUrl || "").split("?")[0];
+  return path === "/api/chat" || path === "/api/chat/" || path.startsWith("/api/brand-config/");
+}
+
 function getCorsAllowedOrigins() {
   return Array.from(new Set([...DEFAULT_ALLOWED_ORIGINS, ...getAllowedOrigins()]));
 }
@@ -22,12 +27,12 @@ function isAllowedOrigin(origin) {
 }
 
 function corsOrigin(origin, callback) {
-  if (isAllowedOrigin(origin)) {
+  if (!isProduction()) {
     return callback(null, true);
   }
 
-  if (!isProduction()) {
-    return callback(new Error(`Origin is not allowed by CORS: ${origin || "unknown"}`));
+  if (isAllowedOrigin(origin)) {
+    return callback(null, true);
   }
 
   return callback(new Error("Origin is not allowed by CORS"));
@@ -41,4 +46,27 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
-module.exports = { corsOrigin, corsOptions, getCorsAllowedOrigins, isAllowedOrigin };
+const publicWidgetCorsOptions = {
+  // Widget APIs already use public brand identifiers and never accept Clerk
+  // credentials. Reflecting the storefront origin lets a brand embed Teviq
+  // without weakening the protected dashboard API allowlist.
+  origin: true,
+  credentials: false,
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "X-Requested-With"],
+  optionsSuccessStatus: 204
+};
+
+function corsOptionsDelegate(req, callback) {
+  callback(null, isPublicWidgetRequest(req) ? publicWidgetCorsOptions : corsOptions);
+}
+
+module.exports = {
+  corsOrigin,
+  corsOptions,
+  corsOptionsDelegate,
+  getCorsAllowedOrigins,
+  isAllowedOrigin,
+  isPublicWidgetRequest,
+  publicWidgetCorsOptions
+};

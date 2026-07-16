@@ -16,7 +16,7 @@ const analyticsRoutes = require("./routes/analytics.routes");
 const conversationsRoutes = require("./routes/conversations.routes");
 const internalRoutes = require("./routes/internal.routes");
 const meRoutes = require("./routes/me.routes");
-const { corsOptions } = require("./config/cors");
+const { corsOptionsDelegate } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
 const { requireClerkAuth } = require("./middleware/clerkAuth.middleware");
 const { requireInternalCronSecret } = require("./middleware/internalCron.middleware");
@@ -33,8 +33,8 @@ app.use(
     crossOriginResourcePolicy: { policy: "cross-origin" }
   })
 );
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+app.use(cors(corsOptionsDelegate));
+app.options("*", cors(corsOptionsDelegate));
 app.use("/api/integrations/shopify", shopifyWebhookRoutes);
 app.use(express.json({ limit: "1mb" }));
 
@@ -62,8 +62,6 @@ app.get("/health", (req, res) => {
 // Diagnostic endpoint to test Supabase connectivity
 app.get("/health/supabase", async (req, res) => {
   try {
-    const vectorStore = require("./knowledge/vectorStore.service");
-
     // Try a simple query to test connectivity
     const response = await fetch(
       `${process.env.SUPABASE_URL}/rest/v1/knowledge_documents?select=count&limit=1`,
@@ -79,12 +77,14 @@ app.get("/health/supabase", async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json({
-        ok: false,
-        supabase: "error",
+      console.error("[Supabase Health Check Error]", {
         status: response.status,
-        message: data?.message || "Supabase request failed",
-        details: data
+        code: data?.code || null
+      });
+      return res.status(response.status >= 500 ? 503 : 502).json({
+        ok: false,
+        supabase: "unavailable",
+        message: "Supabase connectivity check failed."
       });
     }
 
@@ -94,11 +94,14 @@ app.get("/health/supabase", async (req, res) => {
       message: "Supabase connectivity verified"
     });
   } catch (error) {
-    console.error("[Supabase Health Check Error]", error.message);
+    console.error("[Supabase Health Check Error]", {
+      name: error.name,
+      message: error.message
+    });
     res.status(503).json({
       ok: false,
-      supabase: "error",
-      message: error.message
+      supabase: "unavailable",
+      message: "Supabase connectivity check failed."
     });
   }
 });
@@ -107,8 +110,16 @@ app.get("/health/supabase", async (req, res) => {
 // without requiring Clerk auth. Useful for debugging deployment issues.
 // Guarded by an env-var secret so it can't be freely called in production.
 app.get("/health/knowledge/:brandId", async (req, res) => {
+  if (NODE_ENV === "production") {
+    return res.status(404).json({ error: "not_found", message: "Endpoint not found." });
+  }
+
   const debugSecret = req.query.secret || req.get("x-debug-secret") || "";
-  const expectedSecret = process.env.DEBUG_SECRET || "teviq-debug-2026";
+  const expectedSecret = String(process.env.DEBUG_SECRET || "").trim();
+
+  if (!expectedSecret) {
+    return res.status(503).json({ error: "debug_not_configured", message: "Debug access is not configured." });
+  }
 
   if (debugSecret !== expectedSecret) {
     return res.status(403).json({ error: "forbidden", message: "Debug secret required." });
@@ -210,13 +221,10 @@ app.use((error, req, res, next) => {
     });
   }
 
-  if (error.statusCode || error.code === "LIMIT_FILE_SIZE") {
-    return res.status(error.statusCode || 400).json({
-      error: error.code === "LIMIT_FILE_SIZE" ? "file_too_large" : "request_error",
-      message:
-        error.code === "LIMIT_FILE_SIZE"
-          ? "Document is too large. Maximum upload size is 10MB."
-          : error.message
+  if (error.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({
+      error: "file_too_large",
+      message: "Document is too large. Maximum upload size is 10MB."
     });
   }
 
@@ -244,7 +252,14 @@ app.use((error, req, res, next) => {
     console.error(`[Supabase ${error.supabaseStatus}]`, error.supabasePath, error.message);
     return res.status(status).json({
       error: "vector_store_error",
-      message: error.message || "Failed to access knowledge store. Please try again."
+      message: "Failed to access knowledge store. Please try again."
+    });
+  }
+
+  if (error.statusCode && error.statusCode < 500) {
+    return res.status(error.statusCode).json({
+      error: "request_error",
+      message: error.message || "The request could not be completed."
     });
   }
 
@@ -257,18 +272,18 @@ app.use((error, req, res, next) => {
     stack: error.stack?.split('\n').slice(0, 3).join('\n')
   });
 
-  // Return the actual error message so the frontend can display it
-  // instead of a generic "temporarily unavailable" message. This helps
-  // both users and developers understand what went wrong.
-  const errorMessage = error.message || "An unexpected error occurred.";
+  const errorMessage =
+    NODE_ENV === "production"
+      ? "Something went wrong. Please try again."
+      : error.message || "An unexpected error occurred.";
   res.status(500).json({
     error: "internal_error",
     message: errorMessage,
-    reply: `Error: ${errorMessage}`,
+    reply: errorMessage,
     source: "system",
     escalated: false,
     intent: "general",
-    context: error.context || undefined,
+    context: NODE_ENV === "production" ? undefined : error.context || undefined,
     debug: NODE_ENV === "production" ? undefined : {
       code: error.code,
       stack: error.stack?.split('\n').slice(0, 5)

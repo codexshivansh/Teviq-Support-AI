@@ -119,7 +119,10 @@ function normalizeBrand(row) {
       inputPlaceholder: row.input_placeholder || "Type your question here...",
       themeColor: row.theme_color || "#4F46E5",
       position: row.position || "bottom-right",
-      quickReplies: row.quick_replies || DEFAULT_QUICK_REPLIES
+      quickReplies:
+        Array.isArray(row.quick_replies) && row.quick_replies.length
+          ? row.quick_replies
+          : DEFAULT_QUICK_REPLIES
     },
     integrations: {
       shopify: row.shopify_store_url ? { storeUrl: row.shopify_store_url } : null
@@ -135,7 +138,9 @@ function normalizeBrand(row) {
 }
 
 function validateBrandRow(row) {
-  const missingFields = REQUIRED_FIELDS.filter((field) => !row[field]);
+  const missingFields = REQUIRED_FIELDS.filter(
+    (field) => row[field] == null || (typeof row[field] === "string" && !row[field].trim())
+  );
   if (missingFields.length > 0) {
     return {
       ok: false,
@@ -251,7 +256,7 @@ async function deleteBrand(brandId) {
 
 async function getPublicBrandConfig(brandId) {
   const brand = await getBrandById(brandId);
-  if (!brand) return null;
+  if (!brand || !brand.isActive) return null;
   const widgetConfig = brand.widgetConfig || {};
 
   return {

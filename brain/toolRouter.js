@@ -212,7 +212,7 @@ async function routeTools({ brand, intent, entities, message }) {
   }
 
   if (intent === "product_recommendation") {
-    const products = getRecommendedProducts({
+    const products = await getRecommendedProducts({
       brandId: brand.brandId,
       message
     });
@@ -247,7 +247,7 @@ async function routeTools({ brand, intent, entities, message }) {
       leadState: null,
       products: [],
       needsProductNarrowing: true,
-      detectedCategory: detectCategory(brand.brandId, message),
+      detectedCategory: await detectCategory(brand.brandId, message),
       reply: buildProductNarrowingQuestion()
     };
   }

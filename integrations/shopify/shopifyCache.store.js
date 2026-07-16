@@ -194,16 +194,8 @@ async function deleteProduct(brandId, shopifyProductId) {
   );
 }
 
-async function listProducts(brandId, limit = 50) {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
-  const data = await requestTable(
-    "shopify_products",
-    `?brand_id=eq.${encodeFilter(brandId)}` +
-      "&select=shopify_product_id,legacy_resource_id,title,handle,category,tags,status,price,currency,available,image_url,image_alt,shopify_updated_at" +
-      `&order=shopify_updated_at.desc.nullslast&limit=${safeLimit}`
-  );
-
-  return (Array.isArray(data) ? data : []).map((product) => ({
+function mapProductRecord(product) {
+  return {
     id: product.shopify_product_id,
     legacyResourceId: product.legacy_resource_id,
     title: product.title,
@@ -217,7 +209,46 @@ async function listProducts(brandId, limit = 50) {
     imageUrl: product.image_url,
     imageAlt: product.image_alt,
     updatedAt: product.shopify_updated_at
-  }));
+  };
+}
+
+const PRODUCT_SELECT =
+  "shopify_product_id,legacy_resource_id,title,handle,category,tags,status,price,currency,available,image_url,image_alt,shopify_updated_at";
+
+async function listProducts(brandId, limit = 50) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
+  const data = await requestTable(
+    "shopify_products",
+    `?brand_id=eq.${encodeFilter(brandId)}` +
+      `&select=${PRODUCT_SELECT}` +
+      `&order=shopify_updated_at.desc.nullslast&limit=${safeLimit}`
+  );
+
+  return (Array.isArray(data) ? data : []).map(mapProductRecord);
+}
+
+async function searchProducts(brandId, terms, limit = 100) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 100));
+  const safeTerms = [...new Set((terms || []).map((term) => String(term).toLowerCase().replace(/[^a-z0-9-]/g, "")))]
+    .filter((term) => term.length > 1)
+    .slice(0, 6);
+
+  if (!safeTerms.length) return listProducts(brandId, safeLimit);
+
+  const searchFilters = safeTerms.flatMap((term) => [
+    `title.ilike.*${term}*`,
+    `handle.ilike.*${term}*`,
+    `category.ilike.*${term}*`
+  ]);
+  const data = await requestTable(
+    "shopify_products",
+    `?brand_id=eq.${encodeFilter(brandId)}` +
+      `&or=(${encodeURIComponent(searchFilters.join(","))})` +
+      `&select=${PRODUCT_SELECT}` +
+      `&order=shopify_updated_at.desc.nullslast&limit=${safeLimit}`
+  );
+
+  return (Array.isArray(data) ? data : []).map(mapProductRecord);
 }
 
 async function getOrderByLegacyId(brandId, legacyResourceId) {
@@ -328,6 +359,7 @@ module.exports = {
   getOrderByLegacyId,
   getOrderByReference,
   listProducts,
+  searchProducts,
   orderRow,
   productRow,
   reconcileBrand,

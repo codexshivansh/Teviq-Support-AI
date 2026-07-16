@@ -306,6 +306,35 @@ async function testSupportBrainSecurityFlow() {
 
   await harness.processMessage({
     ...base,
+    customerId: "cancellation-action-session",
+    message: "Cancel order #1001"
+  });
+  const cancellationVerified = await harness.processMessage({
+    ...base,
+    customerId: "cancellation-action-session",
+    message: "owner@example.com"
+  });
+  assert.match(cancellationVerified.reply, /cancel.*wajah|wajah.*cancel/i);
+  assert.equal(
+    harness.states.get(harness.key("live-brand", "cancellation-action-session")).state,
+    "checking_cancellation"
+  );
+
+  const changedIpDuringAction = await harness.processMessage({
+    ...base,
+    requestIp: "203.0.113.99",
+    customerId: "cancellation-action-session",
+    message: "I ordered it by mistake"
+  });
+  assert.equal(changedIpDuringAction.reply, verificationModuleReply("required"));
+  assert.equal(
+    harness.states.get(harness.key("live-brand", "cancellation-action-session")).state,
+    "collecting_order_contact",
+    "A destructive order flow must re-verify when its signed session binding changes"
+  );
+
+  await harness.processMessage({
+    ...base,
     customerId: "locked-session",
     message: "Track order #1001"
   });

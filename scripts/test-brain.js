@@ -100,7 +100,7 @@ const tests = [
   {
     name: "invalid brand",
     input: { brandId: "missing-demo", message: "Hello", customerId: "brain_invalid" },
-    expect: (res) => res.statusCode === 404 && res.warnings.includes("brand_not_found")
+    expect: (res) => res.statusCode === 403 && res.warnings.includes("brand_unavailable")
   }
 ];
 

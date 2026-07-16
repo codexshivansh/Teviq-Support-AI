@@ -43,6 +43,7 @@ function createSupportBrainHarness() {
     citations: [],
     contextText: ""
   };
+  const leadRecords = [];
 
   installModuleMock("../services/brand.service", {
     getBrandById: async (brandId) => ({ ...brand, brandId })
@@ -59,6 +60,12 @@ function createSupportBrainHarness() {
   });
   installModuleMock("../services/analytics.service", {
     appendChatLog: async () => {}
+  });
+  installModuleMock("../services/leadRecord.service", {
+    createLeadRecord: async (entry) => {
+      leadRecords.push(entry);
+      return { id: `lead-${leadRecords.length}`, brandId: entry.brandId, status: "new" };
+    }
   });
   installModuleMock("../knowledge/retrieval.service", {
     retrieveKnowledge: async () => knowledgeResult
@@ -101,6 +108,9 @@ function createSupportBrainHarness() {
     },
     getAiCalls() {
       return aiCalls;
+    },
+    getLeadRecords() {
+      return leadRecords;
     }
   };
 }
@@ -412,6 +422,33 @@ const cases = [
       assert.equal(result.intent, "general_faq");
       assert.equal(result.escalated, false);
       assert.equal(supportBrainHarness.getConversationState().state, "idle");
+    }
+  },
+  {
+    name: "support contact is persisted before capture is confirmed",
+    async run() {
+      supportBrainHarness.setConversationState({ state: "idle", context: {}, updatedAt: null });
+      const callsBefore = supportBrainHarness.getAiCalls();
+      const recordsBefore = supportBrainHarness.getLeadRecords().length;
+
+      const request = await supportBrainHarness.processMessage({
+        brandId: brand.brandId,
+        message: "I want to talk to support",
+        customerId: "lead-capture-session"
+      });
+      assert.equal(request.leadCaptured, false);
+      assert.equal(supportBrainHarness.getConversationState().state, "collecting_contact");
+
+      const captured = await supportBrainHarness.processMessage({
+        brandId: brand.brandId,
+        message: "My name is Shivansh, owner@example.com",
+        customerId: "lead-capture-session"
+      });
+      assert.equal(captured.leadCaptured, true);
+      assert.equal(supportBrainHarness.getConversationState().state, "idle");
+      assert.equal(supportBrainHarness.getLeadRecords().length, recordsBefore + 1);
+      assert.equal(supportBrainHarness.getLeadRecords().at(-1).email, "owner@example.com");
+      assert.equal(supportBrainHarness.getAiCalls(), callsBefore);
     }
   },
   {

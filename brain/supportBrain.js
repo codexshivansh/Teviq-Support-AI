@@ -10,6 +10,8 @@ const {
 const { handleReturnFlowMessage, buildReturnReasonPrompt } = require("../services/returnFlow.service");
 const { handleCancellationFlowMessage, buildCancellationReasonPrompt } = require("../services/cancellationFlow.service");
 const { createReturnRequestRecord, findActiveRequest } = require("../services/returnRequestRecord.service");
+const { createLeadRecord } = require("../services/leadRecord.service");
+const { buildLeadCaptureFailureReply } = require("../services/lead.service");
 const { getRecommendedProducts, buildProductRecommendationReply } = require("../services/product.service");
 const { decryptValue } = require("../services/shopifyCredentials.service");
 const { fetchFulfillmentLineItems, createReturnRequest: createShopifyReturnRequest } = require("../integrations/shopify/shopifyReturns.service");
@@ -17,6 +19,9 @@ const { cancelOrder } = require("../integrations/shopify/shopifyOrderCancel.serv
 const { appendChatLog } = require("../services/analytics.service");
 const { redactContactInfo } = require("../services/privacy.service");
 const { normalizeOrderId } = require("../services/orderReference.service");
+const {
+  ORDER_VERIFICATION_REQUIRED_REPLY
+} = require("../integrations/shopify/shopifyOrderVerification.service");
 const {
   createOrderVerificationBinding,
   matchesOrderVerificationBinding
@@ -50,12 +55,72 @@ function buildSimpleReplyResult({ reply, escalated, intent, analysis }) {
   };
 }
 
+async function reverifyExpiredOrderAction({
+  brandId,
+  customerId,
+  channel,
+  requestIp,
+  context,
+  message,
+  intent,
+  analysis,
+  startTime
+}) {
+  if (!context?.requiresVerification) return null;
+
+  const expiresAt = Number(new Date(context.expiresAt).getTime());
+  const bindingMatches = matchesOrderVerificationBinding(context.sessionBinding, {
+    brandId,
+    customerId,
+    channel,
+    requestIp
+  });
+
+  if (expiresAt > Date.now() && bindingMatches) return null;
+
+  const orderReference = context.orderReference || context.orderId;
+  await setState(brandId, customerId, channel, "collecting_order_contact", {
+    pendingIntent: intent,
+    orderId: orderReference,
+    attempts: 0
+  });
+
+  const storedMessage = redactContactInfo(message);
+  addConversationMessage(brandId, customerId, "user", storedMessage);
+  addConversationMessage(brandId, customerId, "assistant", ORDER_VERIFICATION_REQUIRED_REPLY);
+
+  try {
+    await appendChatLog({
+      brandId,
+      customerId,
+      message: storedMessage,
+      detectedIntent: intent,
+      escalated: false,
+      source: "system",
+      reply: ORDER_VERIFICATION_REQUIRED_REPLY,
+      knowledgeCitations: [],
+      knowledgeConfidence: 0,
+      isFallback: false,
+      responseTimeMs: Date.now() - startTime
+    });
+  } catch (error) {
+    console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
+  }
+
+  return buildSimpleReplyResult({
+    reply: ORDER_VERIFICATION_REQUIRED_REPLY,
+    escalated: false,
+    intent,
+    analysis
+  });
+}
+
 // Handles a message that arrives while the customer is mid-return-flow
 // (conversation_states.state === "checking_return"). Hard escalation always
 // takes priority over the flow itself. Everything else is delegated to the
 // pure decision function in returnFlow.service.js; this function is only
 // responsible for the I/O (state writes, Shopify call, return_requests row).
-async function handleCheckingReturnState({ brand, brandId, customerId, channel, message, context, analysis, startTime }) {
+async function handleCheckingReturnState({ brand, brandId, customerId, channel, requestIp, message, context, analysis, startTime }) {
   const storedMessage = redactContactInfo(message);
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
@@ -86,6 +151,19 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
     }
     return buildSimpleReplyResult({ reply: escalationReply, escalated: true, intent: "escalation", analysis });
   }
+
+  const reverificationReply = await reverifyExpiredOrderAction({
+    brandId,
+    customerId,
+    channel,
+    requestIp,
+    context,
+    message,
+    intent: "return_exchange",
+    analysis,
+    startTime
+  });
+  if (reverificationReply) return reverificationReply;
 
   const flowResult = handleReturnFlowMessage({ context, message });
   let finalReply = flowResult.reply;
@@ -200,7 +278,7 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
 // returnRequest provided one; (2) an idempotency check runs first, since
 // orderCancel has real, immediate side effects and must not fire twice for
 // the same order.
-async function handleCheckingCancellationState({ brand, brandId, customerId, channel, message, context, analysis, startTime }) {
+async function handleCheckingCancellationState({ brand, brandId, customerId, channel, requestIp, message, context, analysis, startTime }) {
   const storedMessage = redactContactInfo(message);
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
@@ -231,6 +309,19 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
     }
     return buildSimpleReplyResult({ reply: escalationReply, escalated: true, intent: "escalation", analysis });
   }
+
+  const reverificationReply = await reverifyExpiredOrderAction({
+    brandId,
+    customerId,
+    channel,
+    requestIp,
+    context,
+    message,
+    intent: "cancellation",
+    analysis,
+    startTime
+  });
+  if (reverificationReply) return reverificationReply;
 
   const flowResult = handleCancellationFlowMessage({ context, message });
   let finalReply = flowResult.reply;
@@ -389,7 +480,7 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
   }
 
   const combinedQuery = `${context?.originalQuery || ""} ${message}`.trim();
-  const products = getRecommendedProducts({ brandId: brand.brandId, message: combinedQuery });
+  const products = await getRecommendedProducts({ brandId: brand.brandId, message: combinedQuery });
   const recommendationReply = buildProductRecommendationReply({ brand, products, message: combinedQuery });
 
   let finalReply;
@@ -442,16 +533,16 @@ async function processMessage({
   const presetOrderId =
     requestContext?.orderId && typeof requestContext.orderId === "string" ? requestContext.orderId.trim() : null;
   const brand = await getBrandById(brandId);
-  if (!brand) {
+  if (!brand || brand.isActive === false) {
     return {
-      statusCode: 404,
+      statusCode: 403,
       reply: "This support widget is not configured for the requested brand.",
       source: "system",
       escalated: false,
       intent: "unknown",
       language: "english",
       sentiment: "neutral",
-      warnings: ["brand_not_found"]
+      warnings: ["brand_unavailable"]
     };
   }
 
@@ -541,6 +632,7 @@ async function processMessage({
       brandId,
       customerId,
       channel,
+      requestIp,
       message,
       context: conversationState.context,
       analysis,
@@ -554,6 +646,7 @@ async function processMessage({
       brandId,
       customerId,
       channel,
+      requestIp,
       message,
       context: conversationState.context,
       analysis,
@@ -615,6 +708,25 @@ async function processMessage({
 
   const toolResult = await routeTools({ brand, intent, entities, message });
 
+  if (LEAD_CAPTURE_INTENTS.includes(intent) && toolResult.leadState?.hasContact) {
+    try {
+      await createLeadRecord({
+        brandId,
+        customerId,
+        channel,
+        intent,
+        name: entities.name,
+        email: entities.email,
+        phone: entities.phone
+      });
+      toolResult.leadState.persisted = true;
+    } catch (error) {
+      console.error(`[BRAIN] Lead capture failed for ${brandId}:${customerId}: ${error.code || "lead_store_error"}`);
+      toolResult.leadState.persisted = false;
+      toolResult.reply = buildLeadCaptureFailureReply(brand);
+    }
+  }
+
   // Update conversation state based on this turn's outcome. If the order ID
   // was genuinely missing (not just invalid), remember which intent asked
   // for it so the next turn can resume correctly. If this turn resolved a
@@ -666,14 +778,28 @@ async function processMessage({
     } else if (ORDER_INTENTS.includes(intent) && !entities.orderId && toolResult.allowAI === false) {
       await setState(brandId, customerId, channel, "collecting_order_id", { pendingIntent: intent });
     } else if (intent === "return_exchange" && toolResult.order && toolResult.policyResult?.allowed) {
+      const requiresVerification = verificationStatus === "verified";
       await setState(brandId, customerId, channel, "checking_return", {
         orderId: toolResult.order.shopifyOrderId || toolResult.order.orderId,
+        orderReference: toolResult.order.orderId,
+        requiresVerification,
+        sessionBinding: requiresVerification ? createOrderVerificationBinding(verificationSessionContext) : null,
+        expiresAt: requiresVerification
+          ? new Date(Date.now() + ORDER_VERIFICATION_TTL_MS).toISOString()
+          : null,
         step: "awaiting_reason"
       });
       toolResult.reply = buildReturnReasonPrompt();
     } else if (intent === "cancellation" && toolResult.order && toolResult.policyResult?.allowed) {
+      const requiresVerification = verificationStatus === "verified";
       await setState(brandId, customerId, channel, "checking_cancellation", {
         orderId: toolResult.order.shopifyOrderId || toolResult.order.orderId,
+        orderReference: toolResult.order.orderId,
+        requiresVerification,
+        sessionBinding: requiresVerification ? createOrderVerificationBinding(verificationSessionContext) : null,
+        expiresAt: requiresVerification
+          ? new Date(Date.now() + ORDER_VERIFICATION_TTL_MS).toISOString()
+          : null,
         step: "awaiting_reason"
       });
       toolResult.reply = buildCancellationReasonPrompt();
@@ -699,12 +825,13 @@ async function processMessage({
       // waiting on contact details so the resume block can catch the reply,
       // and clear it the moment hasContact is true (either this message
       // already had it, or a resumed collecting_contact turn just supplied it).
+      const leadCaptureComplete = toolResult.leadState.hasContact && toolResult.leadState.persisted === true;
       await setState(
         brandId,
         customerId,
         channel,
-        toolResult.leadState.hasContact ? "idle" : "collecting_contact",
-        toolResult.leadState.hasContact ? {} : { pendingIntent: intent }
+        leadCaptureComplete ? "idle" : "collecting_contact",
+        leadCaptureComplete ? {} : { pendingIntent: intent }
       );
     } else if (entities.orderId && toolResult.order) {
       await setState(brandId, customerId, channel, "idle", {});
@@ -815,7 +942,7 @@ async function processMessage({
     // Lets the widget tell apart "please share your details" from "thanks,
     // noted" without guessing off the reply text — the lead-capture form
     // uses this to swap from the input form to a plain confirmation card.
-    leadCaptured: Boolean(toolResult.leadState?.hasContact)
+    leadCaptured: Boolean(toolResult.leadState?.persisted)
   };
 }
 

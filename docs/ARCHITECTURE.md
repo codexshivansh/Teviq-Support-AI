@@ -208,8 +208,8 @@ Order of execution:
 
 Current models default to:
 
-- Gemini: `gemini-1.5-flash`
-- Groq: `llama-3.1-8b-instant`
+- Gemini: `gemini-3.5-flash`
+- Groq: `openai/gpt-oss-20b`
 
 ## Database and Storage
 
@@ -297,4 +297,3 @@ Dashboard analytics are static demo data in:
 ```text
 dashboard/src/data/analytics.js
 ```
-

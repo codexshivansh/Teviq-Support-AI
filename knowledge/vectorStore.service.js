@@ -145,6 +145,7 @@ function getChunkSourceType(chunk) {
 
 function toChunkRow(chunk) {
   const metadata = chunk.metadata || {};
+  const embedding = formatVector(chunk.embedding);
 
   return {
     id: chunk.id,
@@ -154,7 +155,11 @@ function toChunkRow(chunk) {
     source_type: getChunkSourceType(chunk),
     text: chunk.text,
     metadata,
-    embedding: formatVector(chunk.embedding)
+    // Keep the legacy NOT NULL column populated during the zero-downtime
+    // migration. Retrieval reads embedding_v3 exclusively; embedding can be
+    // removed in a later cleanup migration after every backend is upgraded.
+    embedding,
+    embedding_v3: embedding
   };
 }
 
@@ -278,7 +283,7 @@ async function deleteChunksBySource({ brandId, sourceId, sourceType }) {
 }
 
 async function search({ brandId, queryEmbedding, topK = 5, minScore = 0.12 }) {
-  const rows = await request("rpc/match_knowledge_chunks", {
+  const rows = await request("rpc/match_knowledge_chunks_v3", {
     method: "POST",
     body: JSON.stringify({
       p_brand_id: brandId,

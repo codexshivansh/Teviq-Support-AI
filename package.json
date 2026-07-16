@@ -12,11 +12,14 @@
     "test:analytics": "node scripts/test-analytics-escalation.js",
     "test:escalation": "node scripts/test-escalation-routing.js",
     "test:knowledge": "node scripts/test-knowledge.js",
+    "test:embedding": "node scripts/test-gemini-embedding.js",
     "test:shopify-demo": "node scripts/test-shopify-demo.js",
     "test:shopify-orders": "node scripts/test-shopify-order-tracking.js",
     "test:order-security": "node scripts/test-order-verification-security.js",
     "test:shopify-oauth": "node scripts/test-shopify-oauth.js",
-    "test:shopify-webhooks": "node scripts/test-shopify-webhooks.js"
+    "test:shopify-webhooks": "node scripts/test-shopify-webhooks.js",
+    "test:production-hardening": "node scripts/test-production-hardening.js",
+    "backfill:embedding-2": "node scripts/backfill-gemini-embedding-2.js"
   },
   "keywords": [
     "support",

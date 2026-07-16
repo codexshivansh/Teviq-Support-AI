@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const {
   REQUIRED_FIELDS,
   listBrands,
@@ -18,15 +20,15 @@ async function run() {
     const row = {
       id: brand.brandId,
       brand_name: brand.brandName,
-      brand_category: brand.industry,
+      brand_category: brand.brandCategory,
       support_language: brand.supportLanguage,
       is_active: brand.isActive
     };
     const validation = validateBrand(row);
 
-    if (!validation.valid) {
+    if (!validation.ok) {
       hasFailures = true;
-      console.error(`FAIL ${brand.brandId}: missing fields: ${validation.missingFields.join(", ")}`);
+      console.error(`FAIL ${brand.brandId}: ${validation.errors.join("; ")}`);
       return;
     }
 

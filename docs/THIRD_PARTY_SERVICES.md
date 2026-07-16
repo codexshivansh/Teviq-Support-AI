@@ -66,7 +66,7 @@ Env:
 
 ```text
 GEMINI_API_KEY=<GEMINI_API_KEY>
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-3.5-flash
 ```
 
 Behavior:
@@ -85,7 +85,7 @@ Env:
 
 ```text
 GROQ_API_KEY=<GROQ_API_KEY>
-GROQ_MODEL=llama-3.1-8b-instant
+GROQ_MODEL=openai/gpt-oss-20b
 ```
 
 Behavior:
@@ -141,4 +141,3 @@ and maintain a stable alias:
 ```text
 https://cdn.teviq.in/widget.js
 ```
-

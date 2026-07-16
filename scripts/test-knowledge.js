@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -45,14 +47,17 @@ async function run() {
   const ingestion = await ingestKnowledgeDocument(uploadMetadata);
   const retrieval = await retrieveKnowledge({
     brandId,
-    query: "Do earbuds have warranty?",
-    topK: 3
+    query: "Which products have a six month warranty?",
+    topK: 5
   });
+  const ingestedDocumentRetrieved = retrieval.matches.some(
+    (match) => match.documentId === ingestion.document.documentId
+  );
 
   console.log(
     JSON.stringify(
       {
-        ok: retrieval.matches.length > 0,
+        ok: ingestedDocumentRetrieved,
         documentId: ingestion.document.documentId,
         chunkCount: ingestion.chunkCount,
         confidence: retrieval.confidence,
@@ -68,6 +73,10 @@ async function run() {
     documentId: ingestion.document.documentId
   });
   fs.rmSync(tempDir, { recursive: true, force: true });
+
+  if (!ingestedDocumentRetrieved) {
+    throw new Error("The uploaded document was indexed but was not returned by retrieval.");
+  }
 }
 
 run().catch((error) => {

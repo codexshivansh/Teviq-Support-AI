@@ -1,4 +1,28 @@
 const shopifyDemoProvider = require("../integrations/shopify/shopifyDemo.provider");
+const shopifyCacheStore = require("../integrations/shopify/shopifyCache.store");
+
+const DEMO_BRAND_IDS = new Set(["vastra-demo", "urban-demo", "beauty-demo"]);
+const PRODUCT_SEARCH_STOPWORDS = new Set([
+  "recommend",
+  "suggest",
+  "best",
+  "which",
+  "what",
+  "should",
+  "buy",
+  "show",
+  "need",
+  "want",
+  "under",
+  "budget",
+  "inr",
+  "rs",
+  "rupees",
+  "please",
+  "mere",
+  "mujhe",
+  "andar"
+]);
 
 // Order matters: patterns are tried in sequence and the first match wins.
 // The bare-number pattern requires an explicit qualifier (ke andar/se kam/
@@ -22,9 +46,39 @@ function parseBudget(message) {
   return null;
 }
 
-function detectCategory(brandId, message) {
+function normalizeCatalogProduct(product) {
+  const parsedPrice = Number.parseFloat(product.price);
+  return {
+    ...product,
+    price: Number.isFinite(parsedPrice) ? parsedPrice : null,
+    currency: product.currency || "INR",
+    tags: Array.isArray(product.tags) ? product.tags : [],
+    keywords: Array.isArray(product.keywords) ? product.keywords : []
+  };
+}
+
+async function getCatalogProducts(brandId, message = "") {
+  if (DEMO_BRAND_IDS.has(brandId)) {
+    return shopifyDemoProvider.getProducts(brandId).map(normalizeCatalogProduct);
+  }
+
+  try {
+    const searchTerms = tokenize(message).filter(
+      (token) => !PRODUCT_SEARCH_STOPWORDS.has(token) && !/^\d+$/.test(token)
+    );
+    const products = await shopifyCacheStore.searchProducts(brandId, searchTerms, 100);
+    return products.map(normalizeCatalogProduct);
+  } catch (error) {
+    console.error(
+      `[product-service] Shopify catalog lookup failed for brand ${brandId}: ${error.code || error.message}`
+    );
+    return [];
+  }
+}
+
+async function detectCategory(brandId, message) {
   const categories = [
-    ...new Set(shopifyDemoProvider.getProducts(brandId).map((product) => product.category).filter(Boolean))
+    ...new Set((await getCatalogProducts(brandId, message)).map((product) => product.category).filter(Boolean))
   ];
   const lowerMessage = String(message || "").toLowerCase();
   return categories.find((category) => lowerMessage.includes(category.toLowerCase())) || null;
@@ -69,8 +123,8 @@ function hasProductKeywordMatch(brandId, message) {
   return products.some((product) => scoreProduct(product, message) > 0);
 }
 
-function getRecommendedProducts({ brandId, message, limit = 3, maxBudget }) {
-  const products = shopifyDemoProvider.getProducts(brandId).filter((product) => product.available !== false);
+async function getRecommendedProducts({ brandId, message, limit = 3, maxBudget }) {
+  const products = (await getCatalogProducts(brandId, message)).filter((product) => product.available !== false);
   const budget = maxBudget != null ? maxBudget : parseBudget(message);
 
   const scored = products.map((product) => ({
@@ -82,7 +136,10 @@ function getRecommendedProducts({ brandId, message, limit = 3, maxBudget }) {
     budget != null ? scored.filter((product) => typeof product.price !== "number" || product.price <= budget) : scored;
 
   return withinBudget
-    .sort((left, right) => right.matchScore - left.matchScore || left.price - right.price)
+    .sort(
+      (left, right) =>
+        right.matchScore - left.matchScore || (left.price ?? Number.POSITIVE_INFINITY) - (right.price ?? Number.POSITIVE_INFINITY)
+    )
     .slice(0, limit);
 }
 
@@ -103,8 +160,9 @@ function buildProductRecommendationReply({ brand, products, message, maxBudget }
   }
 
   const lines = selectedProducts.map((product, index) => {
-    const price = product.price ? ` - INR ${product.price}` : "";
-    return `${index + 1}. ${product.title}${price}: ${product.recommendationText || product.description}`;
+    const price = product.price != null ? ` - ${product.currency || "INR"} ${product.price}` : "";
+    const detail = product.recommendationText || product.description || "";
+    return `${index + 1}. ${product.title}${price}${detail ? `: ${detail}` : ""}`;
   });
 
   const intro = matchedProducts.length
@@ -117,6 +175,7 @@ function buildProductRecommendationReply({ brand, products, message, maxBudget }
 module.exports = {
   parseBudget,
   detectCategory,
+  getCatalogProducts,
   hasProductKeywordMatch,
   getRecommendedProducts,
   buildProductRecommendationReply

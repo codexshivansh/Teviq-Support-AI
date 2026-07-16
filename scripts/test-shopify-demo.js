@@ -75,12 +75,81 @@ const tests = [
   },
   {
     name: "product recommendation service works",
-    run() {
-      const products = getRecommendedProducts({
+    async run() {
+      const products = await getRecommendedProducts({
         brandId: "urban-demo",
         message: "Suggest earbuds for calls"
       });
       return products[0]?.title === "SwiftBuds Pro";
+    }
+  },
+  {
+    name: "live Shopify product recommendations use a brand-scoped cache query",
+    async run() {
+      const originalFetch = global.fetch;
+      const originalSupabaseUrl = process.env.SUPABASE_URL;
+      const originalServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const requestedUrls = [];
+
+      process.env.SUPABASE_URL = "https://example.supabase.co";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
+
+      global.fetch = async (url) => {
+        requestedUrls.push(String(url));
+        const isLiveBrand = String(url).includes("brand_id=eq.live-brand");
+        const products = isLiveBrand
+          ? [
+              {
+                shopify_product_id: "gid://shopify/Product/1",
+                title: "Trail Runner Pro",
+                handle: "trail-runner-pro",
+                category: "Shoes",
+                tags: ["running", "trail"],
+                status: "ACTIVE",
+                price: "4499.00",
+                currency: "INR",
+                available: true
+              }
+            ]
+          : [
+              {
+                shopify_product_id: "gid://shopify/Product/2",
+                title: "Other Brand Serum",
+                handle: "other-brand-serum",
+                category: "Beauty",
+                tags: ["serum"],
+                status: "ACTIVE",
+                price: "899.00",
+                currency: "INR",
+                available: true
+              }
+            ];
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify(products)
+        };
+      };
+
+      try {
+        const products = await getRecommendedProducts({
+          brandId: "live-brand",
+          message: "Recommend trail shoes under INR 5000"
+        });
+        return (
+          requestedUrls.length === 1 &&
+          requestedUrls[0].includes("brand_id=eq.live-brand") &&
+          products[0]?.title === "Trail Runner Pro" &&
+          !products.some((product) => product.title === "Other Brand Serum")
+        );
+      } finally {
+        global.fetch = originalFetch;
+        if (originalSupabaseUrl === undefined) delete process.env.SUPABASE_URL;
+        else process.env.SUPABASE_URL = originalSupabaseUrl;
+        if (originalServiceRoleKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+        else process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRoleKey;
+      }
     }
   },
   {

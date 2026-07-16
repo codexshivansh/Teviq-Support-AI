@@ -16,9 +16,10 @@ teviq-support-ai/backend/.env
 | `NODE_ENV` | Runtime mode | env, CORS, auth middleware | Yes in deployment | No | `production` |
 | `ALLOWED_ORIGINS` | Comma-separated allowed browser origins | `config/cors.js` | Yes in production | No | `https://teviq.in,https://dashboard.example.com` |
 | `GEMINI_API_KEY` | Gemini API key | `services/ai.service.js` | No, but AI quality depends on it | Yes | `<GEMINI_API_KEY>` |
-| `GEMINI_MODEL` | Gemini model name | `services/ai.service.js` | No | No | `gemini-1.5-flash` |
+| `GEMINI_MODEL` | Gemini model name | `services/ai.service.js` | No | No | `gemini-3.5-flash` |
+| `GEMINI_EMBEDDING_MODEL` | Gemini knowledge embedding model | `knowledge/embedding.service.js` | No | No | `gemini-embedding-2` |
 | `GROQ_API_KEY` | Groq API key | `services/ai.service.js` | No, fallback depends on it | Yes | `<GROQ_API_KEY>` |
-| `GROQ_MODEL` | Groq model name | `services/ai.service.js` | No | No | `llama-3.1-8b-instant` |
+| `GROQ_MODEL` | Groq model name | `services/ai.service.js` | No | No | `openai/gpt-oss-20b` |
 | `CLERK_SECRET_KEY` | Verifies Clerk JWTs | `middleware/clerkAuth.middleware.js` | Yes for protected APIs | Yes | `<CLERK_SECRET_KEY>` |
 | `ENABLE_DEMO_LOGIN` | Enables backend demo auth bypass in non-production | `middleware/clerkAuth.middleware.js` | No | No | `false` |
 
@@ -83,4 +84,3 @@ No website `.env.example` was identified in the current code.
 - Never expose `CLERK_SECRET_KEY`.
 - Never expose Gemini/Groq keys in frontend code.
 - Rotate any key that was accidentally committed.
-

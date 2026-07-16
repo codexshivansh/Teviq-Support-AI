@@ -1,4 +1,4 @@
-const MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
+const MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-2";
 const OUTPUT_DIMENSIONALITY = 768;
 const MAX_BATCH_SIZE = 100;
 const MAX_RETRIES = 2;
@@ -20,6 +20,22 @@ function sleep(ms) {
 
 function isRetryableStatus(status) {
   return status === 429 || (status >= 500 && status < 600);
+}
+
+function buildEmbeddingRequest(text, taskType) {
+  const isEmbedding2 = MODEL === "gemini-embedding-2";
+  const preparedText = isEmbedding2
+    ? taskType === "RETRIEVAL_QUERY"
+      ? `task: question answering | query: ${text}`
+      : `title: none | text: ${text}`
+    : text;
+
+  return {
+    model: `models/${MODEL}`,
+    content: { parts: [{ text: preparedText }] },
+    output_dimensionality: OUTPUT_DIMENSIONALITY,
+    ...(isEmbedding2 ? {} : { task_type: taskType })
+  };
 }
 
 async function requestWithRetry(url, body, label) {
@@ -75,12 +91,7 @@ async function requestWithRetry(url, body, label) {
 async function embedForStorage(text) {
   const apiKey = getApiKey();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:embedContent?key=${apiKey}`;
-  const body = {
-    model: `models/${MODEL}`,
-    content: { parts: [{ text }] },
-    output_dimensionality: OUTPUT_DIMENSIONALITY,
-    task_type: "RETRIEVAL_DOCUMENT"
-  };
+  const body = buildEmbeddingRequest(text, "RETRIEVAL_DOCUMENT");
 
   const data = await requestWithRetry(url, body, "embedForStorage");
   const values = data?.embedding?.values;
@@ -95,12 +106,7 @@ async function embedForStorage(text) {
 async function embedForQuery(text) {
   const apiKey = getApiKey();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:embedContent?key=${apiKey}`;
-  const body = {
-    model: `models/${MODEL}`,
-    content: { parts: [{ text }] },
-    output_dimensionality: OUTPUT_DIMENSIONALITY,
-    task_type: "RETRIEVAL_QUERY"
-  };
+  const body = buildEmbeddingRequest(text, "RETRIEVAL_QUERY");
 
   const data = await requestWithRetry(url, body, "embedForQuery");
   const values = data?.embedding?.values;
@@ -121,12 +127,7 @@ async function embedBatchForStorage(texts) {
   for (let start = 0; start < texts.length; start += MAX_BATCH_SIZE) {
     const batchTexts = texts.slice(start, start + MAX_BATCH_SIZE);
     const body = {
-      requests: batchTexts.map((text) => ({
-        model: `models/${MODEL}`,
-        content: { parts: [{ text }] },
-        output_dimensionality: OUTPUT_DIMENSIONALITY,
-        task_type: "RETRIEVAL_DOCUMENT"
-      }))
+      requests: batchTexts.map((text) => buildEmbeddingRequest(text, "RETRIEVAL_DOCUMENT"))
     };
 
     const data = await requestWithRetry(url, body, "embedBatchForStorage");

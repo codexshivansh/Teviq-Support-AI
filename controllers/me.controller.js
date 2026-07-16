@@ -4,6 +4,34 @@ const {
   getUserPublicMetadata
 } = require("../services/clerkMetadata.service");
 const { getBrandById } = require("../services/brand.service");
+const { isProduction } = require("../config/env");
+
+function validateDebugAccess(req, res, purpose) {
+  if (isProduction()) {
+    res.status(404).json({ error: "not_found", message: "Endpoint not found." });
+    return false;
+  }
+
+  const expectedSecret = String(process.env.DEBUG_SECRET || "").trim();
+  if (!expectedSecret) {
+    res.status(503).json({
+      error: "debug_not_configured",
+      message: "Debug access is not configured."
+    });
+    return false;
+  }
+
+  const debugSecret = req.get("x-debug-secret") || req.query.secret || "";
+  if (debugSecret !== expectedSecret) {
+    res.status(403).json({
+      error: "forbidden",
+      message: `Debug secret required to ${purpose}.`
+    });
+    return false;
+  }
+
+  return true;
+}
 
 // GET /api/me — returns the caller's Clerk metadata + resolved brandId.
 // Useful for debugging "why can't I see this brand?" — the user can hit
@@ -38,14 +66,7 @@ async function setMyBrand(req, res) {
     });
   }
 
-  const debugSecret = req.get("x-debug-secret") || req.query.secret || "";
-  const expectedSecret = process.env.DEBUG_SECRET || "teviq-debug-2026";
-  if (debugSecret !== expectedSecret) {
-    return res.status(403).json({
-      error: "forbidden",
-      message: "Debug secret required to change brand assignment."
-    });
-  }
+  if (!validateDebugAccess(req, res, "change brand assignment")) return;
 
   const brandId = String(req.body?.brandId || req.query.brandId || "").trim();
   if (!brandId) {
@@ -91,14 +112,7 @@ async function promoteMeToAdmin(req, res) {
     });
   }
 
-  const debugSecret = req.get("x-debug-secret") || req.query.secret || "";
-  const expectedSecret = process.env.DEBUG_SECRET || "teviq-debug-2026";
-  if (debugSecret !== expectedSecret) {
-    return res.status(403).json({
-      error: "forbidden",
-      message: "Debug secret required to promote to admin."
-    });
-  }
+  if (!validateDebugAccess(req, res, "promote to admin")) return;
 
   const clerkClient = getClerkClient();
   const user = await clerkClient.users.getUser(req.auth.userId);

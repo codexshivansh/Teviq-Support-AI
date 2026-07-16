@@ -38,8 +38,9 @@ ALLOWED_ORIGINS=https://teviq.in,https://www.teviq.in,https://teviq-support-ai-d
 CLERK_SECRET_KEY=<CLERK_SECRET_KEY>
 GEMINI_API_KEY=<GEMINI_API_KEY>
 GROQ_API_KEY=<GROQ_API_KEY>
-GEMINI_MODEL=gemini-1.5-flash
-GROQ_MODEL=llama-3.1-8b-instant
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2
+GROQ_MODEL=openai/gpt-oss-20b
 ENABLE_DEMO_LOGIN=false
 ```
 
@@ -182,4 +183,3 @@ Widget:
 
 - If widget deployment breaks client sites, roll back the static deployment immediately.
 - Because clients load `widget.js` directly, a bad widget release has immediate customer impact.
-
