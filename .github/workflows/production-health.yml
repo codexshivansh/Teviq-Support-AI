@@ -1,0 +1,37 @@
+name: Production Health
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check production endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            "https://teviq-support-ai-backend.onrender.com/health"
+            "https://teviq-support-ai-backend.onrender.com/health/supabase"
+            "https://dashboard.teviq.in/"
+            "https://www.teviq.in/"
+            "https://www.teviq.in/pricing"
+            "https://www.teviq.in/live-demo"
+            "https://www.teviq.in/privacy"
+            "https://teviq-support-ai-widget.vercel.app/widget.js"
+          )
+
+          for url in "${urls[@]}"; do
+            echo "Checking ${url}"
+            curl --fail --silent --show-error --location \
+              --connect-timeout 15 --max-time 45 \
+              --retry 2 --retry-delay 5 --retry-all-errors \
+              --output /dev/null "${url}"
+          done

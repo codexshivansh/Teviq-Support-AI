@@ -12,7 +12,10 @@ const { handleCancellationFlowMessage, buildCancellationReasonPrompt } = require
 const { createReturnRequestRecord, findActiveRequest } = require("../services/returnRequestRecord.service");
 const { createLeadRecord } = require("../services/leadRecord.service");
 const { buildLeadCaptureFailureReply } = require("../services/lead.service");
-const { getRecommendedProducts, buildProductRecommendationReply } = require("../services/product.service");
+const {
+  getRecommendedProducts,
+  buildProductFollowUpReply
+} = require("../services/product.service");
 const { decryptValue } = require("../services/shopifyCredentials.service");
 const { fetchFulfillmentLineItems, createReturnRequest: createShopifyReturnRequest } = require("../integrations/shopify/shopifyReturns.service");
 const { cancelOrder } = require("../integrations/shopify/shopifyOrderCancel.service");
@@ -481,15 +484,23 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
 
   const combinedQuery = `${context?.originalQuery || ""} ${message}`.trim();
   const products = await getRecommendedProducts({ brandId: brand.brandId, message: combinedQuery });
-  const recommendationReply = buildProductRecommendationReply({ brand, products, message: combinedQuery });
+  const recommendationReply = buildProductFollowUpReply({
+    brand,
+    products,
+    originalQuery: context?.originalQuery || "",
+    followUpMessage: message
+  });
 
   let finalReply;
   if (recommendationReply) {
     finalReply = recommendationReply;
     try {
-      await setState(brandId, customerId, channel, "idle", {});
+      await setState(brandId, customerId, channel, "narrowing_products", {
+        originalQuery: combinedQuery,
+        category: context?.category || null
+      });
     } catch (error) {
-      console.error(`[BRAIN] Failed to reset conversation state for ${brandId}:${customerId}: ${error.message}`);
+      console.error(`[BRAIN] Failed to preserve product context for ${brandId}:${customerId}: ${error.message}`);
     }
   } else {
     // Still no keyword match and no budget — leave the state in place and
@@ -654,7 +665,11 @@ async function processMessage({
     });
   }
 
-  if (conversationState.state === "narrowing_products" && isConversationStateFresh) {
+  if (
+    conversationState.state === "narrowing_products" &&
+    isConversationStateFresh &&
+    (intent === "unknown" || intent === "product_recommendation")
+  ) {
     return handleNarrowingProductsState({
       brand,
       brandId,
@@ -803,10 +818,10 @@ async function processMessage({
         step: "awaiting_reason"
       });
       toolResult.reply = buildCancellationReasonPrompt();
-    } else if (intent === "product_recommendation" && toolResult.needsProductNarrowing) {
+    } else if (intent === "product_recommendation") {
       await setState(brandId, customerId, channel, "narrowing_products", {
         originalQuery: storedMessage,
-        category: toolResult.detectedCategory || null
+        category: toolResult.detectedCategory || toolResult.products?.[0]?.category || null
       });
     } else if (verificationStatus === "verified" && toolResult.order) {
       await setState(brandId, customerId, channel, "order_verified", {

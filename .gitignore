@@ -4,5 +4,6 @@ knowledge/uploads/
 data/knowledge/structured-knowledge.json
 data/secure/
 logs/
+scripts/backups/
 .DS_Store
 .claude/

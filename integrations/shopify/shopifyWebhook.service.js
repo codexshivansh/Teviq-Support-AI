@@ -13,7 +13,15 @@ const SUPPORTED_TOPICS = new Set([
   "orders/cancelled",
   "fulfillments/create",
   "fulfillments/update",
-  "app/uninstalled"
+  "app/uninstalled",
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact"
+]);
+
+const CUSTOMER_COMPLIANCE_TOPICS = new Set([
+  "customers/data_request",
+  "customers/redact"
 ]);
 
 function readHeader(headers, name) {
@@ -210,6 +218,27 @@ async function processWebhook({ headers, rawBody }, dependencies = {}) {
     throw error;
   }
 
+  // Teviq never persists Shopify customer email, phone, address, or customer IDs.
+  // These mandatory topics are therefore acknowledged after HMAC verification
+  // without logging or retaining their customer payloads.
+  if (CUSTOMER_COMPLIANCE_TOPICS.has(topic)) {
+    return {
+      ok: true,
+      processed: true,
+      compliance: true,
+      reason: "no_shopify_customer_pii_stored"
+    };
+  }
+
+  // Shopify sends shop/redact after uninstall, when the connection row may have
+  // already been deleted. Scope cleanup by the signed shop-domain header so the
+  // operation remains idempotent and cannot be redirected by request payload.
+  if (topic === "shop/redact") {
+    await stores.cache.clearShopCache(shopDomain);
+    await stores.connection.deleteConnectionByShopDomain(shopDomain);
+    return { ok: true, processed: true, compliance: true };
+  }
+
   const connection = await stores.connection.getConnectionByShopDomain(shopDomain);
   if (!connection || connection.status !== "active") {
     return { ok: true, ignored: true, reason: "connection_not_active" };
@@ -264,6 +293,7 @@ async function processWebhook({ headers, rawBody }, dependencies = {}) {
 }
 
 module.exports = {
+  CUSTOMER_COMPLIANCE_TOPICS,
   SUPPORTED_TOPICS,
   applyWebhookTopic,
   mergeFulfillment,

@@ -16,6 +16,22 @@ const STRONG_UNCERTAINTY_PATTERNS = [
 const HUMAN_HANDOFF_PATTERN =
   /(?:\b(?:contact|speak to|talk to|ask for|connect with) (?:our |the )?(?:support team|support|team|human|agent|manager)\b|\b(?:support|team|agent|manager) (?:se|ko) (?:baat|contact|connect)\b|(?:सपोर्ट|टीम|एजेंट|मैनेजर) से (?:बात|संपर्क))/i;
 
+const DANGLING_REPLY_END_PATTERN =
+  /\b(?:a|an|the|and|or|but|to|for|with|of|in|on|at|from|who|that|which|is|are|was|were|can|could|would|should|want|wants|need|needs)$/i;
+
+function isIncompleteReply(reply, finishReason) {
+  const text = String(reply || "").trim();
+  const normalizedFinishReason = String(finishReason || "").toUpperCase();
+  return (
+    !text ||
+    normalizedFinishReason === "LENGTH" ||
+    normalizedFinishReason === "MAX_TOKENS" ||
+    (text.split(/\s+/).length > 5 &&
+      !/[.!?)]$/.test(text) &&
+      DANGLING_REPLY_END_PATTERN.test(text))
+  );
+}
+
 async function postJson(url, payload, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeout || 15000);
@@ -172,18 +188,22 @@ async function callGemini(prompt) {
       ],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 350
+        maxOutputTokens: 800
       }
     },
     { timeout: 15000 }
   );
 
-  const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!reply) {
-    throw new Error("Gemini returned an empty response");
+  const candidate = data?.candidates?.[0];
+  const reply = candidate?.content?.parts
+    ?.map((part) => part?.text || "")
+    .join("")
+    .trim();
+  if (isIncompleteReply(reply, candidate?.finishReason)) {
+    throw new Error("Gemini returned an incomplete response");
   }
 
-  return reply.trim();
+  return reply;
 }
 
 async function callGroq(prompt) {
@@ -191,37 +211,54 @@ async function callGroq(prompt) {
     throw new Error("GROQ_API_KEY is not configured");
   }
 
-  const data = await postJson(
-    "https://api.groq.com/openai/v1/chat/completions",
-    {
-      model: GROQ_MODEL,
-      messages: [
-        {
-          role: "system",
-          content: "You are a concise e-commerce customer support assistant."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 350
-    },
-    {
-      timeout: 15000,
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`
-      }
-    }
-  );
+  const supportsReasoningControls = /^openai\/gpt-oss-(?:20b|120b)$/i.test(GROQ_MODEL);
 
-  const reply = data?.choices?.[0]?.message?.content;
-  if (!reply) {
-    throw new Error("Groq returned an empty response");
+  async function requestCompletion(maxCompletionTokens) {
+    const data = await postJson(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: GROQ_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: "You are a concise e-commerce customer support assistant. Always finish the answer in 80 words or fewer."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_completion_tokens: maxCompletionTokens,
+        ...(supportsReasoningControls
+          ? {
+              reasoning_effort: "low",
+              include_reasoning: false
+            }
+          : {})
+      },
+      {
+        timeout: 15000,
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`
+        }
+      }
+    );
+
+    return data?.choices?.[0] || null;
   }
 
-  return reply.trim();
+  let choice = await requestCompletion(1024);
+  if (isIncompleteReply(choice?.message?.content, choice?.finish_reason)) {
+    choice = await requestCompletion(1600);
+  }
+
+  const reply = choice?.message?.content?.trim();
+  if (isIncompleteReply(reply, choice?.finish_reason)) {
+    throw new Error("Groq response was incomplete");
+  }
+
+  return reply;
 }
 
 function buildExtractiveKnowledgeFallback(context) {
@@ -336,5 +373,6 @@ module.exports = {
   generateSupportReply,
   buildPrompt,
   assessReplyConfidence,
-  buildExtractiveKnowledgeFallback
+  buildExtractiveKnowledgeFallback,
+  isIncompleteReply
 };

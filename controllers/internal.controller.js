@@ -7,6 +7,7 @@ const {
   hasAlertBeenSent: hasCartAlertBeenSent,
   recordAlertAttempt: recordCartAlertAttempt
 } = require("../services/cartRecoveryAlertRecord.service");
+const { deleteExpiredChatLogs } = require("../services/chatRetention.service");
 
 async function runDelayCheck(req, res) {
   const brands = await listBrands();
@@ -162,4 +163,12 @@ async function runCartRecoveryCheck(req, res) {
   return res.json({ ok: true, ...results });
 }
 
-module.exports = { runDelayCheck, runCartRecoveryCheck };
+async function runChatRetention(req, res) {
+  const result = await deleteExpiredChatLogs();
+  console.log(
+    `[internal] Chat retention removed ${result.deletedCount} rows older than ${result.retentionDays} days.`
+  );
+  return res.json({ ok: true, ...result });
+}
+
+module.exports = { runDelayCheck, runCartRecoveryCheck, runChatRetention };

@@ -71,7 +71,7 @@ Registered topics:
 
 The endpoint validates Shopify's raw-body HMAC before parsing JSON. It resolves the Teviq brand from the stored Shopify connection, never from webhook payload data, and uses `X-Shopify-Webhook-Id` to prevent duplicate processing. Failed or stale events can be safely retried.
 
-When Shopify sends `app/uninstalled`, Teviq first clears the brand's Shopify cache and then deletes the connection row, including encrypted access and refresh tokens. The webhook event ledger remains available without retaining the token or raw payload.
+When Shopify sends `app/uninstalled`, Teviq clears the brand's Shopify cache and webhook receipts, then deletes the connection row including encrypted access and refresh tokens.
 
 `Sync now` remains the reconciliation fallback. It paginates through products and recent orders, refreshes the same cache, and removes records no longer returned by Shopify only after a complete traversal. If a configured page cap is reached, fetched records are updated but unmatched cache rows are preserved. The default limits cover 5,000 products and 2,000 recent orders.
 
@@ -89,4 +89,18 @@ If an existing store was authorized before `read_fulfillments` was added, activa
 
 The existing demo provider remains available for `vastra-demo`, `urban-demo` and `beauty-demo`. Live customer order lookups in `/api/chat` should be enabled only with a customer-verification contract; this connector does not weaken the existing public chat endpoint to expose Shopify order data by a guessed order number.
 
-Mandatory compliance webhooks (`customers/data_request`, `customers/redact`, `shop/redact`) are a separate Public Distribution review requirement. They are not represented as complete by this operational sync layer and must be implemented before an App Store submission.
+## Mandatory compliance webhooks
+
+The same HMAC-verified endpoint handles Shopify's mandatory compliance topics:
+
+- `customers/data_request`
+- `customers/redact`
+- `shop/redact`
+
+Teviq's Shopify cache does not persist customer IDs, email, phone or addresses, so customer data requests and redactions are acknowledged without retaining their payload. `shop/redact` removes cached Shopify products, orders, webhook receipts and any remaining encrypted connection by the signed shop-domain header. This also works after `app/uninstalled` has already removed the active connection.
+
+Before Public Distribution review, register all three topics in the Shopify app configuration with this delivery URL:
+
+`https://teviq-support-ai-backend.onrender.com/api/integrations/shopify/webhooks`
+
+The handler is implemented, but registration and Shopify review remain external launch steps.

@@ -9,10 +9,34 @@ function stripInternalJson(reply) {
     .trim();
 }
 
+function stripCustomerFacingMarkdown(reply) {
+  return String(reply || "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/^\s*[-*]\s+/gm, "- ")
+    .trim();
+}
+
 function trimToWordLimit(reply, maxWords = 80) {
   const words = reply.split(/\s+/).filter(Boolean);
   if (words.length <= maxWords) return reply;
-  return `${words.slice(0, maxWords).join(" ")}...`;
+
+  const candidate = words.slice(0, maxWords).join(" ");
+  const completeSentence = candidate.match(/^([\s\S]*[.!?])(?:\s|$)/);
+  if (completeSentence && completeSentence[1].split(/\s+/).length >= 12) {
+    return completeSentence[1].trim();
+  }
+
+  return `${candidate}...`;
+}
+
+function looksLikeIncompleteAiReply(reply, source) {
+  const text = String(reply || "").trim();
+  if (source === "system" || text.split(/\s+/).length <= 5 || /[.!?)]$/.test(text)) {
+    return false;
+  }
+
+  return /\b(?:a|an|the|and|or|but|to|for|with|of|in|on|at|from|who|that|which|is|are|was|were|can|could|would|should|want|wants|need|needs)$/i.test(text);
 }
 
 function hasManagerContact(reply, brand) {
@@ -25,12 +49,17 @@ function hasManagerContact(reply, brand) {
 
 function validateResponse({ reply, context, source, escalated }) {
   const warnings = [];
-  let finalReply = stripInternalJson(reply || "");
+  let finalReply = stripCustomerFacingMarkdown(stripInternalJson(reply || ""));
   let shouldEscalate = escalated;
 
   if (!finalReply) {
     warnings.push("empty_reply_replaced");
     finalReply = "Sorry, I could not prepare a response. Please try again.";
+  }
+
+  if (looksLikeIncompleteAiReply(finalReply, source)) {
+    warnings.push("incomplete_ai_reply_replaced");
+    finalReply = "Sorry, I could not complete that response. Please try again.";
   }
 
   if (

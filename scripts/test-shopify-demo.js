@@ -176,6 +176,37 @@ const tests = [
     }
   },
   {
+    name: "product recommendation follow-up keeps prior catalog context",
+    async run() {
+      const customerId = "shopify_product_followup_test";
+      const firstResponse = await processMessage({
+        brandId: "urban-demo",
+        message: "Suggest something under 3000 INR",
+        customerId
+      });
+      const followUpResponse = await processMessage({
+        brandId: "urban-demo",
+        message: "I need it for calls",
+        customerId
+      });
+      const unsupportedFitResponse = await processMessage({
+        brandId: "urban-demo",
+        message: "I am a beginner and need something easy to control",
+        customerId
+      });
+
+      return (
+        firstResponse.intent === "product_recommendation" &&
+        followUpResponse.intent === "product_recommendation" &&
+        followUpResponse.source === "system" &&
+        /SwiftBuds Pro/i.test(followUpResponse.reply) &&
+        unsupportedFitResponse.intent === "product_recommendation" &&
+        /kept your .*requirement in context/i.test(unsupportedFitResponse.reply) &&
+        /cannot safely label/i.test(unsupportedFitResponse.reply)
+      );
+    }
+  },
+  {
     name: "chat tracks Shopify demo order",
     async run() {
       const response = await processMessage({

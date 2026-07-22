@@ -19,6 +19,8 @@
     "test:shopify-oauth": "node scripts/test-shopify-oauth.js",
     "test:shopify-webhooks": "node scripts/test-shopify-webhooks.js",
     "test:production-hardening": "node scripts/test-production-hardening.js",
+    "test:response-integrity": "node scripts/test-response-integrity.js",
+    "test:retention": "node scripts/test-chat-retention.js",
     "backfill:embedding-2": "node scripts/backfill-gemini-embedding-2.js"
   },
   "keywords": [

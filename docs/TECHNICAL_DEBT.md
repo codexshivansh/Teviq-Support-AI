@@ -89,20 +89,7 @@ Fix:
 
 ### Duplicate/Generated Files in Tree
 
-Files to review:
-
-- `backend/package-lock 2.json`
-- `backend/logs/chat-logs 2.json`
-- `backend/logs/chat-logs 3.json`
-- `widget/widget 2.js`
-- `widget/demo-* 2.html`
-- `.DS_Store`
-
-Fix:
-
-- Confirm unneeded.
-- Remove in a cleanup PR.
-- Ensure `.gitignore` covers generated files.
+Resolved: obsolete numeric-suffix copies and tracked build output were removed. Local backups, logs, build output, environment files, and `.DS_Store` files are ignored.
 
 ### `intent.service.js` Appears Legacy
 
@@ -165,4 +152,3 @@ Fix:
 3. Clean duplicate/generated files.
 4. Add CI with backend scripts + dashboard/website builds.
 5. Add widget smoke tests.
-

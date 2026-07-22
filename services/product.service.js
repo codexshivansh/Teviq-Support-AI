@@ -13,6 +13,36 @@ const PRODUCT_SEARCH_STOPWORDS = new Set([
   "show",
   "need",
   "want",
+  "something",
+  "product",
+  "item",
+  "looking",
+  "for",
+  "from",
+  "with",
+  "and",
+  "or",
+  "but",
+  "the",
+  "to",
+  "of",
+  "in",
+  "on",
+  "at",
+  "is",
+  "that",
+  "this",
+  "have",
+  "has",
+  "am",
+  "are",
+  "was",
+  "were",
+  "it",
+  "my",
+  "me",
+  "use",
+  "using",
   "under",
   "budget",
   "inr",
@@ -45,6 +75,9 @@ function parseBudget(message) {
   }
   return null;
 }
+
+const PRODUCT_SUITABILITY_PATTERN =
+  /\b(?:beginner|first[- ]time|easy to (?:use|control|handle)|comfortable|comfort|lightweight|durable|sensitive skin|skin type|easy setup)\b/i;
 
 function normalizeCatalogProduct(product) {
   const parsedPrice = Number.parseFloat(product.price);
@@ -94,7 +127,9 @@ function tokenize(text) {
 }
 
 function scoreProduct(product, message) {
-  const queryTokens = tokenize(message);
+  const queryTokens = tokenize(message).filter(
+    (token) => !PRODUCT_SEARCH_STOPWORDS.has(token) && !/^\d+$/.test(token)
+  );
   const searchable = [
     product.title,
     product.handle,
@@ -107,9 +142,10 @@ function scoreProduct(product, message) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+  const searchableTokens = new Set(tokenize(searchable));
 
   return queryTokens.reduce((score, token) => {
-    if (searchable.includes(token)) return score + 2;
+    if (searchableTokens.has(token)) return score + 2;
     return score;
   }, 0);
 }
@@ -172,11 +208,45 @@ function buildProductRecommendationReply({ brand, products, message, maxBudget }
   return [intro, ...lines, "Tell me your budget or use case and I can narrow it further."].join("\n");
 }
 
+function buildProductFollowUpReply({ brand, products, originalQuery, followUpMessage }) {
+  const followUpHasCatalogEvidence = products.some(
+    (product) => scoreProduct(product, followUpMessage) > 0
+  );
+
+  if (PRODUCT_SUITABILITY_PATTERN.test(followUpMessage) && !followUpHasCatalogEvidence) {
+    const budget = parseBudget(originalQuery);
+    const category = products.find((product) => product.category)?.category;
+    const contextParts = [
+      category ? category.toLowerCase() : null,
+      budget != null ? `under INR ${budget}` : null
+    ].filter(Boolean);
+    const optionText = products
+      .slice(0, 3)
+      .map((product) => `${product.title}${product.price != null ? ` (INR ${product.price})` : ""}`)
+      .join(", ");
+
+    return [
+      `I have kept your ${contextParts.join(" ") || "product"} requirement in context.`,
+      "The synced catalog does not include beginner or ease-of-control details, so I cannot safely label one option as the easiest.",
+      optionText ? `These options still match the confirmed catalog filters: ${optionText}.` : null
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  return buildProductRecommendationReply({
+    brand,
+    products,
+    message: `${originalQuery || ""} ${followUpMessage || ""}`.trim()
+  });
+}
+
 module.exports = {
   parseBudget,
   detectCategory,
   getCatalogProducts,
   hasProductKeywordMatch,
   getRecommendedProducts,
-  buildProductRecommendationReply
+  buildProductRecommendationReply,
+  buildProductFollowUpReply
 };

@@ -54,7 +54,7 @@ Move to Supabase/PostgreSQL:
 - Build real Shopify OAuth.
 - Store encrypted access tokens.
 - Sync products/orders/customers.
-- Add mandatory Shopify compliance webhooks before Public Distribution review.
+- Register and verify the implemented mandatory Shopify compliance webhooks before Public Distribution review.
 - Add installation flow in dashboard.
 
 ### Widget
@@ -116,4 +116,3 @@ Add billing, plans, usage metering, and tenant admin.
 
 Phase 7:
 Add enterprise security, audit logs, and compliance workflows.
-

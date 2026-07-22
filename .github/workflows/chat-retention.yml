@@ -1,0 +1,26 @@
+name: Chat Retention
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  delete-expired-chat-logs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete chat logs older than the configured retention window
+        run: |
+          http_status=$(curl -s -o response.json -w "%{http_code}" --max-time 120 -X POST \
+            "https://teviq-support-ai-backend.onrender.com/internal/run-chat-retention" \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_CRON_SECRET }}")
+
+          echo "HTTP status: $http_status"
+          cat response.json
+          echo
+
+          if [ "$http_status" -ne 200 ]; then
+            echo "::error::Chat retention request failed with HTTP $http_status"
+            exit 1
+          fi

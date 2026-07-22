@@ -39,6 +39,9 @@ function createStores({ claimed = true } = {}) {
       },
       async deleteConnection(brandId) {
         calls.push({ method: "deleteConnection", brandId });
+      },
+      async deleteConnectionByShopDomain(shopDomain) {
+        calls.push({ method: "deleteConnectionByShopDomain", shopDomain });
       }
     },
     cacheStore: {
@@ -68,6 +71,9 @@ function createStores({ claimed = true } = {}) {
       async updateOrder() {},
       async clearBrandCache(brandId) {
         calls.push({ method: "clearBrandCache", brandId });
+      },
+      async clearShopCache(shopDomain) {
+        calls.push({ method: "clearShopCache", shopDomain });
       }
     }
   };
@@ -167,12 +173,67 @@ async function run() {
     "app uninstall should delete the encrypted token connection row"
   );
 
+  const dataRequestBody = Buffer.from(JSON.stringify({ customer: { id: 404 } }));
+  const dataRequestStores = createStores();
+  dataRequestStores.connectionStore.getConnectionByShopDomain = async () => null;
+  const dataRequest = await processWebhook(
+    {
+      headers: webhookHeaders({
+        body: dataRequestBody,
+        secret,
+        topic: "customers/data_request",
+        id: "customer-data-request-1"
+      }),
+      rawBody: dataRequestBody
+    },
+    {
+      config: { clientSecret: secret },
+      cacheStore: dataRequestStores.cacheStore,
+      connectionStore: dataRequestStores.connectionStore
+    }
+  );
+  assert(dataRequest.processed && dataRequest.compliance, "customer data requests should be acknowledged");
+  assert(
+    dataRequestStores.calls.length === 0,
+    "customer compliance payloads must not be persisted or logged"
+  );
+
+  const shopRedactBody = Buffer.from(JSON.stringify({ shop_id: 505 }));
+  const shopRedactStores = createStores();
+  shopRedactStores.connectionStore.getConnectionByShopDomain = async () => null;
+  const shopRedact = await processWebhook(
+    {
+      headers: webhookHeaders({
+        body: shopRedactBody,
+        secret,
+        topic: "shop/redact",
+        id: "shop-redact-1"
+      }),
+      rawBody: shopRedactBody
+    },
+    {
+      config: { clientSecret: secret },
+      cacheStore: shopRedactStores.cacheStore,
+      connectionStore: shopRedactStores.connectionStore
+    }
+  );
+  assert(shopRedact.processed && shopRedact.compliance, "shop redact should be processed after uninstall");
+  assert(
+    shopRedactStores.calls.some((call) => call.method === "clearShopCache"),
+    "shop redact should purge cached Shopify data by signed shop domain"
+  );
+  assert(
+    shopRedactStores.calls.some((call) => call.method === "deleteConnectionByShopDomain"),
+    "shop redact should purge any remaining encrypted connection by signed shop domain"
+  );
+
   console.log("PASS Shopify webhook raw-body HMAC verification");
   console.log("PASS Shopify webhook idempotency contract");
   console.log("PASS Shopify webhook server-side brand isolation");
   console.log("PASS Shopify order cache PII allowlist");
   console.log("PASS Shopify fulfillment merge behavior");
   console.log("PASS Shopify app uninstall credential cleanup");
+  console.log("PASS Shopify mandatory compliance webhook handling");
 }
 
 run().catch((error) => {

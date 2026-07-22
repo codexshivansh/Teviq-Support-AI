@@ -100,6 +100,15 @@ async function deleteConnection(brandId) {
   return true;
 }
 
+async function deleteConnectionByShopDomain(shopDomain) {
+  await requestTable(
+    "shopify_connections",
+    `?shop_domain=eq.${encodeFilter(shopDomain)}`,
+    { method: "DELETE" }
+  );
+  return true;
+}
+
 async function createOauthState(state) {
   await requestTable("shopify_oauth_states", "", {
     method: "POST",
@@ -154,6 +163,7 @@ module.exports = {
   consumeOauthState,
   createOauthState,
   deleteConnection,
+  deleteConnectionByShopDomain,
   deleteExpiredOauthStates,
   getConnectionByBrandId,
   getConnectionByShopDomain,

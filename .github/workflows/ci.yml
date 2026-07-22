@@ -1,0 +1,26 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run test:response-integrity
+      - run: npm run test:retention
+      - run: npm run test:brain
+      - run: npm run test:order-security
+      - run: npm run test:shopify-oauth
+      - run: npm run test:shopify-webhooks
+      - run: npm run test:production-hardening

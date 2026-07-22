@@ -217,16 +217,6 @@ Important files:
 Safe to modify:
 Marketing copy/layout can be modified carefully. Embedded widget script should continue using the production backend and brand ID.
 
-## Generated or Duplicate Files to Watch
+## Generated Files
 
-The current tree includes some files that should be reviewed before a clean handoff:
-
-- `backend/package-lock 2.json`
-- `backend/logs/chat-logs 2.json`
-- `backend/logs/chat-logs 3.json`
-- `widget/widget 2.js`
-- `widget/demo-* 2.html`
-- `.DS_Store` files
-
-Do not delete without checking Git status and confirming they are accidental duplicates.
-
+Generated logs, local backups, build output, environment files, and `.DS_Store` files are ignored. Keep canonical lockfiles and source files tracked; do not add timestamped backups or copied files with numeric suffixes.

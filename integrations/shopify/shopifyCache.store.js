@@ -293,7 +293,16 @@ async function updateOrder(brandId, shopifyOrderId, updates) {
 async function clearBrandCache(brandId) {
   await Promise.all([
     requestTable("shopify_products", `?brand_id=eq.${encodeFilter(brandId)}`, { method: "DELETE" }),
-    requestTable("shopify_orders", `?brand_id=eq.${encodeFilter(brandId)}`, { method: "DELETE" })
+    requestTable("shopify_orders", `?brand_id=eq.${encodeFilter(brandId)}`, { method: "DELETE" }),
+    requestTable("shopify_webhook_events", `?brand_id=eq.${encodeFilter(brandId)}`, { method: "DELETE" })
+  ]);
+}
+
+async function clearShopCache(shopDomain) {
+  await Promise.all([
+    requestTable("shopify_products", `?shop_domain=eq.${encodeFilter(shopDomain)}`, { method: "DELETE" }),
+    requestTable("shopify_orders", `?shop_domain=eq.${encodeFilter(shopDomain)}`, { method: "DELETE" }),
+    requestTable("shopify_webhook_events", `?shop_domain=eq.${encodeFilter(shopDomain)}`, { method: "DELETE" })
   ]);
 }
 
@@ -353,6 +362,7 @@ async function finishWebhookEvent(webhookId, status, updates = {}) {
 module.exports = {
   claimWebhookEvent,
   clearBrandCache,
+  clearShopCache,
   countRows,
   deleteProduct,
   finishWebhookEvent,
