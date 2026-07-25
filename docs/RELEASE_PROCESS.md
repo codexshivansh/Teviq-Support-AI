@@ -82,10 +82,12 @@ Backend:
 
 ```bash
 npm run validate:brands
+npm run test:knowledge-storage
 npm run test:brain
-npm run test:knowledge
-npm run test:shopify-demo
-npm run smoke:test
+npm run test:order-security
+npm run test:shopify-oauth
+npm run test:shopify-webhooks
+npm run test:production-hardening
 ```
 
 Dashboard:
@@ -102,10 +104,14 @@ npm run build
 
 Widget:
 
-- Open demo hub.
-- Test all three demo storefronts.
-- Test mobile width around 390px.
-- Test order tracking, return/exchange, human support, manual message.
+```bash
+npm ci
+npm run test:syntax
+npm run test:release
+npm run test:e2e
+```
+
+Publish widget changes under a new immutable version path. Do not edit an existing released version.
 
 ## Release Notes Format
 
@@ -140,4 +146,3 @@ Do not release if:
 - Real secrets appear in code.
 - Brand data leaks across brands.
 - Widget breaks mobile close/input behavior.
-

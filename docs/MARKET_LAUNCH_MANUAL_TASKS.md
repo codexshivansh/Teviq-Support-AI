@@ -18,11 +18,13 @@ Code-side production hardening is automated where possible. These remaining item
 
 ## 3. Verify website and widget deployment
 
-1. Deploy the website repository after its `vercel.json` is merged.
-2. Open these URLs directly in a private window and confirm they return the app instead of a 404: `/product`, `/pricing`, `/live-demo`, `/book-demo`, `/case-studies`, `/policies`, `/privacy`, `/terms`.
-3. Open the widget, close it and confirm the greeting bubble does not reappear during the same browser session.
-4. Confirm the launcher appears promptly and `Powered by teviq.in` opens `https://www.teviq.in/`.
-5. Confirm the website Vercel project still has its valid `VITE_WEB3FORMS_KEY`.
+1. Deploy the widget repository first.
+2. Confirm `https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js` returns HTTP 200.
+3. Deploy dashboard and website only after the immutable widget release is live.
+4. Open these website URLs directly in a private window and confirm they return the app instead of a 404: `/product`, `/pricing`, `/live-demo`, `/book-demo`, `/case-studies`, `/policies`, `/privacy`, `/terms`.
+5. Open the widget, close it and confirm the greeting bubble does not reappear during the same browser session.
+6. Confirm the launcher appears promptly and `Powered by teviq.in` opens `https://www.teviq.in/`.
+7. Confirm the website Vercel project still has its valid `VITE_WEB3FORMS_KEY`.
 
 ## 4. Run the real Shopify order privacy test
 

@@ -35,6 +35,25 @@ Render runs:
 npm start
 ```
 
+## Supabase
+
+Purpose:
+
+- Production brand system of record.
+- Knowledge document metadata and pgvector retrieval.
+- Private original-document storage.
+- Shopify connections and support-safe cache.
+- Conversation workflow state and analytics.
+
+Required values:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- optional `SUPABASE_KNOWLEDGE_BUCKET` (defaults to `knowledge-documents`)
+
+Important:
+The service-role key is backend-only. The Knowledge service creates a private bucket through the Storage API when needed and stores files under `{brandId}/{storedFileName}`.
+
 ## Vercel
 
 Purpose:
@@ -50,6 +69,18 @@ https://teviq-support-ai-dashboard-ph9p.vercel.app
 https://teviq-support-ai-widget.vercel.app
 https://teviq.in
 ```
+
+## Web3Forms
+
+Purpose:
+Marketing-site demo/contact form delivery.
+
+Required website value:
+
+- `VITE_WEB3FORMS_KEY`
+
+Important:
+Keep form validation and spam controls enabled, and verify the recipient inbox before launch.
 
 ## Gemini
 
@@ -98,24 +129,28 @@ Behavior:
 ## Shopify
 
 Current status:
-Demo connector only.
+Live OAuth/Admin API connector with demo fixtures for the three internal demo workspaces.
 
 Used by:
 
-- Order lookup.
-- Product recommendation.
-- Dashboard Shopify Status page.
+- OAuth installation and encrypted offline access.
+- Product and order reconciliation.
+- Product recommendation and identity-verified order lookup.
+- Operational and compliance webhooks.
+- Dashboard Shopify page.
 
 Files:
 
 ```text
+backend/integrations/shopify/shopifyAdmin.provider.js
+backend/integrations/shopify/shopifyIntegration.service.js
+backend/integrations/shopify/shopifyWebhook*.js
 backend/integrations/shopify/shopifyDemo.provider.js
-backend/integrations/shopify/shopifySync.service.js
 backend/data/shopify-demo/*
 ```
 
-Future:
-Replace demo provider with real Shopify OAuth/Admin API provider behind the same interface.
+Important:
+Production launch still depends on the app's Shopify distribution/review status and granted protected-customer-data access. Demo fixtures must never be used as fallback for a live customer brand.
 
 ## GitHub
 
@@ -123,21 +158,20 @@ Purpose:
 Source control and deployment trigger.
 
 Current note:
-Local Git history is fragmented across root/backend/widget/website. Decide canonical repo structure before long-term handoff.
+Backend, dashboard, widget, and website are separate repositories. Preserve explicit release coordination until a canonical monorepo decision is made.
 
 ## External Browser/CDN Runtime
 
-The widget is loaded directly by client websites. Any hosted `widget.js` change affects all clients using that URL.
+The widget is loaded directly by client websites. Production embeds use immutable versioned files so an unreviewed stable-alias change does not silently affect installed clients.
 
-Recommendation:
-Use versioned widget URLs in the future:
+Current production release:
 
 ```text
-https://cdn.teviq.in/widget/v1/widget.js
+https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js
 ```
 
-and maintain a stable alias:
+Short-cache stable alias for development and staged rollout:
 
 ```text
-https://cdn.teviq.in/widget.js
+https://teviq-support-ai-widget.vercel.app/widget.js
 ```

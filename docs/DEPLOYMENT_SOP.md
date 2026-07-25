@@ -7,9 +7,12 @@ Run from `teviq-support-ai/backend`:
 ```bash
 npm install
 npm run validate:brands
+npm run test:knowledge-storage
 npm run test:brain
-npm run test:knowledge
-npm run test:shopify-demo
+npm run test:order-security
+npm run test:shopify-oauth
+npm run test:shopify-webhooks
+npm run test:production-hardening
 node -c server.js
 node -c config/cors.js
 node -c middleware/clerkAuth.middleware.js
@@ -25,15 +28,19 @@ npm run build
 Run from marketing site:
 
 ```bash
-cd "/Users/shivanshgupta/Documents/teviq site"
+cd "/Users/shivanshgupta/Documents/AI Support bot/teviq.in"
 npm install
 npm run build
 ```
 
-Widget:
+Run from `teviq-support-ai/widget`:
 
-- Open `widget/demo-vastra.html`, `widget/demo-urban.html`, and `widget/demo-beauty.html`.
-- Confirm widget opens and can call the target backend.
+```bash
+npm ci
+npm run test:syntax
+npm run test:release
+npm run test:e2e
+```
 
 ## Backend Deployment Steps
 
@@ -89,7 +96,8 @@ https://teviq-support-ai-widget.vercel.app/index.html
 ```
 
 4. Test all demo pages.
-5. Test production embed snippet.
+5. Confirm the pinned release path in `release-manifest.json` is directly reachable.
+6. Test the production embed snippet.
 
 ## Website Deployment Steps
 
@@ -143,13 +151,13 @@ If backend fails:
 
 If widget fails:
 
-1. Roll back immediately in static hosting.
-2. Open demo pages.
-3. Verify client embed URL serves the older working `widget.js`.
+1. Keep existing clients on their previous immutable version.
+2. Restore the previous pinned URL in dashboard/first-party embeds if it was changed.
+3. Roll back the Vercel deployment if the static release itself is incomplete.
+4. Run `npm run test:release` and open demo pages.
 
 If dashboard fails:
 
 1. Roll back in Vercel.
 2. Confirm Clerk login.
 3. Confirm Knowledge/Shopify protected APIs.
-

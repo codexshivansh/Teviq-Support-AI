@@ -5,8 +5,21 @@ const mammoth = require("mammoth");
 // pdf-parse v2 switched from a default function `pdfParse(buffer)` to a
 // class-based API `new PDFParse({ data }).getText()`. The old call shape
 // was throwing "pdfParse is not a function" on upload.
-async function extractTextFromPdf(filePath) {
-  const buffer = await fs.readFile(filePath);
+async function getDocumentBuffer(uploadMetadata) {
+  if (Buffer.isBuffer(uploadMetadata.fileBuffer)) {
+    return uploadMetadata.fileBuffer;
+  }
+
+  if (uploadMetadata.filePath) {
+    return fs.readFile(uploadMetadata.filePath);
+  }
+
+  const error = new Error("Document bytes are unavailable for extraction.");
+  error.statusCode = 400;
+  throw error;
+}
+
+async function extractTextFromPdf(buffer) {
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
@@ -19,33 +32,34 @@ async function extractTextFromPdf(filePath) {
   }
 }
 
-async function extractTextFromDocx(filePath) {
-  const result = await mammoth.extractRawText({ path: filePath });
+async function extractTextFromDocx(buffer) {
+  const result = await mammoth.extractRawText({ buffer });
   return {
     text: result.value || "",
     warnings: result.messages || []
   };
 }
 
-async function extractTextFromTxt(filePath) {
+async function extractTextFromTxt(buffer) {
   return {
-    text: await fs.readFile(filePath, "utf8")
+    text: buffer.toString("utf8")
   };
 }
 
 async function extractText(uploadMetadata) {
   const extension = uploadMetadata.extension;
+  const buffer = await getDocumentBuffer(uploadMetadata);
 
   if (extension === "pdf") {
-    return extractTextFromPdf(uploadMetadata.filePath);
+    return extractTextFromPdf(buffer);
   }
 
   if (extension === "docx") {
-    return extractTextFromDocx(uploadMetadata.filePath);
+    return extractTextFromDocx(buffer);
   }
 
   if (extension === "txt") {
-    return extractTextFromTxt(uploadMetadata.filePath);
+    return extractTextFromTxt(buffer);
   }
 
   const error = new Error("Unsupported document type.");

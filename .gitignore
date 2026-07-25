@@ -1,6 +1,7 @@
 .env
 node_modules/
 knowledge/uploads/
+uploads/
 data/knowledge/structured-knowledge.json
 data/secure/
 logs/

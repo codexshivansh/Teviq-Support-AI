@@ -38,6 +38,11 @@ ALLOWED_ORIGINS=https://teviq.in,https://www.teviq.in,https://teviq-support-ai-d
 CLERK_SECRET_KEY=<CLERK_SECRET_KEY>
 GEMINI_API_KEY=<GEMINI_API_KEY>
 GROQ_API_KEY=<GROQ_API_KEY>
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<SUPABASE_SERVICE_ROLE_KEY>
+SUPABASE_KNOWLEDGE_BUCKET=knowledge-documents
+CHAT_RETENTION_DAYS=30
+INTERNAL_CRON_SECRET=<long-random-secret>
 GEMINI_MODEL=gemini-3.5-flash
 GEMINI_EMBEDDING_MODEL=gemini-embedding-2
 GROQ_MODEL=openai/gpt-oss-20b
@@ -75,6 +80,7 @@ Environment variables:
 ```text
 VITE_CLERK_PUBLISHABLE_KEY=<CLERK_PUBLISHABLE_KEY>
 VITE_ENABLE_DEMO_LOGIN=false
+VITE_API_BASE_URL=https://teviq-support-ai-backend.onrender.com
 ```
 
 Important:
@@ -94,18 +100,20 @@ teviq-support-ai/widget
 Files to host:
 
 - `widget.js`
+- `v1.0.0/widget.js`
+- `release-manifest.json`
 - `index.html`
 - `demo.html`
 - `demo-vastra.html`
 - `demo-urban.html`
 - `demo-beauty.html`
 
-There is no build step.
+The deployment is static, but CI runs `npm ci`, release-integrity checks, and Playwright before promotion.
 
 Production widget URL currently used:
 
 ```text
-https://teviq-support-ai-widget.vercel.app/widget.js
+https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js
 ```
 
 ## Website on Vercel
@@ -113,7 +121,7 @@ https://teviq-support-ai-widget.vercel.app/widget.js
 Root directory:
 
 ```text
-/Users/shivanshgupta/Documents/teviq site
+/Users/shivanshgupta/Documents/AI Support bot/teviq.in
 ```
 
 Build command:
@@ -181,5 +189,7 @@ Vercel:
 
 Widget:
 
-- If widget deployment breaks client sites, roll back the static deployment immediately.
-- Because clients load `widget.js` directly, a bad widget release has immediate customer impact.
+- Production embeds use immutable `/v1.0.0/widget.js`.
+- Publish changes under a new version path and update `release-manifest.json`.
+- Keep `/widget.js` as a controlled stable/preview alias.
+- Roll back by restoring the previous pinned version URL in install snippets and first-party embeds.

@@ -87,10 +87,10 @@ Common failures:
 
 Check:
 
-```bash
-ls backend/uploads/knowledge/<brandId>
-cat backend/data/knowledge/vector-store.json
-```
+- Supabase Storage bucket `knowledge-documents/{brandId}/`.
+- Supabase `knowledge_documents` row.
+- Supabase `knowledge_chunks` rows with the same `brand_id` and `document_id`.
+- Render logs for extraction, embedding, Storage, or rollback errors.
 
 Debug retrieval:
 
@@ -111,10 +111,10 @@ Important files:
 
 Key behavior:
 
-- Search filters by `brandId`.
-- Similarity is cosine similarity over local hash vectors.
-- Matches below `0.16` are filtered out.
-- `topK` defaults to 5.
+- SQL RPC filters by `brandId`.
+- Similarity is pgvector cosine similarity over Gemini Embedding 2 vectors.
+- Candidate search uses `p_min_score=0`; application confidence gating starts at `0.68`.
+- `topK` defaults to 5 after source-aware reranking.
 
 If answer is too generic:
 
@@ -123,12 +123,14 @@ If answer is too generic:
 - Ensure document text extraction worked.
 - Add clearer policy/FAQ content.
 
-## Shopify Demo Debugging
+## Shopify Debugging
 
 Important files:
 
+- `backend/integrations/shopify/shopifyIntegration.service.js`
+- `backend/integrations/shopify/shopifyAdmin.provider.js`
+- `backend/integrations/shopify/shopifyWebhook*.js`
 - `backend/integrations/shopify/shopifyDemo.provider.js`
-- `backend/data/shopify-demo/*`
 - `backend/services/order.service.js`
 - `backend/services/product.service.js`
 
@@ -138,7 +140,14 @@ Checks:
 npm run test:shopify-demo
 ```
 
-If product recommendations are weak:
+If live sync fails:
+
+- Confirm the connection is active and the store granted current scopes.
+- Confirm protected customer data access before querying live orders.
+- Check webhook registration status and Render logs.
+- Use `Sync now` as reconciliation after scopes or permissions change.
+
+If demo product recommendations are weak:
 
 - Add relevant `keywords`.
 - Add `recommendationText`.
@@ -156,7 +165,7 @@ Check script tag:
 
 ```html
 <script
-  src="https://teviq-support-ai-widget.vercel.app/widget.js"
+  src="https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js"
   data-brand-id="urban-demo"
   data-api-url="https://teviq-support-ai-backend.onrender.com">
 </script>
@@ -192,4 +201,3 @@ npm run build
 ```
 
 Clerk backend dependency requires a modern Node version. Use Node 20+ for backend deployment.
-

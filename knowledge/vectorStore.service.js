@@ -178,33 +178,57 @@ function fromChunkRow(row) {
 async function upsertDocument({ document, chunks }) {
   const documentRow = toDocumentRow(document);
   const chunkRows = chunks.map(toChunkRow);
+  let persistenceStarted = false;
 
-  await request("knowledge_documents?on_conflict=document_id", {
-    method: "POST",
-    headers: {
-      Prefer: "resolution=merge-duplicates"
-    },
-    body: JSON.stringify([documentRow])
-  });
+  try {
+    // Document IDs are unique per upload. Write the chunks before the
+    // dashboard-visible document row so a failed chunk insert cannot leave a
+    // ghost document with no retrievable content.
+    await request(
+      `knowledge_chunks?brand_id=eq.${encodeFilter(document.brandId)}&document_id=eq.${encodeFilter(document.documentId)}`,
+      {
+        method: "DELETE"
+      }
+    );
+    persistenceStarted = true;
 
-  await request(
-    `knowledge_chunks?brand_id=eq.${encodeFilter(document.brandId)}&document_id=eq.${encodeFilter(document.documentId)}`,
-    {
-      method: "DELETE"
+    if (chunkRows.length) {
+      await request("knowledge_chunks", {
+        method: "POST",
+        body: JSON.stringify(chunkRows)
+      });
     }
-  );
 
-  if (chunkRows.length) {
-    await request("knowledge_chunks", {
+    await request("knowledge_documents?on_conflict=document_id", {
       method: "POST",
-      body: JSON.stringify(chunkRows)
+      headers: {
+        Prefer: "resolution=merge-duplicates"
+      },
+      body: JSON.stringify([documentRow])
     });
-  }
 
-  return {
-    document,
-    chunkCount: chunks.length
-  };
+    return {
+      document,
+      chunkCount: chunks.length
+    };
+  } catch (error) {
+    if (persistenceStarted) {
+      try {
+        await deleteDocumentRecords({
+          brandId: document.brandId,
+          documentId: document.documentId
+        });
+      } catch (cleanupError) {
+        error.cleanupError = cleanupError;
+        console.error(
+          `[knowledge] Database rollback failed for ${document.brandId}:${document.documentId}:`,
+          cleanupError.message
+        );
+      }
+    }
+
+    throw error;
+  }
 }
 
 async function upsertSourceChunks({ brandId, sourceId, sourceType, chunks }) {
@@ -234,31 +258,56 @@ async function listDocuments(brandId) {
   return (Array.isArray(rows) ? rows : []).map(fromDocumentRow);
 }
 
-async function deleteDocument({ brandId, documentId }) {
-  const deletedDocuments = await request(
-    `knowledge_documents?brand_id=eq.${encodeFilter(brandId)}&document_id=eq.${encodeFilter(documentId)}`,
-    {
-      method: "DELETE",
-      headers: {
-        Prefer: "return=representation"
+async function deleteDocumentRecords({ brandId, documentId }) {
+  const encodedBrandId = encodeFilter(brandId);
+  const encodedDocumentId = encodeFilter(documentId);
+  const [chunksResult, documentsResult] = await Promise.allSettled([
+    request(
+      `knowledge_chunks?brand_id=eq.${encodedBrandId}&document_id=eq.${encodedDocumentId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Prefer: "return=representation"
+        }
       }
-    }
-  );
+    ),
+    request(
+      `knowledge_documents?brand_id=eq.${encodedBrandId}&document_id=eq.${encodedDocumentId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Prefer: "return=representation"
+        }
+      }
+    )
+  ]);
 
-  const deletedChunks = await request(
-    `knowledge_chunks?brand_id=eq.${encodeFilter(brandId)}&document_id=eq.${encodeFilter(documentId)}`,
-    {
-      method: "DELETE",
-      headers: {
-        Prefer: "return=representation"
-      }
-    }
-  );
+  const failures = [chunksResult, documentsResult]
+    .filter((result) => result.status === "rejected")
+    .map((result) => result.reason);
+
+  if (failures.length) {
+    const error = new Error(
+      `Knowledge document cleanup failed: ${failures.map((failure) => failure.message).join("; ")}`
+    );
+    error.statusCode = failures[0]?.statusCode || 503;
+    error.code = "knowledge_document_cleanup_failed";
+    error.causes = failures;
+    throw error;
+  }
 
   return {
-    deleted: Array.isArray(deletedDocuments) && deletedDocuments.length > 0,
-    deletedChunks: Array.isArray(deletedChunks) ? deletedChunks.length : 0
+    deleted:
+      Array.isArray(documentsResult.value) &&
+      documentsResult.value.length > 0,
+    deletedChunks: Array.isArray(chunksResult.value)
+      ? chunksResult.value.length
+      : 0
   };
+}
+
+async function deleteDocument({ brandId, documentId }) {
+  return deleteDocumentRecords({ brandId, documentId });
 }
 
 async function deleteChunksBySource({ brandId, sourceId, sourceType }) {
@@ -321,6 +370,7 @@ module.exports = {
   upsertSourceChunks,
   listDocuments,
   deleteDocument,
+  deleteDocumentRecords,
   deleteChunksBySource,
   search,
   getStats

@@ -12,6 +12,8 @@
     "test:analytics": "node scripts/test-analytics-escalation.js",
     "test:escalation": "node scripts/test-escalation-routing.js",
     "test:knowledge": "node scripts/test-knowledge.js",
+    "test:knowledge-storage": "node scripts/test-knowledge-storage.js",
+    "test:memory": "node scripts/test-memory-persistence.js",
     "test:embedding": "node scripts/test-gemini-embedding.js",
     "test:shopify-demo": "node scripts/test-shopify-demo.js",
     "test:shopify-orders": "node scripts/test-shopify-order-tracking.js",
@@ -34,6 +36,7 @@
   "type": "commonjs",
   "dependencies": {
     "@clerk/backend": "^3.8.4",
+    "@supabase/supabase-js": "2.110.8",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",

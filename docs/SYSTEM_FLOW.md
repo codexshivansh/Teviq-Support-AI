@@ -128,13 +128,14 @@ Flow:
 Intent is order_tracking
   -> entityExtractor looks for orderId
   -> If no orderId, ask for order ID
-  -> If orderId exists, order.service searches Shopify demo provider first
-  -> If not found, search local orders.json
+  -> Live brands require order ID plus matching checkout email/phone
+  -> Verified live lookups read only the current brand's Shopify cache/provider
+  -> Explicit demo brands may use demo/local fixtures
   -> Always filter by brandId
-  -> Return status only if order belongs to the current brand/customer scope
+  -> Return status only after brand and customer identity checks pass
 ```
 
-Cross-brand leakage is blocked by filtering on `brandId`.
+Cross-brand leakage is blocked by server-side `brandId` filters. Same-brand order enumeration is blocked with identity verification, generic failure replies, rate limiting, and short-lived verification state.
 
 ## Branch: Return / Exchange
 
@@ -193,7 +194,8 @@ Flow:
 
 ```text
 Intent is product_recommendation
-  -> product.service loads Shopify demo products for brandId
+  -> product.service loads live Shopify products for connected brands
+  -> Explicit demo workspaces may load demo catalog fixtures
   -> Score products by keyword overlap
   -> If products match, return system recommendation
   -> If not, AI may answer using brand FAQs/policies/knowledge
@@ -235,4 +237,3 @@ Public route groups:
 - `/health`
 - `/api/brand-config/*`
 - `/api/chat`
-

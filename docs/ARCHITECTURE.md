@@ -21,7 +21,7 @@ Express Backend
   - Routes/controllers
   - AI Support Brain
   - Knowledge Brain
-  - Shopify demo connector
+  - Live Shopify connector + demo fixtures
           |
           v
 Business Tools
@@ -40,10 +40,11 @@ AI Provider Layer
           |
           v
 Storage
-  - Local JSON brand/order/product data
-  - Local vector store JSON
-  - Uploaded knowledge files
-  - Local chat logs
+  - Supabase brands and runtime records
+  - Supabase pgvector knowledge chunks
+  - Private Supabase Storage documents
+  - Supabase analytics and workflow state
+  - Local JSON demo fixtures only
 ```
 
 ## Frontend
@@ -73,13 +74,9 @@ Live API-backed pages:
 - Home setup metrics: Knowledge + Shopify status.
 - Knowledge Base: document list, upload, delete.
 - AI Playground: chat test.
-- Shopify Status: demo connector status, sync, products.
-
-Demo/static pages:
-
-- Conversations.
-- Analytics Preview.
-- Settings.
+- Shopify: OAuth connection, sync, products, and order counts.
+- Conversations and Analytics: protected brand-scoped runtime data.
+- Settings: workspace configuration with defined local-only presentation state where persistence is not yet required.
 
 ### Widget
 
@@ -213,21 +210,15 @@ Current models default to:
 
 ## Database and Storage
 
-There is no production database yet.
+Production runtime data is persistent:
 
-Current storage is local filesystem JSON:
+- Supabase `brands` for brand and public widget settings.
+- Supabase `knowledge_documents`, `knowledge_chunks`, and `structured_knowledge`.
+- Private Supabase Storage for original PDF/DOCX/TXT uploads.
+- Supabase `chat_logs` and `conversation_states`.
+- Supabase Shopify OAuth, connection, cache, and webhook tables.
 
-- Brand files: `backend/data/brands/{brandId}.json`
-- Legacy/fallback orders: `backend/data/orders.json`
-- Shopify demo products/orders: `backend/data/shopify-demo/*`
-- Knowledge vector store: `backend/data/knowledge/vector-store.json`
-- Uploaded knowledge files: `backend/uploads/knowledge/{brandId}/`
-- Analytics logs: `backend/logs/chat-logs.json`
-
-Future intended database:
-
-- Supabase/PostgreSQL for brands, users, settings, documents, conversations, orders, analytics, and tenant permissions.
-- Qdrant or another vector database for production retrieval.
+Local JSON under `data/` is retained only for demo fixtures and legacy fallback tests. General last-10-message prompt memory hydrates from brand/customer-scoped `chat_logs` after a cold start and uses an in-process fast path. Workflow state is persistent in `conversation_states`.
 
 ## Widget
 
@@ -247,21 +238,13 @@ A client brand installs the widget script on their storefront. Teviq does not cu
 
 ## Shopify
 
-Shopify integration is currently demo-only:
+Shopify supports both a live OAuth connector and demo fixtures:
 
-- Provider: `backend/integrations/shopify/shopifyDemo.provider.js`
-- Sync facade: `backend/integrations/shopify/shopifySync.service.js`
-- Data: `backend/data/shopify-demo/*`
-
-The order service checks the Shopify demo provider first, then falls back to `orders.json`.
-
-Future real Shopify plan:
-
-- OAuth app install.
-- Store access tokens securely.
-- Sync products/orders/customers.
-- Webhooks for order updates.
-- Replace demo provider behind the same provider interface.
+- The integration service chooses a live connection or the demo provider.
+- Offline credentials are encrypted before Supabase persistence.
+- Product/order reconciliation and operational webhooks update a support-safe cache.
+- HMAC validation, deduplication, uninstall cleanup, and identity-verified order access are enforced.
+- Mandatory compliance handlers exist; Shopify registration/review remains an external launch step.
 
 ## Knowledge Base
 
@@ -277,23 +260,14 @@ Flow:
 2. Multer validates file type and size.
 3. Extractor reads text.
 4. Chunker splits into semantic-ish sections.
-5. Embedding service creates local hash embeddings.
-6. Vector store persists chunks and metadata.
-7. Retrieval filters chunks by `brandId`.
-8. Support Brain uses retrieval before Gemini/Groq when AI is allowed.
+5. Original bytes are stored in a private, brand-scoped Supabase Storage object.
+6. Gemini Embedding 2 creates 768-dimensional semantic embeddings.
+7. Supabase persists metadata and pgvector chunks.
+8. SQL RPC retrieval filters by `brandId` before results leave the database.
+9. Support Brain uses grounded context before Gemini/Groq when AI is allowed.
 
 ## Analytics
 
-Current analytics are local logs:
+Analytics persist in Supabase `chat_logs`. Each chat stores timestamp, brand, customer, message, intent, escalation, source, reply, knowledge confidence/citations, fallback flag, and response time.
 
-```text
-backend/logs/chat-logs.json
-```
-
-Each chat stores timestamp, brand, customer, message, detected intent, escalation flag, source, reply, knowledge confidence, and citations.
-
-Dashboard analytics are static demo data in:
-
-```text
-dashboard/src/data/analytics.js
-```
+The dashboard analytics and conversations pages query protected brand-scoped APIs backed by this table. A true resolution/CSAT event is still future work.

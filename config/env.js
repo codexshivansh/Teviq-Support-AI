@@ -43,6 +43,15 @@ function validateEnv() {
   }
 
   if (
+    process.env.SUPABASE_KNOWLEDGE_BUCKET &&
+    !/^[a-z0-9][a-z0-9._-]{1,62}$/i.test(process.env.SUPABASE_KNOWLEDGE_BUCKET)
+  ) {
+    console.warn(
+      "[env] SUPABASE_KNOWLEDGE_BUCKET is invalid. Knowledge uploads will be unavailable."
+    );
+  }
+
+  if (
     process.env.CHAT_RETENTION_DAYS &&
     (!Number.isInteger(Number(process.env.CHAT_RETENTION_DAYS)) || Number(process.env.CHAT_RETENTION_DAYS) < 1)
   ) {
