@@ -6,6 +6,7 @@ const path = require("path");
 const { getBrandById } = require("../services/brand.service");
 const { buildUploadMetadata } = require("../knowledge/upload.service");
 const { ingestKnowledgeDocument } = require("../knowledge/knowledge.service");
+const knowledgeFileStorage = require("../knowledge/knowledgeFileStorage.service");
 const { retrieveKnowledge } = require("../knowledge/retrieval.service");
 const vectorStore = require("../knowledge/vectorStore.service");
 
@@ -44,38 +45,55 @@ async function run() {
     title: "Urban Warranty Test"
   });
 
-  const ingestion = await ingestKnowledgeDocument(uploadMetadata);
-  const retrieval = await retrieveKnowledge({
-    brandId,
-    query: "Which products have a six month warranty?",
-    topK: 5
-  });
-  const ingestedDocumentRetrieved = retrieval.matches.some(
-    (match) => match.documentId === ingestion.document.documentId
-  );
+  let ingestion;
 
-  console.log(
-    JSON.stringify(
-      {
-        ok: ingestedDocumentRetrieved,
-        documentId: ingestion.document.documentId,
-        chunkCount: ingestion.chunkCount,
-        confidence: retrieval.confidence,
-        citations: retrieval.citations
-      },
-      null,
-      2
-    )
-  );
+  try {
+    ingestion = await ingestKnowledgeDocument(uploadMetadata);
+    const retrieval = await retrieveKnowledge({
+      brandId,
+      query: "Which products have a six month warranty?",
+      topK: 5
+    });
+    const ingestedDocumentRetrieved = retrieval.matches.some(
+      (match) => match.documentId === ingestion.document.documentId
+    );
 
-  await vectorStore.deleteDocument({
-    brandId,
-    documentId: ingestion.document.documentId
-  });
-  fs.rmSync(tempDir, { recursive: true, force: true });
+    console.log(
+      JSON.stringify(
+        {
+          ok: ingestedDocumentRetrieved,
+          documentId: ingestion.document.documentId,
+          chunkCount: ingestion.chunkCount,
+          confidence: retrieval.confidence,
+          citations: retrieval.citations
+        },
+        null,
+        2
+      )
+    );
 
-  if (!ingestedDocumentRetrieved) {
-    throw new Error("The uploaded document was indexed but was not returned by retrieval.");
+    if (!ingestedDocumentRetrieved) {
+      throw new Error("The uploaded document was indexed but was not returned by retrieval.");
+    }
+  } finally {
+    if (ingestion?.document) {
+      const cleanupResults = await Promise.allSettled([
+        knowledgeFileStorage.deleteDocument({
+          brandId,
+          storedFileName: ingestion.document.storedFileName
+        }),
+        vectorStore.deleteDocument({
+          brandId,
+          documentId: ingestion.document.documentId
+        })
+      ]);
+      const cleanupFailure = cleanupResults.find((result) => result.status === "rejected");
+      if (cleanupFailure) {
+        throw new Error(`Knowledge test cleanup failed: ${cleanupFailure.reason?.message || "unknown error"}`);
+      }
+    }
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 

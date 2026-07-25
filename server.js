@@ -246,6 +246,31 @@ app.use((error, req, res, next) => {
     });
   }
 
+  const knowledgeStorageErrors = new Set([
+    "knowledge_bucket_invalid",
+    "knowledge_bucket_public",
+    "knowledge_bucket_unavailable",
+    "knowledge_storage_not_configured",
+    "knowledge_storage_upload_failed",
+    "knowledge_storage_delete_failed",
+    "knowledge_document_cleanup_failed"
+  ]);
+
+  if (knowledgeStorageErrors.has(error.code)) {
+    console.error("[Knowledge Storage Error]", {
+      code: error.code,
+      message: error.message,
+      context: error.context
+    });
+    return res.status(503).json({
+      error: "knowledge_storage_unavailable",
+      message:
+        error.code === "knowledge_bucket_public"
+          ? "Knowledge document storage is not securely configured. Please contact support."
+          : "Knowledge document storage is temporarily unavailable. Please try again."
+    });
+  }
+
   // Handle Supabase connection errors
   if (error.supabaseStatus) {
     const status = error.supabaseStatus >= 500 ? 503 : error.supabaseStatus;

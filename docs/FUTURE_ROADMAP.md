@@ -1,118 +1,65 @@
 # Future Roadmap
 
-## Short-Term Improvements
+The current system is suitable for a controlled pilot after the manual launch gate passes. This roadmap starts from the code that exists today rather than the original JSON-only MVP.
 
-### Production Hygiene
+## Pilot Stabilization
 
-- Finalize canonical GitHub repo structure.
-- Add CI checks.
-- Clean duplicate/generated files.
-- Ensure all deploy env vars are documented in hosting platforms.
-- Add `VITE_API_BASE_URL` to dashboard.
-- Add versioned widget hosting.
+- Complete real Shopify order verification with correct and incorrect contact details.
+- Verify all Render, Vercel, Clerk, Supabase, Gemini, Groq, and Shopify production variables.
+- Register and test Shopify compliance webhooks before Public Distribution.
+- Run production health and retention workflows with notifications enabled.
+- Launch with one controlled brand and review the first real conversations daily.
 
-### Dashboard Reliability
+## Product Reliability
 
-- Add better protected API error states.
-- Add installation verification.
-- Add real conversation history API.
-- Add real analytics API from backend logs/database.
+- Persist general conversation memory with a short brand/customer TTL.
+- Add explicit resolution, unresolved, and CSAT events.
+- Add a missed-question queue that points to the exact knowledge gap.
+- Add authenticated dashboard browser E2E in a dedicated test tenant.
+- Add per-brand operational limits for chats, uploads, and AI usage.
 
-### Support Brain
+## Knowledge Operations
 
-- Add state machine for collecting missing order IDs/contact info.
-- Improve intent priority and confidence.
-- Add regression tests for every important support flow.
-- Add structured response fields from backend for widget cards instead of relying mostly on intent/reply parsing.
+- Add document versions and replacement history.
+- Add source precedence controls when Shopify policy and uploaded knowledge conflict.
+- Add knowledge freshness/expiry reminders.
+- Add website crawling, Notion import, and product knowledge ingestion through the existing ingestion interface.
+- Add retrieval evaluation sets per brand before changing models or thresholds.
 
-## Medium-Term Improvements
+## Commerce
 
-### Database
+- Finish Shopify Public Distribution review and protected-customer-data approval.
+- Add WooCommerce through the same connector/tool contracts.
+- Add inventory-aware recommendations and richer variant metadata.
+- Add operator-visible sync/webhook diagnostics without exposing credentials.
+- Keep order responses identity-verified and brand-scoped across every connector.
 
-Move to Supabase/PostgreSQL:
+## Channels
 
-- Brands.
-- Users/orgs.
-- Settings.
-- Documents.
-- Conversations.
-- Messages.
-- Leads.
-- Analytics events.
-- Shopify connections.
+- Add WhatsApp as a channel adapter feeding the same Support Brain.
+- Add email and Instagram DM only after conversation state and human handoff are channel-neutral.
+- Keep escalation, policy, and data-isolation rules identical across channels.
 
-### Knowledge Brain
+## SaaS Operations
 
-- Replace local vector store with Qdrant or pgvector.
-- Add real semantic embeddings.
-- Add document versioning.
-- Add FAQ suggestion workflow based on missed questions.
-- Add confidence/grounding dashboard.
+- Add organizations, team invitations, and role-based permissions.
+- Add plan definitions, metering, billing, and enforcement.
+- Add audit logs for settings, knowledge, integrations, and user access.
+- Add self-serve export/delete and retention controls.
+- Add production SLA, incident, and status-page processes.
 
-### Shopify
+## AI Operations
 
-- Build real Shopify OAuth.
-- Store encrypted access tokens.
-- Sync products/orders/customers.
-- Register and verify the implemented mandatory Shopify compliance webhooks before Public Distribution review.
-- Add installation flow in dashboard.
+- Add prompt/version tracking and evaluation before rollout.
+- Track provider cost and latency by brand without exposing internal prompts.
+- Add automated groundedness checks for high-risk order/refund/policy intents.
+- Keep Gemini/Groq providers swappable behind the current service boundary.
 
-### Widget
+## Product Rules That Do Not Change
 
-- Add versioned CDN releases.
-- Add structured response card contract.
-- Add accessibility audit.
-- Add visual regression tests.
-- Add optional launcher customization per brand.
-
-## Long-Term Improvements
-
-### WhatsApp Channel
-
-- Add WhatsApp adapter.
-- Normalize WhatsApp messages into the same Support Brain flow.
-- Add human handoff workflow.
-- Add lead capture and escalation from WhatsApp.
-
-### Enterprise Readiness
-
-- Role-based access control.
-- Audit logs.
-- SLA monitoring.
-- Data retention controls.
-- Export/delete customer data.
-- Security policies and compliance documentation.
-- Per-tenant rate limits.
-- Billing and plan enforcement.
-
-### AI Operations
-
-- Provider abstraction for Gemini/Groq/OpenAI/Claude.
-- Cost tracking per brand.
-- Prompt versioning.
-- Response evaluation.
-- Automated hallucination checks.
-- Human review loop.
-
-## Scaling Roadmap
-
-Phase 1:
-Stabilize deployment, docs, CI, and widget versioning.
-
-Phase 2:
-Add database and brand authorization.
-
-Phase 3:
-Convert local JSON services into database-backed services.
-
-Phase 4:
-Add real Shopify OAuth and synced commerce data.
-
-Phase 5:
-Add WhatsApp channel adapter.
-
-Phase 6:
-Add billing, plans, usage metering, and tenant admin.
-
-Phase 7:
-Add enterprise security, audit logs, and compliance workflows.
+- AI never invents order status, refund confirmation, dates, or policy approval.
+- Fraud, legal threats, violence, and abuse bypass generative AI and escalate.
+- Every database and retrieval query is brand-scoped on the server.
+- Customer order data is shown only after identity verification.
+- Widget config exposes only public fields.
+- New integrations enter through a connector/tool boundary, not directly inside controllers.

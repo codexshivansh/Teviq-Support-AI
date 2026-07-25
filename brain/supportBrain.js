@@ -719,7 +719,7 @@ async function processMessage({
   }
 
   addConversationMessage(brandId, customerId, "user", storedMessage);
-  const memory = getConversationMemory(brandId, customerId);
+  const memory = await getConversationMemory(brandId, customerId);
 
   const toolResult = await routeTools({ brand, intent, entities, message });
 

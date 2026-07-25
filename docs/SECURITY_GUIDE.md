@@ -102,6 +102,11 @@ Secrets:
 - `GEMINI_API_KEY`
 - `GROQ_API_KEY`
 - `CLERK_SECRET_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SHOPIFY_CLIENT_SECRET`
+- `SHOPIFY_CREDENTIALS_SECRET`
+- `TWILIO_AUTH_TOKEN`
+- `INTERNAL_CRON_SECRET`
 
 Non-secrets:
 
@@ -119,16 +124,17 @@ Rules:
 
 ## Brand Isolation
 
-Brand isolation is currently enforced in code by `brandId`:
+Brand isolation is enforced at multiple boundaries:
 
-- Brand JSON loaded from `backend/data/brands/{brandId}.json`.
-- Orders filtered by `brandId`.
-- Shopify demo products/orders loaded by `brandId`.
-- Knowledge vector store search filters chunks by `brandId`.
-- Upload paths are namespaced by `brandId`.
+- Public chat validates the active Supabase brand.
+- Protected routes use Clerk auth plus `requireBrandAccess`.
+- Normal users can access only their Clerk-assigned `brandId`; `teviq_admin` is explicit.
+- Knowledge RPCs filter by `p_brand_id` inside SQL.
+- Storage object paths are namespaced by validated `brandId`.
+- Shopify connections, cache, webhooks, conversations, analytics, leads, and requests are brand-scoped.
+- Live order details require order plus matching customer email/phone verification.
 
-Known limitation:
-Protected dashboard endpoints validate Clerk authentication but do not yet enforce Clerk organization/brand permissions. Any authenticated dashboard user can currently request any configured brand ID. This must be fixed before real multi-client production.
+`brandId` remains a public routing identifier, never proof of authorization.
 
 ## Data Exposure Rules
 
@@ -150,16 +156,16 @@ It must not expose:
 - Internal notes.
 - Private documents.
 
-## Security Recommendations
+## Remaining Security Recommendations
 
-Critical before real production:
+The controlled pilot already has Clerk-to-brand authorization, persistent
+Supabase runtime data, and private Supabase Storage for original knowledge
+documents.
 
-- Add brand/team authorization mapping.
-- Add persistent user/organization database.
-- Move logs and uploads out of local filesystem.
-- Add audit logs for dashboard actions.
+Remaining hardening:
+
+- Add audit logs for dashboard mutations.
 - Add request IDs and structured logging.
-- Add upload malware scanning if handling real documents.
-- Add stricter file extension/MIME validation using content sniffing.
-- Add per-brand rate limits.
-
+- Add upload malware scanning before accepting documents from untrusted operators.
+- Add content sniffing so file bytes must match the declared extension/MIME type.
+- Add per-brand rate limits and billing-grade usage enforcement.

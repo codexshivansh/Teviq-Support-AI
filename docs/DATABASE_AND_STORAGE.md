@@ -1,227 +1,142 @@
 # Database and Storage
 
-## Current State
+## Current Production State
 
-There is no production database yet. Storage is local JSON and local filesystem.
+Supabase is the persistent system of record for multi-brand runtime data. Local JSON remains only for demo fixtures and legacy fallback orders.
 
-This is acceptable for MVP/demo but not for a production multi-tenant SaaS.
+All server-side Supabase access uses `SUPABASE_SERVICE_ROLE_KEY`. The key must never be exposed to the dashboard, widget, or website.
 
-## Brand Storage
+## Brands
 
-Path:
-
-```text
-backend/data/brands/{brandId}.json
-```
-
-Required fields:
-
-- `brandId`
-- `brandName`
-- `industry`
-- `tone`
-- `managerContact`
-- `policies`
-- `faqs`
-- `widgetConfig`
-- `escalationRules`
-
-Validation:
-
-```bash
-cd backend
-npm run validate:brands
-```
-
-## Order Storage
-
-Fallback local orders:
+Table:
 
 ```text
-backend/data/orders.json
+public.brands
 ```
 
-Shopify demo orders:
+Primary key:
 
 ```text
-backend/data/shopify-demo/{brandId}-orders.json
+id
+```
+
+Important fields include brand name/category, language, active state, widget settings, contact details, business hours, and Shopify connection display fields.
+
+`services/brand.service.js` provides brand lookup/create/update/existence operations. Public widget config is allowlisted by `getPublicBrandConfig()` and never returns secrets.
+
+The three JSON brand files under `data/brands/` are seed/demo references, not runtime production persistence.
+
+## Knowledge Documents
+
+Original uploaded files are stored in a private Supabase Storage bucket:
+
+```text
+knowledge-documents
+```
+
+The bucket can be changed with `SUPABASE_KNOWLEDGE_BUCKET`.
+
+Object path:
+
+```text
+{brandId}/{documentId}.{extension}
 ```
 
 Rules:
 
-- Every order should include `brandId`.
-- `order.service.js` checks Shopify demo provider first.
-- If not found, it falls back to `orders.json`.
-- Cross-brand order leakage is blocked by `brandId` filtering.
+- PDF, DOCX, and TXT only.
+- Maximum 10 MB.
+- Bucket is private.
+- An existing public bucket fails closed before any upload.
+- Object paths are validated and brand-scoped.
+- Upload bytes are held in memory only during extraction/upload.
+- The dashboard-visible document row is written only after chunks persist.
+- If persistence fails, chunks, metadata, and the newly stored object are
+  removed through compensating cleanup.
+- Document deletion removes the Storage object through the Storage API before deleting metadata/chunks.
 
-## Product Storage
-
-Shopify demo products:
-
-```text
-backend/data/shopify-demo/{brandId}-products.json
-```
-
-Products are used for:
-
-- Shopify status page.
-- Product recommendation intent.
-- Demo connector architecture.
-
-## Knowledge Upload Storage
-
-Uploaded files:
+Document metadata:
 
 ```text
-backend/uploads/knowledge/{brandId}/
+public.knowledge_documents
 ```
 
-Accepted file types:
-
-- PDF
-- DOCX
-- TXT
-
-Limits:
-
-- 10MB max file size.
-- One file per upload.
-
-## Knowledge Vector Store
-
-Path:
+Vector chunks:
 
 ```text
-backend/data/knowledge/vector-store.json
+public.knowledge_chunks
 ```
 
-Shape:
-
-```json
-{
-  "version": 1,
-  "documents": [],
-  "chunks": []
-}
-```
-
-Document metadata includes:
-
-- `brandId`
-- `documentId`
-- `title`
-- `sourceName`
-- `storedFileName`
-- `mimeType`
-- `extension`
-- `sizeBytes`
-- `uploadedAt`
-- `chunkCount`
-- extraction metadata
-
-Chunk metadata includes:
-
-- `brandId`
-- `documentId`
-- `sourceName`
-- `title`
-- `sectionTitle`
-- `chunkIndex`
-- `mimeType`
-- `extension`
-- `uploadedAt`
-
-## Retrieval Settings
-
-Implemented in:
+Structured policies and FAQs are stored in:
 
 ```text
-backend/knowledge
+public.structured_knowledge
 ```
 
-Current values:
+Their chunks are indexed into the same `knowledge_chunks` table with `source_type=policy` or `source_type=faq`.
 
-- Embedding dimensions: `256`
-- Chunk max size: `1100` characters
-- Min chunk size: `120` characters
-- Overlap: `140` characters
-- Retrieval default: `topK=5`
-- Minimum confidence: `0.16`
-- High confidence: `0.34`
-- Similarity: cosine similarity over normalized local hash vectors
+## Retrieval
 
-## Conversation Memory
+- Embedding provider: Gemini Embedding 2.
+- Dimensions: 768.
+- Similarity: pgvector cosine distance converted to similarity by the SQL RPC.
+- RPC: `match_knowledge_chunks_v3`.
+- Default returned context: top 5 chunks.
+- Candidate fetch: at least 20 before source-aware reranking.
+- Minimum confidence gate: `0.68`.
+- High confidence: `0.80`.
+- Source preference: exact FAQ, then score-adjusted FAQ/policy/document results.
+- Chunk maximum: 1,100 characters.
+- Chunk overlap: 140 characters.
+- Minimum chunk target: 120 characters.
 
-Current storage:
+Every vector search receives `p_brand_id`; isolation is enforced inside SQL, not by filtering mixed results in JavaScript.
+
+## Conversations and Analytics
+
+Chat events:
 
 ```text
-backend/services/memory.service.js
+public.chat_logs
 ```
 
-Type:
+Stored fields include brand/customer IDs, message/reply, intent, escalation, source, knowledge confidence/citations, fallback flag, response time, and timestamp.
 
-- In-memory `Map`.
+Dashboard conversation history and analytics are projections of this table. Conversation grouping uses a 30-minute inactivity gap.
 
-Scope:
-
-- Key: `${brandId}:${customerId}`
-- Last 10 messages.
-
-Limitations:
-
-- Resets on server restart.
-- Not shared across Render instances.
-- Not suitable for production.
-
-## Analytics Logs
-
-Path:
+Persistent workflow state:
 
 ```text
-backend/logs/chat-logs.json
+public.conversation_states
 ```
 
-Each log includes:
+This stores brand/customer/channel state for order verification, product narrowing, and related follow-ups.
 
-- `timestamp`
-- `brandId`
-- `customerId`
-- `message`
-- `detectedIntent`
-- `escalated`
-- `source`
-- `reply`
-- `knowledgeConfidence`
-- `knowledgeCitations`
+Prompt memory is bounded to 10 messages. Warm sessions use an in-process fast path; after a backend restart or instance change, `memory.service.js` hydrates the last five completed turns from brand/customer-scoped `chat_logs`. A short timeout and local fallback keep chat available if Supabase is temporarily unavailable.
 
-Do not commit real logs.
+## Shopify
 
-## Future Database Plan
+Persistent Shopify tables:
 
-Recommended Supabase/PostgreSQL tables:
-
-- `brands`
-- `brand_settings`
-- `brand_policies`
-- `brand_faqs`
-- `users`
-- `organizations`
-- `organization_members`
-- `documents`
-- `document_chunks`
-- `conversations`
-- `messages`
-- `orders`
-- `products`
-- `leads`
-- `escalations`
-- `analytics_events`
 - `shopify_connections`
+- `shopify_oauth_states`
+- `shopify_products`
+- `shopify_orders`
+- `shopify_webhook_events`
 
-Recommended vector database:
+The cache stores support-safe product/order fields and avoids copying customer email, phone, or address. Live order verification queries Shopify for matching contact identity and does not log the submitted contact.
 
-- Qdrant for embeddings and metadata filtering.
+Local `data/shopify-demo/*` and `data/orders.json` remain demo/fallback fixtures only.
 
-Migration rule:
-Keep service interfaces stable so `vectorStore.service.js` can be replaced without changing Support Brain.
+## Other Persistent Tables
 
+The migration folder also defines brand-scoped records for leads, return/cancellation requests, alert idempotency, and related operational state.
+
+## Backup and Migration Rules
+
+- Apply files in `supabase/migrations/` in deployment order.
+- Treat Supabase Storage schema tables as read-only; manage objects through the Storage API.
+- Never change embedding dimensions without a new vector column/RPC and backfill plan.
+- Never remove a legacy column until the new backend version and backfill are verified.
+- Keep every runtime table query scoped by `brand_id` where the table is multi-tenant.
+- Back up production data before destructive migrations.

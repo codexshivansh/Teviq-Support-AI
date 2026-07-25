@@ -4,13 +4,13 @@
 
 ```text
 /Users/shivanshgupta/Documents/AI Support bot/teviq-support-ai
-/Users/shivanshgupta/Documents/teviq site
+/Users/shivanshgupta/Documents/AI Support bot/teviq.in
 ```
 
 ## `teviq-support-ai/backend`
 
 Purpose:
-Runs the Express API, Support Brain, Knowledge Brain, local brand data, demo Shopify connector, and protected dashboard endpoints.
+Runs the Express API, Support Brain, Knowledge Brain, Supabase persistence, live Shopify connector, demo fixtures, and protected dashboard endpoints.
 
 Important files:
 
@@ -34,7 +34,7 @@ Files:
 - `chat.routes.js`: `POST /api/chat`
 - `brand-config.routes.js`: `GET /api/brand-config/:brandId`
 - `knowledge.routes.js`: protected knowledge endpoints.
-- `shopify.routes.js`: protected Shopify demo endpoints.
+- `shopify.routes.js`: protected Shopify OAuth, status, sync, product, and disconnect endpoints.
 
 Safe to modify:
 Additive routes are safe. Renaming/removing routes is risky.
@@ -85,14 +85,14 @@ Business services used by the Support Brain.
 Files:
 
 - `ai.service.js`: Gemini/Groq calls, prompt generation, fallback.
-- `brand.service.js`: loads/validates brand JSON and public widget config.
-- `order.service.js`: Shopify demo first, local orders fallback.
+- `brand.service.js`: loads/validates Supabase brands and returns public widget config.
+- `order.service.js`: live Shopify cache/provider with demo/local fallback restricted to explicit demo brands.
 - `policy.service.js`: return/exchange/cancellation/refund logic.
 - `escalation.service.js`: hard escalation detection and manager reply.
 - `lead.service.js`: contact extraction and lead capture reply.
-- `memory.service.js`: in-memory last 10 messages per brand/customer.
-- `analytics.service.js`: local chat log append.
-- `product.service.js`: demo product recommendation.
+- `memory.service.js`: last 10 prompt messages per brand/customer, hydrated from Supabase `chat_logs` after a cold start with an in-process fast path.
+- `analytics.service.js`: brand-scoped Supabase chat analytics.
+- `product.service.js`: live Shopify catalog recommendation with explicit demo fallback.
 - `intent.service.js`: older intent utility; Support Brain now uses `brain/intentEngine.js`.
 
 Safe to modify:
@@ -108,8 +108,8 @@ Files:
 - `upload.service.js`: Multer file upload, type/size validation.
 - `extraction.service.js`: PDF/DOCX/TXT text extraction.
 - `chunking.service.js`: semantic-ish section chunking.
-- `embedding.service.js`: local hash embedding and cosine similarity.
-- `vectorStore.service.js`: local JSON vector store.
+- `embedding.service.js`: Gemini Embedding 2 document/query embeddings.
+- `vectorStore.service.js`: Supabase metadata and pgvector RPC access.
 - `retrieval.service.js`: query retrieval, citations, confidence checks.
 - `knowledge.service.js`: ingestion orchestration.
 
@@ -117,20 +117,22 @@ Safe to modify:
 Yes, but retrieval changes affect AI grounding.
 
 Risk:
-Changing embedding algorithm invalidates existing local vector store embeddings.
+Changing the embedding model or dimensions requires a new column/RPC and a controlled backfill.
 
 ## `backend/integrations/shopify`
 
 Purpose:
-Demo connector architecture for Shopify-style data.
+Live OAuth Shopify connector plus demo-provider fallback.
 
 Files:
 
-- `shopifyDemo.provider.js`: reads local demo products/orders.
-- `shopifySync.service.js`: status/sync/list facade.
+- `shopifyIntegration.service.js`: selects live or demo behavior.
+- `shopifyAdmin.provider.js`: Shopify Admin API and reconciliation.
+- `shopifyWebhook*.js`: operational webhook registration/processing.
+- `shopifyDemo.provider.js`: local demo products/orders.
 
 Safe to modify:
-Yes, especially when replacing demo provider with a real Shopify provider later.
+Yes, with OAuth, webhook HMAC, token encryption, uninstall cleanup, and identity-verification regression tests.
 
 ## `backend/data`
 
@@ -139,32 +141,19 @@ Local demo data.
 
 Important folders:
 
-- `brands/`: brand onboarding JSON files.
+- `brands/`: seed/reference JSON for demo brands, not the production system of record.
 - `shopify-demo/`: demo Shopify product/order files.
-- `orders.json`: fallback order data.
-- `knowledge/`: local vector store generated at runtime.
+- `orders.json`: legacy fallback order data.
 
 Safe to modify:
-Brand/demo files are safe if schema is preserved and `npm run validate:brands` passes.
+Demo files are safe if schema is preserved and cross-brand tests continue to pass. Production brands are created in Supabase.
 
 Risk:
 Never put real customer data or secrets in committed JSON.
 
-## `backend/logs`
+## Runtime records
 
-Purpose:
-Local chat analytics logs.
-
-Risk:
-Logs can contain customer messages. Do not commit real production logs.
-
-## `backend/uploads`
-
-Purpose:
-Uploaded knowledge files by brand.
-
-Risk:
-Uploaded documents may contain client data. Do not commit production uploads.
+Chat analytics, workflow state, knowledge metadata/vectors, and original uploaded documents are persistent in Supabase. Local `logs/` and `uploads/` paths are ignored legacy/development locations and must never contain committed customer data.
 
 ## `teviq-support-ai/dashboard`
 

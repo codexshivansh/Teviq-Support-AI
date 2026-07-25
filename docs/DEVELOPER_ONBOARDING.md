@@ -128,12 +128,12 @@ The website embeds the production widget from `index.html`.
 
 ### Add a New Brand
 
-1. Create `backend/data/brands/{brandId}.json`.
-2. Add demo orders/products if needed.
-3. Run `npm run validate:brands`.
+1. Create the brand through protected onboarding or `brand.service.js`; runtime brands persist in Supabase.
+2. Confirm the Clerk user receives the same `brandId` in public metadata.
+3. Add knowledge and optional Shopify connection from the dashboard.
 4. Test `GET /api/brand-config/{brandId}`.
 5. Test `POST /api/chat` with the new brand ID.
-6. Add dashboard selector entry in `dashboard/src/data/brands.js` if the dashboard should show it.
+6. Add a local JSON/demo catalog only when building a deliberate demo workspace.
 
 ### Add or Tune an Intent
 
@@ -158,7 +158,7 @@ curl -X POST "$API/api/knowledge/urban-demo/upload" \
 
 1. Check `/api/chat` response fields.
 2. Check intent and warnings.
-3. Check `backend/logs/chat-logs.json`.
+3. Check the brand's Supabase `chat_logs` rows or the protected Conversations page.
 4. If Knowledge Brain is involved, call `/api/knowledge/:brandId/retrieve`.
 5. If AI is involved, check Gemini/Groq key configuration.
 
@@ -167,6 +167,5 @@ curl -X POST "$API/api/knowledge/urban-demo/upload" \
 - The backend is CommonJS.
 - The dashboard and website are ESM/Vite.
 - The widget is plain browser JavaScript.
-- The dashboard API base URL is currently hardcoded to the Render backend in `dashboard/src/services/api.js`.
-- Local JSON storage is not suitable for multi-instance production persistence.
-
+- Dashboard API defaults to Render and supports a `VITE_API_BASE_URL` override.
+- Local JSON under `data/` is demo/fallback data, not production persistence.

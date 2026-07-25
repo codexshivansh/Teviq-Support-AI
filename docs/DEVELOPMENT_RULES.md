@@ -38,7 +38,7 @@
 - Real logged-in users should not send `x-teviq-demo-auth`.
 - Demo login must stay disabled in production.
 - Brand selector state can persist in localStorage.
-- Static demo analytics/settings must be clearly understood as demo-only.
+- Do not replace live analytics/settings APIs with hardcoded demo metrics.
 
 ## Website Rules
 
@@ -77,4 +77,3 @@ Update docs when changing:
 - Brand JSON schema.
 - Knowledge retrieval behavior.
 - Shopify connector behavior.
-

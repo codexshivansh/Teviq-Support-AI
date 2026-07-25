@@ -1,4 +1,3 @@
-const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const multer = require("multer");
@@ -16,13 +15,6 @@ function sanitizeBrandId(brandId) {
     throw new Error("Invalid brandId for upload path.");
   }
   return brandId;
-}
-
-function ensureUploadDir(brandId) {
-  const safeBrandId = sanitizeBrandId(brandId);
-  const targetDir = path.join(uploadRoot, safeBrandId);
-  fs.mkdirSync(targetDir, { recursive: true });
-  return targetDir;
 }
 
 function createDocumentId() {
@@ -45,23 +37,8 @@ function validateUploadFile(file) {
   }
 }
 
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    try {
-      cb(null, ensureUploadDir(req.params.brandId));
-    } catch (error) {
-      cb(error);
-    }
-  },
-  filename(req, file, cb) {
-    const documentId = createDocumentId();
-    req.teviqDocumentId = documentId;
-    cb(null, `${documentId}${getExtension(file.originalname)}`);
-  }
-});
-
 const knowledgeUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024,
     files: 1
@@ -77,16 +54,24 @@ const knowledgeUpload = multer({
 });
 
 function buildUploadMetadata({ brandId, file, title }) {
+  const safeBrandId = sanitizeBrandId(brandId);
+  const extension = getExtension(file.originalname);
+  const legacyDocumentId = file.filename
+    ? path.basename(file.filename, path.extname(file.filename))
+    : "";
+  const documentId = legacyDocumentId || createDocumentId();
   const uploadedAt = new Date().toISOString();
+
   return {
-    brandId,
-    documentId: path.basename(file.filename, path.extname(file.filename)),
+    brandId: safeBrandId,
+    documentId,
     title: title || file.originalname,
     sourceName: file.originalname,
-    storedFileName: file.filename,
-    filePath: file.path,
+    storedFileName: file.filename || `${documentId}${extension}`,
+    fileBuffer: file.buffer,
+    filePath: file.path || null,
     mimeType: file.mimetype,
-    extension: getExtension(file.originalname).slice(1),
+    extension: extension.slice(1),
     sizeBytes: file.size,
     uploadedAt
   };
@@ -96,6 +81,5 @@ module.exports = {
   ALLOWED_EXTENSIONS,
   uploadRoot,
   knowledgeUpload,
-  buildUploadMetadata,
-  ensureUploadDir
+  buildUploadMetadata
 };

@@ -3,6 +3,7 @@ const { buildUploadMetadata, uploadRoot } = require("../knowledge/upload.service
 const { ingestKnowledgeDocument } = require("../knowledge/knowledge.service");
 const { retrieveKnowledge } = require("../knowledge/retrieval.service");
 const vectorStore = require("../knowledge/vectorStore.service");
+const knowledgeFileStorage = require("../knowledge/knowledgeFileStorage.service");
 const structuredKnowledge = require("../knowledge/structuredKnowledge.service");
 const { getBrandOrRespond } = require("./helpers/brandLookup");
 
@@ -70,19 +71,26 @@ async function deleteKnowledgeDocument(req, res, next) {
     const documents = await vectorStore.listDocuments(brand.brandId);
     const document = documents.find((item) => item.documentId === req.params.documentId);
 
-    const result = await vectorStore.deleteDocument({
-      brandId: brand.brandId,
-      documentId: req.params.documentId
-    });
-
-    if (!result.deleted) {
+    if (!document) {
       return res.status(404).json({
         error: "document_not_found",
         message: "Document not found for this brand."
       });
     }
 
-    if (document?.storedFileName) {
+    if (document.storedFileName) {
+      await knowledgeFileStorage.deleteDocument({
+        brandId: brand.brandId,
+        storedFileName: document.storedFileName
+      });
+    }
+
+    const result = await vectorStore.deleteDocument({
+      brandId: brand.brandId,
+      documentId: req.params.documentId
+    });
+
+    if (document.storedFileName) {
       const filePath = `${uploadRoot}/${brand.brandId}/${document.storedFileName}`;
       fs.rm(filePath, { force: true }, () => {});
     }

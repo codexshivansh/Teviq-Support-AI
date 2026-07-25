@@ -25,7 +25,7 @@ jobs:
             "https://www.teviq.in/pricing"
             "https://www.teviq.in/live-demo"
             "https://www.teviq.in/privacy"
-            "https://teviq-support-ai-widget.vercel.app/widget.js"
+            "https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js"
           )
 
           for url in "${urls[@]}"; do

@@ -1,154 +1,112 @@
 # Technical Debt
 
+This file records real remaining engineering debt. Items already solved in production code are listed separately so they are not mistaken for launch blockers.
+
 ## Critical
 
-### No Persistent Multi-Tenant Authorization
+No known code-side critical issue remains for a controlled pilot launch.
 
-Protected dashboard endpoints verify Clerk authentication but do not yet map users to allowed brands/organizations. Any authenticated user could request another configured `brandId`.
-
-Fix:
-
-- Add database-backed organizations.
-- Map Clerk user IDs to brand permissions.
-- Enforce brand authorization middleware before controllers.
-
-### Local Filesystem Storage Is Not Production-Safe
-
-Knowledge uploads, vector store, chat logs, and demo data are local filesystem based. Render instances are ephemeral and may not preserve or share runtime writes.
-
-Fix:
-
-- Move documents to object storage.
-- Move metadata/logs to Supabase/PostgreSQL.
-- Move vectors to Qdrant or Supabase pgvector.
-
-### Widget Releases Are Unversioned
-
-Clients load `widget.js` directly. A bad deploy affects all embedded clients immediately.
-
-Fix:
-
-- Introduce versioned widget URLs.
-- Keep stable alias for controlled rollout.
-- Add smoke tests before promotion.
+External launch checks such as Shopify protected-customer-data approval, production environment verification, and a real order-verification test remain in `MARKET_LAUNCH_MANUAL_TASKS.md`.
 
 ## High
 
-### Dashboard API Base URL Is Hardcoded
+### Authenticated Production E2E Is Still Manual
 
-`dashboard/src/services/api.js` hardcodes:
+Widget interactions are covered by Playwright and public production URLs have automated health checks. Clerk-protected dashboard flows still require a real Clerk browser session, so login expiry, live JWT attachment, and production tenant metadata are verified manually.
 
-```text
-https://teviq-support-ai-backend.onrender.com
-```
+Next step:
 
-Fix:
+- Add a dedicated non-production Clerk test tenant and Playwright auth state.
+- Never store production credentials in the repository.
 
-- Use `VITE_API_BASE_URL`.
-- Keep production/staging/local separated.
+### Resolution Is Not an Explicit Event
 
-### Support Memory Is In-Memory Only
+Analytics can reliably count conversations, intents, fallback answers, response time, and escalations from `chat_logs`. A non-escalated conversation is not automatically proof that the customer issue was resolved.
 
-Conversation memory resets on backend restart and is not shared across instances.
+Next step:
 
-Fix:
-
-- Persist conversation sessions in database.
-- Add state machine for follow-up messages.
-
-### Local Hash Embeddings Are MVP-Only
-
-Current embeddings are deterministic hash vectors, not semantic embeddings from a model. This is useful for local demo but weaker than true semantic retrieval.
-
-Fix:
-
-- Add provider interface for embeddings.
-- Use production embedding model.
-- Store vectors in vector database.
-
-### No Automated Test Runner
-
-Tests are Node scripts, not a unified test framework.
-
-Fix:
-
-- Add Vitest/Jest for unit tests.
-- Add Playwright for widget/dashboard smoke tests.
-- Add CI checks.
-
-### CORS Dev Behavior Does Not Match Older Docs
-
-Older docs mention development allows all origins, but current CORS implementation uses the same whitelist/pattern behavior. Localhost is included by default, but arbitrary dev origins may be blocked.
-
-Fix:
-
-- Decide intended dev CORS behavior.
-- Update code or docs consistently.
+- Add explicit resolved/unresolved feedback or operator status.
+- Add CSAT only after a real resolution signal exists.
 
 ## Medium
 
-### Duplicate/Generated Files in Tree
+### Prompt Memory Reuses Analytics History
 
-Resolved: obsolete numeric-suffix copies and tracked build output were removed. Local backups, logs, build output, environment files, and `.DS_Store` files are ignored.
+Prompt memory hydrates from the last five brand/customer-scoped `chat_logs` rows and then uses an in-process fast path. This avoids another database table, but it couples prompt context to analytics retention and does not have a channel column.
 
-### `intent.service.js` Appears Legacy
+Next step:
 
-Support Brain uses `brain/intentEngine.js`. `services/intent.service.js` remains and may confuse maintainers.
+- Introduce one conversation repository with explicit channel and message-retention policies when additional customer channels are added.
+- Keep contact-verification values redacted and outside prompt history.
 
-Fix:
+### Demo Commerce Fallbacks Remain
 
-- Confirm no imports.
-- Remove or mark deprecated.
+Local demo products/orders and `orders.json` remain for the three demo brands. Live Shopify-connected brands use the Supabase cache and verified order flow.
 
-### Widget CSS Has Minor Duplication
+Risk:
 
-Observed duplicate style declarations and a complex single-file CSS block.
+- Future changes must not let demo fallback data answer for a live brand.
+- Keep all lookups brand-scoped and covered by cross-brand tests.
 
-Fix:
+### Widget Source Is a Large Frameworkless File
 
-- Keep frameworkless output, but consider generating widget CSS from a source file.
-- Add visual regression checks.
+The shipped widget intentionally has no framework runtime, but UI, CSS, rendering, and transport code live in one source file.
 
-### Analytics Are Demo-Only
+Next step:
 
-Dashboard analytics are static demo data. Backend logs exist but are not exposed as analytics APIs.
+- Keep the output as one embeddable file.
+- Split development source into modules only when a bundling/release pipeline is introduced.
+- Preserve the Playwright suite and immutable release manifest.
 
-Fix:
+### Backend Supabase Access Is Repeated
 
-- Store analytics events in database.
-- Build real dashboard queries.
+Several services call Supabase REST directly with similar timeout/header/error handling.
+
+Next step:
+
+- Consolidate transport behavior behind a small server-only repository client.
+- Keep service interfaces and SQL-side brand filters unchanged.
+
+### Test Harness Is Mixed
+
+Backend regression coverage is implemented as deterministic Node scripts; the widget uses Playwright. This is effective but not a single unified test framework.
+
+Next step:
+
+- Migrate only when shared fixtures, coverage reporting, or parallel unit testing provide clear value.
 
 ## Low
 
-### Root Git History Is Fragmented
+### Repository History Is Split
 
-Local histories are split across root, backend, widget, and website.
-
-Fix:
-
-- Decide canonical GitHub structure.
-- Clean repo boundaries before onboarding more engineers.
+Backend, dashboard, widget, and website are independent Git repositories. This supports independent deployments but requires coordinated release notes when a change spans multiple surfaces.
 
 ### Dashboard Routing Is Custom
 
-`src/App.jsx` manually maps paths to pages. It works for demo scale but may become fragile.
+`src/App.jsx` maps dashboard routes without React Router. It works at current scale but will become harder to maintain if nested routes or route-level loaders are added.
 
-Fix:
+### Legacy Intent Service
 
-- Move to React Router if dashboard grows.
+The active intent implementation is `brain/intentEngine.js`. Any remaining legacy intent helper should either be documented as compatibility code or removed after import verification.
 
-### Settings Page Is Local State Only
+## Resolved Production Risks
 
-Settings edits are not persisted.
+- Brand records persist in Supabase instead of runtime JSON files.
+- Clerk-authenticated dashboard routes enforce assigned-brand access; only `teviq_admin` can switch brands.
+- Knowledge metadata/chunks persist in Supabase Postgres with pgvector and SQL-side `brand_id` filtering.
+- Original PDF/DOCX/TXT files persist in a private, brand-scoped Supabase Storage bucket.
+- Gemini Embedding 2 produces 768-dimensional semantic vectors.
+- Chat analytics and conversation history persist in Supabase `chat_logs`.
+- Shopify OAuth tokens are encrypted; operational webhooks are HMAC-verified and deduplicated.
+- Live Shopify order lookup requires order plus matching contact verification and rate limits failed attempts.
+- Dashboard API URL supports `VITE_API_BASE_URL`.
+- CI exists for backend, dashboard, website, and widget.
+- The widget has an immutable `v1.0.0` release, stable alias, release-integrity check, and Playwright interaction tests.
 
-Fix:
+## Next Engineering Order
 
-- Add backend settings API after database exists.
-
-## Prioritized Next Cleanup PRs
-
-1. Add `VITE_API_BASE_URL` for dashboard.
-2. Add brand authorization model design.
-3. Clean duplicate/generated files.
-4. Add CI with backend scripts + dashboard/website builds.
-5. Add widget smoke tests.
+1. Complete the real production order-verification test.
+2. Persist general prompt memory with a short TTL.
+3. Add a true resolution/CSAT signal.
+4. Add authenticated dashboard E2E in a dedicated test environment.
+5. Add billing and usage enforcement only when commercial plans are finalized.
