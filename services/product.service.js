@@ -57,16 +57,25 @@ const PRODUCT_SEARCH_STOPWORDS = new Set([
 
 // Order matters: patterns are tried in sequence and the first match wins.
 // The bare-number pattern requires an explicit qualifier (ke andar/se kam/
-// tak/rupees + qualifier) so a plain price mention like "2000 rupees ka hai"
-// is never mistaken for a budget constraint.
+// tak/budget/rupees + qualifier) so a plain price mention like "2000 rupees
+// ka hai" is never mistaken for a budget constraint.
 const BUDGET_PATTERNS = [
   /\bunder\s*(?:inr|rs\.?|₹)?\s*(\d{2,7})\b/i,
   /\bbudget\s*(?:is|:|of)?\s*(?:inr|rs\.?|₹)?\s*(\d{2,7})\b/i,
-  /(?:inr|rs\.?|₹)?\s*(\d{2,7})\s*(?:ke\s*andar|se\s*kam|tak|rupees\s*(?:ke\s*andar|se\s*kam|tak))\b/i
+  /(?:inr|rs\.?|₹)?\s*(\d{2,7})\s*(?:ke\s*andar|se\s*kam|tak|(?:ka\s*)?budget|rupees\s*(?:ke\s*andar|se\s*kam|tak))\b/i
 ];
 
+// Expands casual shorthand like "10k" -> "10000" before running the budget
+// patterns, so "10k budget hai" and "under 10k" are understood the same as
+// their fully-written forms.
+function expandShorthandAmounts(text) {
+  return text.replace(/\b(\d{1,4}(?:\.\d+)?)\s*k\b/gi, (_, amount) =>
+    String(Math.round(parseFloat(amount) * 1000))
+  );
+}
+
 function parseBudget(message) {
-  const text = String(message || "");
+  const text = expandShorthandAmounts(String(message || ""));
   for (const pattern of BUDGET_PATTERNS) {
     const match = text.match(pattern);
     if (match && match[1]) {
@@ -167,6 +176,10 @@ function scoreProduct(product, message) {
 
   return queryTokens.reduce((score, token) => {
     if (searchableTokens.has(token)) return score + 2;
+    // Naive singular/plural fallback so "snowboards" still matches a
+    // catalog title like "The Minimal Snowboard" and vice versa.
+    if (token.length > 3 && token.endsWith("s") && searchableTokens.has(token.slice(0, -1))) return score + 2;
+    if (searchableTokens.has(`${token}s`)) return score + 2;
     return score;
   }, 0);
 }
