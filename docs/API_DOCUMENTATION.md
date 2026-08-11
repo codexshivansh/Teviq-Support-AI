@@ -109,7 +109,23 @@ Response:
   "intent": "order_tracking",
   "language": "english",
   "sentiment": "neutral",
-  "warnings": []
+  "warnings": [],
+  "products": []
+}
+```
+
+`products` is only populated when `intent` is `product_recommendation` and the catalog had a match. Each entry mirrors the synced Shopify product row plus a computed `productUrl` (the brand's own storefront product page, built from the connected store's primary domain and the product handle — `null` if no live domain is on file):
+
+```json
+{
+  "title": "The Minimal Snowboard",
+  "price": 1885.95,
+  "currency": "INR",
+  "handle": "the-minimal-snowboard",
+  "imageUrl": "https://cdn.shopify.com/...",
+  "imageAlt": "The Minimal Snowboard",
+  "available": true,
+  "productUrl": "https://teviq-test-store.myshopify.com/products/the-minimal-snowboard"
 }
 ```
 

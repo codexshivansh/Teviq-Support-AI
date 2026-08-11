@@ -19,7 +19,7 @@ Production URLs:
 
 - API: `https://teviq-support-ai-backend.onrender.com`
 - Dashboard: `https://dashboard.teviq.in`
-- Widget: `https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js`
+- Widget: `https://teviq-support-ai-widget.vercel.app/v1.1.0/widget.js`
 - Website: `https://teviq.in`
 
 ## Customer Flow
@@ -82,7 +82,7 @@ Public Shopify distribution still requires the external review/compliance tasks 
 
 ```html
 <script
-  src="https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js"
+  src="https://teviq-support-ai-widget.vercel.app/v1.1.0/widget.js"
   data-brand-id="CLIENT_BRAND_ID"
   data-api-url="https://teviq-support-ai-backend.onrender.com">
 </script>

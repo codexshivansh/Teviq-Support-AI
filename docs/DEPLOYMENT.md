@@ -100,7 +100,7 @@ teviq-support-ai/widget
 Files to host:
 
 - `widget.js`
-- `v1.0.0/widget.js`
+- `v1.1.0/widget.js`
 - `release-manifest.json`
 - `index.html`
 - `demo.html`
@@ -113,7 +113,7 @@ The deployment is static, but CI runs `npm ci`, release-integrity checks, and Pl
 Production widget URL currently used:
 
 ```text
-https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js
+https://teviq-support-ai-widget.vercel.app/v1.1.0/widget.js
 ```
 
 ## Website on Vercel
@@ -189,7 +189,7 @@ Vercel:
 
 Widget:
 
-- Production embeds use immutable `/v1.0.0/widget.js`.
+- Production embeds use immutable `/v1.1.0/widget.js`.
 - Publish changes under a new version path and update `release-manifest.json`.
 - Keep `/widget.js` as a controlled stable/preview alias.
 - Roll back by restoring the previous pinned version URL in install snippets and first-party embeds.

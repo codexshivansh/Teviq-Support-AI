@@ -76,7 +76,7 @@ The widget uses script attributes:
 
 ```html
 <script
-  src="https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js"
+  src="https://teviq-support-ai-widget.vercel.app/v1.1.0/widget.js"
   data-brand-id="CLIENT_BRAND_ID"
   data-api-url="https://teviq-support-ai-backend.onrender.com">
 </script>

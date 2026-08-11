@@ -1,5 +1,6 @@
 const shopifyDemoProvider = require("../integrations/shopify/shopifyDemo.provider");
 const shopifyCacheStore = require("../integrations/shopify/shopifyCache.store");
+const shopifyConnectionStore = require("../integrations/shopify/shopifyConnection.store");
 
 const DEMO_BRAND_IDS = new Set(["vastra-demo", "urban-demo", "beauty-demo"]);
 const PRODUCT_SEARCH_STOPWORDS = new Set([
@@ -79,28 +80,48 @@ function parseBudget(message) {
 const PRODUCT_SUITABILITY_PATTERN =
   /\b(?:beginner|first[- ]time|easy to (?:use|control|handle)|comfortable|comfort|lightweight|durable|sensitive skin|skin type|easy setup)\b/i;
 
-function normalizeCatalogProduct(product) {
+function normalizeCatalogProduct(product, storeUrl) {
   const parsedPrice = Number.parseFloat(product.price);
+  const cleanStoreUrl = String(storeUrl || "").replace(/\/$/, "");
   return {
     ...product,
     price: Number.isFinite(parsedPrice) ? parsedPrice : null,
     currency: product.currency || "INR",
     tags: Array.isArray(product.tags) ? product.tags : [],
-    keywords: Array.isArray(product.keywords) ? product.keywords : []
+    keywords: Array.isArray(product.keywords) ? product.keywords : [],
+    // Absolute link to the product's real page on the brand's own storefront
+    // so the widget can render a clickable catalog card. Built here (not in
+    // the DB layer) because the store domain lives on the brand's Shopify
+    // connection, not on the cached product row.
+    productUrl: cleanStoreUrl && product.handle ? `${cleanStoreUrl}/products/${product.handle}` : null
   };
+}
+
+async function getStoreUrl(brandId) {
+  if (DEMO_BRAND_IDS.has(brandId)) return "";
+  try {
+    const connection = await shopifyConnectionStore.getConnectionByBrandId(brandId);
+    return connection?.primary_domain_url || (connection?.shop_domain ? `https://${connection.shop_domain}` : "");
+  } catch (error) {
+    console.error(`[product-service] Failed to load storefront URL for brand ${brandId}: ${error.message}`);
+    return "";
+  }
 }
 
 async function getCatalogProducts(brandId, message = "") {
   if (DEMO_BRAND_IDS.has(brandId)) {
-    return shopifyDemoProvider.getProducts(brandId).map(normalizeCatalogProduct);
+    return shopifyDemoProvider.getProducts(brandId).map((product) => normalizeCatalogProduct(product, ""));
   }
 
   try {
     const searchTerms = tokenize(message).filter(
       (token) => !PRODUCT_SEARCH_STOPWORDS.has(token) && !/^\d+$/.test(token)
     );
-    const products = await shopifyCacheStore.searchProducts(brandId, searchTerms, 100);
-    return products.map(normalizeCatalogProduct);
+    const [products, storeUrl] = await Promise.all([
+      shopifyCacheStore.searchProducts(brandId, searchTerms, 100),
+      getStoreUrl(brandId)
+    ]);
+    return products.map((product) => normalizeCatalogProduct(product, storeUrl));
   } catch (error) {
     console.error(
       `[product-service] Shopify catalog lookup failed for brand ${brandId}: ${error.code || error.message}`
@@ -179,6 +200,11 @@ async function getRecommendedProducts({ brandId, message, limit = 3, maxBudget }
     .slice(0, limit);
 }
 
+// Returns { reply: string|null, products: array }. `reply` is null only when
+// there is nothing to say yet (no keyword match, no budget) — the caller
+// treats that as the signal to ask a narrowing question instead. `products`
+// is always the list actually referenced in `reply`, trimmed to what the
+// widget should render as catalog cards (never the raw unfiltered catalog).
 function buildProductRecommendationReply({ brand, products, message, maxBudget }) {
   const budget = maxBudget != null ? maxBudget : parseBudget(message);
   const matchedProducts = products.filter((product) => product.matchScore > 0);
@@ -190,9 +216,12 @@ function buildProductRecommendationReply({ brand, products, message, maxBudget }
 
   if (!selectedProducts.length) {
     if (budget != null) {
-      return `Maaf kijiye, ${brand.brandName} ke paas is budget (INR ${budget}) ke andar abhi koi matching product nahi hai. Thoda zyada budget ya category batayein?`;
+      return {
+        reply: `Maaf kijiye, ${brand.brandName} ke paas is budget (INR ${budget}) ke andar abhi koi matching product nahi hai. Thoda zyada budget ya category batayein?`,
+        products: []
+      };
     }
-    return null;
+    return { reply: null, products: [] };
   }
 
   const lines = selectedProducts.map((product, index) => {
@@ -205,7 +234,10 @@ function buildProductRecommendationReply({ brand, products, message, maxBudget }
     ? `Here are ${brand.brandName} options that fit your request:`
     : `Yahan ${brand.brandName} ke options hain aapke budget ke andar:`;
 
-  return [intro, ...lines, "Tell me your budget or use case and I can narrow it further."].join("\n");
+  return {
+    reply: [intro, ...lines, "Tell me your budget or use case and I can narrow it further."].join("\n"),
+    products: selectedProducts
+  };
 }
 
 function buildProductFollowUpReply({ brand, products, originalQuery, followUpMessage }) {
@@ -220,18 +252,21 @@ function buildProductFollowUpReply({ brand, products, originalQuery, followUpMes
       category ? category.toLowerCase() : null,
       budget != null ? `under INR ${budget}` : null
     ].filter(Boolean);
-    const optionText = products
-      .slice(0, 3)
+    const topProducts = products.slice(0, 3);
+    const optionText = topProducts
       .map((product) => `${product.title}${product.price != null ? ` (INR ${product.price})` : ""}`)
       .join(", ");
 
-    return [
-      `I have kept your ${contextParts.join(" ") || "product"} requirement in context.`,
-      "The synced catalog does not include beginner or ease-of-control details, so I cannot safely label one option as the easiest.",
-      optionText ? `These options still match the confirmed catalog filters: ${optionText}.` : null
-    ]
-      .filter(Boolean)
-      .join(" ");
+    return {
+      reply: [
+        `I have kept your ${contextParts.join(" ") || "product"} requirement in context.`,
+        "The synced catalog does not include beginner or ease-of-control details, so I cannot safely label one option as the easiest.",
+        optionText ? `These options still match the confirmed catalog filters: ${optionText}.` : null
+      ]
+        .filter(Boolean)
+        .join(" "),
+      products: topProducts
+    };
   }
 
   return buildProductRecommendationReply({

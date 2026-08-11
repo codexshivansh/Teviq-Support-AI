@@ -46,12 +46,13 @@ const ORDER_VERIFICATION_TTL_MS = 10 * 60 * 1000;
 const ORDER_VERIFICATION_LOCK_MS = 15 * 60 * 1000;
 const ORDER_VERIFICATION_MAX_ATTEMPTS = 5;
 
-function buildSimpleReplyResult({ reply, escalated, intent, analysis }) {
+function buildSimpleReplyResult({ reply, escalated, intent, analysis, products }) {
   return {
     reply,
     source: "system",
     escalated,
     intent,
+    products: products || [],
     language: analysis.language,
     sentiment: analysis.sentiment,
     warnings: []
@@ -484,7 +485,7 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
 
   const combinedQuery = `${context?.originalQuery || ""} ${message}`.trim();
   const products = await getRecommendedProducts({ brandId: brand.brandId, message: combinedQuery });
-  const recommendationReply = buildProductFollowUpReply({
+  const { reply: recommendationReply, products: recommendedProducts } = buildProductFollowUpReply({
     brand,
     products,
     originalQuery: context?.originalQuery || "",
@@ -492,8 +493,10 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
   });
 
   let finalReply;
+  let finalProducts = [];
   if (recommendationReply) {
     finalReply = recommendationReply;
+    finalProducts = recommendedProducts;
     try {
       await setState(brandId, customerId, channel, "narrowing_products", {
         originalQuery: combinedQuery,
@@ -528,7 +531,13 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
     console.error(`[BRAIN] Failed to write chat log for ${brandId}:${customerId}: ${error.message}`);
   }
 
-  return buildSimpleReplyResult({ reply: finalReply, escalated: false, intent: "product_recommendation", analysis });
+  return buildSimpleReplyResult({
+    reply: finalReply,
+    escalated: false,
+    intent: "product_recommendation",
+    analysis,
+    products: finalProducts
+  });
 }
 
 async function processMessage({
@@ -954,6 +963,10 @@ async function processMessage({
     language: analysis.language,
     sentiment: analysis.sentiment,
     warnings: validation.warnings,
+    // Structured catalog matches behind this reply, if any — lets the widget
+    // render real product cards (image, price, link) instead of parsing the
+    // numbered list back out of the reply text.
+    products: toolResult.products || [],
     // Lets the widget tell apart "please share your details" from "thanks,
     // noted" without guessing off the reply text — the lead-capture form
     // uses this to swap from the input form to a plain confirmation card.

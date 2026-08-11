@@ -19,7 +19,7 @@ Code-side production hardening is automated where possible. These remaining item
 ## 3. Verify website and widget deployment
 
 1. Deploy the widget repository first.
-2. Confirm `https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js` returns HTTP 200.
+2. Confirm `https://teviq-support-ai-widget.vercel.app/v1.1.0/widget.js` returns HTTP 200.
 3. Deploy dashboard and website only after the immutable widget release is live.
 4. Open these website URLs directly in a private window and confirm they return the app instead of a 404: `/product`, `/pricing`, `/live-demo`, `/book-demo`, `/case-studies`, `/policies`, `/privacy`, `/terms`.
 5. Open the widget, close it and confirm the greeting bubble does not reappear during the same browser session.

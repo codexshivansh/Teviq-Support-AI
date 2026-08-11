@@ -216,7 +216,7 @@ async function routeTools({ brand, intent, entities, message }) {
       brandId: brand.brandId,
       message
     });
-    const recommendationReply = buildProductRecommendationReply({
+    const { reply: recommendationReply, products: recommendedProducts } = buildProductRecommendationReply({
       brand,
       products,
       message
@@ -230,7 +230,7 @@ async function routeTools({ brand, intent, entities, message }) {
         order: null,
         policyResult: null,
         leadState: null,
-        products,
+        products: recommendedProducts,
         reply: recommendationReply
       };
     }

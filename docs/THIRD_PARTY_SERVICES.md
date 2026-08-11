@@ -167,7 +167,7 @@ The widget is loaded directly by client websites. Production embeds use immutabl
 Current production release:
 
 ```text
-https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js
+https://teviq-support-ai-widget.vercel.app/v1.1.0/widget.js
 ```
 
 Short-cache stable alias for development and staged rollout:

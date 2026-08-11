@@ -68,6 +68,7 @@ async function handleChat(req, res, next) {
       language: result.language,
       sentiment: result.sentiment,
       warnings: result.warnings || [],
+      products: result.products || [],
       leadCaptured: result.leadCaptured || false
     });
   } catch (error) {

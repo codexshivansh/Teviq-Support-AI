@@ -165,7 +165,7 @@ Check script tag:
 
 ```html
 <script
-  src="https://teviq-support-ai-widget.vercel.app/v1.0.0/widget.js"
+  src="https://teviq-support-ai-widget.vercel.app/v1.1.0/widget.js"
   data-brand-id="urban-demo"
   data-api-url="https://teviq-support-ai-backend.onrender.com">
 </script>
