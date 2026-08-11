@@ -1,0 +1,31 @@
+name = "Teviq AI Pilot"
+client_id = "61a79ba37dd9d1b0f609cd480cc5c0cd"
+application_url = "https://dashboard.teviq.in/shopify"
+embedded = false
+handle = "teviq-ai-pilot-2"
+
+[access_scopes]
+scopes = "read_products,read_orders,read_fulfillments"
+
+[auth]
+redirect_urls = [
+  "https://teviq-support-ai-backend.onrender.com/api/integrations/shopify/oauth/callback",
+]
+
+[webhooks]
+api_version = "2026-07"
+
+# Mandatory compliance webhooks. These must be declared here (config-as-code) —
+# the Dev Dashboard UI has no field for them, and they cannot be registered
+# dynamically via the Admin API the way the operational webhooks in
+# services/shopify are. Operational topics (products/*, orders/*,
+# fulfillments/*, app/uninstalled) are intentionally NOT listed here because
+# the backend already registers those itself after OAuth
+# (see docs/SHOPIFY_CONNECTOR_SETUP.md, "Operational webhooks"). Only the
+# compliance subscription needs to ship through `shopify app deploy`.
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "https://teviq-support-ai-backend.onrender.com/api/integrations/shopify/webhooks"
+
+[build]
+automatically_update_urls_on_dev = false

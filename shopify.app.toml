@@ -1,0 +1,31 @@
+name = "Teviq AI"
+client_id = "3199b42b894363a5b7335f08bcab4acb"
+application_url = "https://dashboard.teviq.in/shopify"
+embedded = false
+
+[access_scopes]
+scopes = "read_products,read_orders,read_fulfillments"
+use_legacy_install_flow = true
+
+[auth]
+redirect_urls = [
+  "https://teviq-support-ai-backend.onrender.com/api/integrations/shopify/oauth/callback",
+]
+
+[webhooks]
+api_version = "2026-07"
+
+# Mandatory compliance webhooks — same reasoning as shopify.app.toml (the
+# "Teviq AI Pilot" app). This is the app that has Public distribution +
+# Protected Customer Data request already submitted in the Partner Dashboard
+# (partners.shopify.com/5049717/apps/397557334017/customer_data), so this is
+# the one that should carry the compliance subscription for the real launch.
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "https://teviq-support-ai-backend.onrender.com/api/integrations/shopify/webhooks"
+
+[app_preferences]
+url = "https://dashboard.teviq.in/settings"
+
+[build]
+automatically_update_urls_on_dev = false
