@@ -16,6 +16,7 @@ const analyticsRoutes = require("./routes/analytics.routes");
 const conversationsRoutes = require("./routes/conversations.routes");
 const internalRoutes = require("./routes/internal.routes");
 const meRoutes = require("./routes/me.routes");
+const whatsappRoutes = require("./routes/whatsapp.routes");
 const { corsOptionsDelegate } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
 const { requireClerkAuth } = require("./middleware/clerkAuth.middleware");
@@ -200,6 +201,7 @@ app.use("/api/onboarding", requireClerkAuth, onboardingRoutes);
 app.use("/api/analytics", requireClerkAuth, analyticsRoutes);
 app.use("/api/conversations", requireClerkAuth, conversationsRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 app.use("/internal", requireInternalCronSecret, internalRoutes);
 
 app.use((req, res) => {
