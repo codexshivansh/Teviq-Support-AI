@@ -125,6 +125,52 @@ const INTENT_RULES = [
     patterns: [
       /\b(size kaisa|fit aayega|size guide|loose|tight|xl milega|size chart|size return)\b/i
     ]
+  },
+  // B2B objection-handling intents (b2bObjection.service.js), routed via
+  // toolRouter.js. Appended after the D2C objection intents above, so
+  // still lowest-priority overall — a D2C support/objection intent always
+  // wins first if a message happens to match both sets.
+  //
+  // NOTE: "partnership" (listed for b2b_agency_objection) is already
+  // claimed by business_enquiry (line ~19, first rule in this array), so a
+  // message containing only that word resolves to business_enquiry, not
+  // b2b_agency_objection — same overlap pattern as the D2C block above.
+  // Flagged for the brand owner to confirm that's acceptable.
+  {
+    intent: "b2b_roi_objection",
+    patterns: [
+      /\b(roi|return on investment|kya fayda|prove karo|results dikhao|does it work)\b/i
+    ]
+  },
+  {
+    intent: "b2b_build_objection",
+    patterns: [
+      /\b(hum bana lenge|in-house|apna system|build karenge|team hai hamare)\b/i
+    ]
+  },
+  {
+    intent: "b2b_integration_objection",
+    patterns: [
+      /\b(integration|setup kitna|complicated hai|dev team chahiye|technical effort)\b/i
+    ]
+  },
+  {
+    intent: "b2b_trial_objection",
+    patterns: [
+      /\b(trial chahiye|pehle test|pilot|demo pehle|free try)\b/i
+    ]
+  },
+  {
+    intent: "b2b_budget_objection",
+    patterns: [
+      /\b(budget nahi|abhi nahi|baad mein|costly hai agency ke liye|not in budget)\b/i
+    ]
+  },
+  {
+    intent: "b2b_agency_objection",
+    patterns: [
+      /\b(agency hoon|clients ke liye|reseller|white label|margin kya|partnership)\b/i
+    ]
   }
 ];
 
