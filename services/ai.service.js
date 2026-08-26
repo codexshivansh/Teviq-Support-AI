@@ -374,5 +374,10 @@ module.exports = {
   buildPrompt,
   assessReplyConfidence,
   buildExtractiveKnowledgeFallback,
-  isIncompleteReply
+  isIncompleteReply,
+  // Exported for salesObjection.service.js, which needs the same
+  // Gemini-first/Groq-fallback AI call pattern but with its own prompt
+  // (not the general support prompt built by buildPrompt/generateSupportReply).
+  callGemini,
+  callGroq
 };

@@ -76,6 +76,55 @@ const INTENT_RULES = [
   {
     intent: "general_faq",
     patterns: [/\b(policy|faq|help|support|how do i|how to|available|hours|warranty|patch test)\b/i]
+  },
+  // Sales/objection-handling intents (salesObjection.service.js), routed via
+  // toolRouter.js. Deliberately placed last/lowest-priority so an existing
+  // support intent always wins a post-purchase query first (e.g. "kab tak
+  // aayega mera order" still hits order_tracking above, never
+  // delivery_objection here) — per the requirement that these only fire
+  // for genuine pre-purchase doubts.
+  //
+  // NOTE: several of the keyword lists below overlap with earlier support
+  // intents that already exist in this array — "discount"/"offer" are
+  // already claimed by discount_query (line ~59), "cod"/"cash on delivery"
+  // by payment_cod (line ~55), "delivery time"/"deliver" by shipping_policy
+  // (line ~47), and "size"/"fit"/"size guide" by size_help (line ~51).
+  // Because .find() above stops at the first match, those specific phrases
+  // will keep resolving to the existing intent, not the new objection one —
+  // the new rules below only ever fire on the phrasing that isn't already
+  // claimed (e.g. "mehenga", "genuine hai", "kab tak aayega", "COD hai kya",
+  // "size kaisa"). Flagged for the brand owner to confirm this is
+  // acceptable, since it means price_objection/cod_objection/etc. are
+  // effectively narrower in practice than their listed keyword sets imply.
+  {
+    intent: "price_objection",
+    patterns: [
+      /\b(mehenga|sasta|discount|offer|price kam|expensive|cheaper|bahut zyada)\b/i
+    ]
+  },
+  {
+    intent: "trust_objection",
+    patterns: [
+      /\b(genuine hai|asli hai|fake to nahi|trust|reviews|authentic|real hai)\b/i
+    ]
+  },
+  {
+    intent: "delivery_objection",
+    patterns: [
+      /\b(kab tak aayega|delivery time|kitne din|jaldi chahiye|fast delivery)\b/i
+    ]
+  },
+  {
+    intent: "cod_objection",
+    patterns: [
+      /\b(cod hai kya|cash on delivery|cod available|pay on delivery|pehle dekhke pay)\b/i
+    ]
+  },
+  {
+    intent: "size_fit_objection",
+    patterns: [
+      /\b(size kaisa|fit aayega|size guide|loose|tight|xl milega|size chart|size return)\b/i
+    ]
   }
 ];
 

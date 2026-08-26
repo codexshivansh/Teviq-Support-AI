@@ -14,9 +14,17 @@ const {
   getOrderVerificationRequirement,
   verifyOrderContact
 } = require("../integrations/shopify/shopifyOrderVerification.service");
+const { resolveSalesObjection } = require("../services/salesObjection.service");
 
 const ORDER_INTENTS = ["order_tracking", "return_exchange", "refund_status", "cancellation"];
 const LEAD_CAPTURE_INTENTS = ["human_support", "business_enquiry"];
+const SALES_OBJECTION_INTENTS = [
+  "price_objection",
+  "trust_objection",
+  "delivery_objection",
+  "cod_objection",
+  "size_fit_objection"
+];
 
 function orderVerificationResult(status, orderId, reply) {
   return {
@@ -81,7 +89,12 @@ function getIntentFallbackReply(brand, intent) {
   return null;
 }
 
-async function routeTools({ brand, intent, entities, message }) {
+// NOTE: `channel` defaults to "widget" here because supportBrain.js's call
+// site (`routeTools({ brand, intent, entities, message })`) does not
+// currently pass it through — supportBrain.js was out of scope for this
+// change, so channel will always read as the default until that call site
+// is updated to forward the real channel. Flagged for the brand owner.
+async function routeTools({ brand, intent, entities, message, channel = "widget" }) {
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {
     return {
@@ -249,6 +262,19 @@ async function routeTools({ brand, intent, entities, message }) {
       needsProductNarrowing: true,
       detectedCategory: await detectCategory(brand.brandId, message),
       reply: buildProductNarrowingQuestion()
+    };
+  }
+
+  if (SALES_OBJECTION_INTENTS.includes(intent)) {
+    const objectionResult = await resolveSalesObjection({ intent, message, brand, channel });
+    return {
+      allowAI: false,
+      source: objectionResult.source,
+      escalated: false,
+      order: null,
+      policyResult: null,
+      leadState: null,
+      reply: objectionResult.reply
     };
   }
 
