@@ -133,7 +133,15 @@ function normalizeBrand(row) {
     },
     businessHours: row.business_hours || null,
     escalationWhatsapp: row.escalation_whatsapp || null,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    // Sales/objection-handling data (salesObjection.service.js). Defaults
+    // mirror the column defaults from the migration that added them.
+    codAvailable: Boolean(row.cod_available),
+    returnPolicyDays: row.return_policy_days ?? 7,
+    discountCode: row.discount_code || null,
+    sizeGuideUrl: row.size_guide_url || null,
+    deliveryDaysMin: row.delivery_days_min ?? 3,
+    deliveryDaysMax: row.delivery_days_max ?? 7
   };
 }
 
