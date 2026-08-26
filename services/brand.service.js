@@ -141,7 +141,10 @@ function normalizeBrand(row) {
     discountCode: row.discount_code || null,
     sizeGuideUrl: row.size_guide_url || null,
     deliveryDaysMin: row.delivery_days_min ?? 3,
-    deliveryDaysMax: row.delivery_days_max ?? 7
+    deliveryDaysMax: row.delivery_days_max ?? 7,
+    // B2B objection-handling data (b2bObjection.service.js).
+    // MIGRATION REQUIRED: ALTER TABLE brands ADD COLUMN IF NOT EXISTS demo_link TEXT;
+    demoLink: row.demo_link ?? null
   };
 }
 

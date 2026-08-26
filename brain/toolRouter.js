@@ -15,6 +15,7 @@ const {
   verifyOrderContact
 } = require("../integrations/shopify/shopifyOrderVerification.service");
 const { resolveSalesObjection } = require("../services/salesObjection.service");
+const { resolveB2bObjection } = require("../services/b2bObjection.service");
 
 const ORDER_INTENTS = ["order_tracking", "return_exchange", "refund_status", "cancellation"];
 const LEAD_CAPTURE_INTENTS = ["human_support", "business_enquiry"];
@@ -24,6 +25,14 @@ const SALES_OBJECTION_INTENTS = [
   "delivery_objection",
   "cod_objection",
   "size_fit_objection"
+];
+const B2B_OBJECTION_INTENTS = [
+  "b2b_roi_objection",
+  "b2b_build_objection",
+  "b2b_integration_objection",
+  "b2b_trial_objection",
+  "b2b_budget_objection",
+  "b2b_agency_objection"
 ];
 
 function orderVerificationResult(status, orderId, reply) {
@@ -275,6 +284,19 @@ async function routeTools({ brand, intent, entities, message, channel = "widget"
       policyResult: null,
       leadState: null,
       reply: objectionResult.reply
+    };
+  }
+
+  if (B2B_OBJECTION_INTENTS.includes(intent)) {
+    const b2bObjectionResult = await resolveB2bObjection({ intent, message, brand, channel });
+    return {
+      allowAI: false,
+      source: b2bObjectionResult.source,
+      escalated: false,
+      order: null,
+      policyResult: null,
+      leadState: null,
+      reply: b2bObjectionResult.reply
     };
   }
 
