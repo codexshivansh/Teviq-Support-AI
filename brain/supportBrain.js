@@ -97,6 +97,7 @@ async function reverifyExpiredOrderAction({
     await appendChatLog({
       brandId,
       customerId,
+      channel,
       message: storedMessage,
       detectedIntent: intent,
       escalated: false,
@@ -140,6 +141,7 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
       await appendChatLog({
         brandId,
         customerId,
+        channel,
         message: storedMessage,
         detectedIntent: "escalation",
         escalated: true,
@@ -257,6 +259,7 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
     await appendChatLog({
       brandId,
       customerId,
+      channel,
       message: storedMessage,
       detectedIntent: "return_exchange",
       escalated: false,
@@ -298,6 +301,7 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
       await appendChatLog({
         brandId,
         customerId,
+        channel,
         message: storedMessage,
         detectedIntent: "escalation",
         escalated: true,
@@ -426,6 +430,7 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
     await appendChatLog({
       brandId,
       customerId,
+      channel,
       message: storedMessage,
       detectedIntent: "cancellation",
       escalated: false,
@@ -467,6 +472,7 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
       await appendChatLog({
         brandId,
         customerId,
+        channel,
         message: storedMessage,
         detectedIntent: "escalation",
         escalated: true,
@@ -517,6 +523,7 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
     await appendChatLog({
       brandId,
       customerId,
+      channel,
       message: storedMessage,
       detectedIntent: "product_recommendation",
       escalated: false,
@@ -941,6 +948,7 @@ async function processMessage({
     await appendChatLog({
       brandId,
       customerId,
+      channel,
       message: storedMessage,
       detectedIntent: intent,
       escalated,

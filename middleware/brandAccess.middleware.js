@@ -20,7 +20,10 @@ async function requireBrandAccess(req, res, next) {
 
   const isAdmin = publicMetadata.role === "teviq_admin";
   const assignedBrandId = getMetadataBrandId(publicMetadata);
-  const requestedBrandId = req.params.brandId;
+  // Falls back to req.body.brandId for routes that carry brandId in the
+  // POST body instead of the URL (e.g. POST /api/whatsapp/send) — every
+  // existing caller puts brandId in req.params, so this is additive only.
+  const requestedBrandId = req.params.brandId || req.body?.brandId;
 
   if (isAdmin) {
     return next();

@@ -6,9 +6,12 @@ async function getConversations(req, res) {
   if (!brand) return;
 
   const days = Math.max(1, Math.min(365, Number(req.query.days) || 30));
-  const conversations = await listConversations({ brandId: brand.brandId, days });
+  const channel = typeof req.query.channel === "string" && req.query.channel.trim()
+    ? req.query.channel.trim().toLowerCase()
+    : null;
+  const conversations = await listConversations({ brandId: brand.brandId, days, channel });
 
-  return res.json({ ok: true, brandId: brand.brandId, days, conversations });
+  return res.json({ ok: true, brandId: brand.brandId, days, channel, conversations });
 }
 
 module.exports = { getConversations };
