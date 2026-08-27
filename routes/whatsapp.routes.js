@@ -22,6 +22,10 @@ const {
   parseInboundWebhook,
   sendWhatsAppMessage
 } = require('../services/whatsapp.service');
+const { appendChatLog } = require('../services/analytics.service');
+const { requireClerkAuth } = require('../middleware/clerkAuth.middleware');
+const { requireBrandAccess } = require('../middleware/brandAccess.middleware');
+const { asyncHandler } = require('../middleware/asyncHandler');
 
 // Wired to the existing brain: backend/brain/supportBrain.js
 // CONFIRMED exported function signature (as of this integration):
@@ -127,6 +131,188 @@ router.post('/webhook', async (req, res) => {
  *
  * @param {{phoneNumberId: string, from: string, text: string, messageId: string}} inbound
  */
+// --- Manual send (dashboard -> customer), separate from the webhook flow ---
+//
+// NOTE on Supabase access: whatsapp.service.js is intentionally left
+// untouched by this change, and it has no exported "look up a brand's
+// WhatsApp connection by brandId" function (only the reverse lookup, by
+// phone_number_id, for inbound webhook routing) — so the brandId -> connection
+// lookup below is implemented locally, following the exact same raw-fetch
+// REST convention every other service file in this repo uses (getSupabaseConfig
+// / getHeaders against SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), rather than
+// introducing a different way of talking to Supabase.
+
+const WHATSAPP_WINDOW_MS = 23 * 60 * 60 * 1000; // 23h — conservative 1hr buffer under Meta's 24h customer service window
+
+function getSupabaseConfig() {
+  const url = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+  if (!url || !serviceRoleKey) {
+    const error = new Error('Supabase is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing).');
+    error.statusCode = 503;
+    error.code = 'supabase_not_configured';
+    throw error;
+  }
+
+  return { url, serviceRoleKey };
+}
+
+function getHeaders(extra = {}) {
+  const { serviceRoleKey } = getSupabaseConfig();
+  return {
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+    'Content-Type': 'application/json',
+    ...extra
+  };
+}
+
+/**
+ * Looks up the active WhatsApp connection for a brand (the phone_number_id
+ * to send FROM and the access token to send WITH). Mirrors
+ * resolveBrandFromPhoneNumberId in whatsapp.service.js, just keyed the
+ * other direction (brandId -> connection, not phoneNumberId -> brand).
+ */
+async function lookupWhatsappConnectionForBrand(brandId) {
+  const { url } = getSupabaseConfig();
+  const path = `?brand_id=eq.${encodeURIComponent(brandId)}&select=phone_number_id,access_token,is_active&limit=1`;
+
+  const response = await fetch(`${url}/rest/v1/whatsapp_connections${path}`, { headers: getHeaders() });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const error = new Error(data?.message || `Supabase whatsapp_connections lookup failed with ${response.status}`);
+    error.statusCode = response.status;
+    throw error;
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row || !row.is_active) return null;
+
+  return { phoneNumberId: row.phone_number_id, accessToken: row.access_token };
+}
+
+/**
+ * Returns the timestamp (ms) of this customer's most recent genuine inbound
+ * WhatsApp message, or null if none is on record. Deliberately does NOT
+ * just take the newest chat_logs row for this customer — a manual agent
+ * send (this same route) writes a row with an empty `message` and only a
+ * `reply`, and Meta's 24-hour window resets on customer activity, not on
+ * our own outbound sends. Using the newest row unconditionally would let
+ * agents keep the window artificially "open" forever by replying to
+ * themselves, which would then fail for real at Meta's API anyway.
+ */
+async function getLastCustomerMessageTimestamp({ brandId, customerId }) {
+  const { url } = getSupabaseConfig();
+  const select = 'message,created_at';
+  const filter = `brand_id=eq.${encodeURIComponent(brandId)}&customer_id=eq.${encodeURIComponent(customerId)}&channel=eq.whatsapp`;
+
+  const response = await fetch(
+    `${url}/rest/v1/chat_logs?${filter}&select=${select}&order=created_at.desc&limit=10`,
+    { headers: getHeaders() }
+  );
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : [];
+
+  if (!response.ok) {
+    const error = new Error(data?.message || `Supabase chat_logs lookup failed with ${response.status}`);
+    error.statusCode = response.status;
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const lastCustomerRow = rows.find((row) => typeof row.message === 'string' && row.message.trim().length > 0);
+  return lastCustomerRow ? new Date(lastCustomerRow.created_at).getTime() : null;
+}
+
+/**
+ * POST /send — lets the dashboard (a signed-in brand owner) send a manual
+ * WhatsApp reply outside the automated webhook flow. Auth mirrors
+ * conversations.routes.js: requireClerkAuth populates req.auth (whatsapp.routes.js
+ * is mounted with no auth in server.js, since /webhook must stay public for
+ * Meta to call — so auth is applied per-route here, not at the router mount),
+ * then requireBrandAccess checks the signed-in user is allowed to act on
+ * the given brandId.
+ */
+router.post(
+  '/send',
+  requireClerkAuth,
+  requireBrandAccess,
+  asyncHandler(async (req, res) => {
+    const { to, text, brandId } = req.body || {};
+
+    if (!to || !text || !brandId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'invalid_request',
+        message: 'to, text, and brandId are all required.'
+      });
+    }
+
+    try {
+      const connection = await lookupWhatsappConnectionForBrand(brandId);
+      if (!connection) {
+        return res.status(404).json({
+          ok: false,
+          error: 'whatsapp_not_connected',
+          message: `No active WhatsApp connection found for brand "${brandId}".`
+        });
+      }
+
+      const lastCustomerMessageAt = await getLastCustomerMessageTimestamp({ brandId, customerId: to });
+      if (!lastCustomerMessageAt || Date.now() - lastCustomerMessageAt > WHATSAPP_WINDOW_MS) {
+        return res.status(422).json({
+          ok: false,
+          error: 'window_expired',
+          message: '24-hour WhatsApp window has expired for this customer. Use a template message instead.'
+        });
+      }
+
+      const sendResult = await sendWhatsAppMessage({
+        phoneNumberId: connection.phoneNumberId,
+        to,
+        text,
+        accessToken: connection.accessToken
+      });
+
+      // Record the outbound message so the dashboard's conversation
+      // transcript stays complete. message is deliberately empty — there is
+      // no inbound customer message paired with this row, only our reply —
+      // which is also what keeps this row from counting as customer
+      // activity in getLastCustomerMessageTimestamp() above.
+      try {
+        await appendChatLog({
+          brandId,
+          customerId: to,
+          channel: 'whatsapp',
+          message: '',
+          reply: text,
+          detectedIntent: 'human_reply',
+          escalated: false,
+          source: 'human_agent',
+          knowledgeCitations: [],
+          knowledgeConfidence: 0,
+          isFallback: false,
+          responseTimeMs: null
+        });
+      } catch (logErr) {
+        console.error(`[whatsapp.routes] Failed to log manual send for brand=${brandId}, to=${to}:`, logErr);
+      }
+
+      return res.json({ ok: true, messageId: sendResult?.messages?.[0]?.id || null });
+    } catch (error) {
+      console.error(`[whatsapp.routes] Manual send failed for brand=${brandId}:`, error);
+      return res.status(500).json({
+        ok: false,
+        error: 'send_failed',
+        message: error.message
+      });
+    }
+  })
+);
+
 async function handleSingleMessage(inbound) {
   const { phoneNumberId, from, text, messageId } = inbound;
 

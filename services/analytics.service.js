@@ -59,7 +59,10 @@ async function appendChatLog(entry) {
       knowledge_confidence: entry.knowledgeConfidence,
       knowledge_citations: entry.knowledgeCitations || [],
       is_fallback: Boolean(entry.isFallback),
-      response_time_ms: entry.responseTimeMs ?? null
+      response_time_ms: entry.responseTimeMs ?? null,
+      // Defaults to 'widget' so existing call sites that don't pass channel
+      // (or haven't been updated yet) keep writing what they always wrote.
+      channel: entry.channel || "widget"
     })
   });
 }

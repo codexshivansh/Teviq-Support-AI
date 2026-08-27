@@ -38,10 +38,13 @@ function cutoffIso(days) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
-async function fetchRows({ brandId, days, rowLimit }) {
+async function fetchRows({ brandId, days, rowLimit, channel }) {
   const { url } = getSupabaseConfig();
-  const select = "customer_id,message,reply,detected_intent,escalated,created_at,is_fallback";
-  const filter = `brand_id=eq.${encodeURIComponent(brandId)}&created_at=gte.${encodeURIComponent(cutoffIso(days))}`;
+  const select = "customer_id,message,reply,detected_intent,escalated,created_at,is_fallback,channel";
+  let filter = `brand_id=eq.${encodeURIComponent(brandId)}&created_at=gte.${encodeURIComponent(cutoffIso(days))}`;
+  if (channel) {
+    filter += `&channel=eq.${encodeURIComponent(channel)}`;
+  }
   const response = await fetch(
     `${url}/rest/v1/chat_logs?${filter}&select=${select}&order=created_at.desc&limit=${rowLimit}`,
     { headers: getHeaders() }
@@ -65,15 +68,23 @@ async function fetchRows({ brandId, days, rowLimit }) {
 function groupIntoConversations(rows, brandId) {
   const oldestFirst = [...rows].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
+  // Grouped by (customer_id, channel) rather than customer_id alone — a
+  // WhatsApp conversation and a widget conversation must never merge into
+  // one thread even if a customer_id were ever to collide across channels
+  // (conversation_states/leads already treat channel as part of their key
+  // for the same reason; chat_logs sessionization now matches that).
   const byCustomer = new Map();
   for (const row of oldestFirst) {
-    const list = byCustomer.get(row.customer_id) || [];
+    const channel = String(row.channel || "widget").toLowerCase();
+    const groupKey = `${row.customer_id}::${channel}`;
+    const list = byCustomer.get(groupKey) || [];
     list.push(row);
-    byCustomer.set(row.customer_id, list);
+    byCustomer.set(groupKey, list);
   }
 
   const conversations = [];
-  for (const [customerId, customerRows] of byCustomer.entries()) {
+  for (const customerRows of byCustomer.values()) {
+    const customerId = customerRows[0].customer_id;
     let current = null;
     for (const row of customerRows) {
       const timestamp = new Date(row.created_at).getTime();
@@ -88,7 +99,13 @@ function groupIntoConversations(rows, brandId) {
           isFallback: false,
           lastTimestamp: timestamp,
           startedAt: row.created_at,
-          channel: "Widget",
+          // Normalized lowercase ('widget' | 'whatsapp' | 'instagram') so the
+          // frontend can filter/match case-insensitively. Falls back to
+          // 'widget' for any pre-migration row that predates the channel
+          // column (those default to 'widget' at the DB level too). Every
+          // row in customerRows already shares this same channel (grouping
+          // key above), so it's only ever set once per conversation here.
+          channel: String(row.channel || "widget").toLowerCase(),
           messages: []
         };
         conversations.push(current);
@@ -99,8 +116,12 @@ function groupIntoConversations(rows, brandId) {
       current.intent = row.detected_intent || current.intent;
       current.isFallback = current.isFallback || Boolean(row.is_fallback);
       if (row.escalated) current.escalated = true;
-      if (row.message) current.messages.push({ role: "customer", text: row.message });
-      if (row.reply) current.messages.push({ role: "assistant", text: row.reply });
+      // timestamp is needed by the dashboard's WhatsApp send panel to work
+      // out whether Meta's 24-hour customer-service window is still open
+      // (it needs the last *customer* message's time, not just the
+      // conversation's overall last-activity time).
+      if (row.message) current.messages.push({ role: "customer", text: row.message, timestamp: row.created_at });
+      if (row.reply) current.messages.push({ role: "assistant", text: row.reply, timestamp: row.created_at });
     }
   }
 
@@ -115,8 +136,10 @@ function groupIntoConversations(rows, brandId) {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
 
-async function listConversations({ brandId, days = 30, rowLimit = 1000, conversationLimit = 200 }) {
-  const rows = await fetchRows({ brandId, days, rowLimit });
+// channel is optional — omit it (or pass a falsy value) to get every
+// channel back, matching existing behaviour before this filter existed.
+async function listConversations({ brandId, days = 30, rowLimit = 1000, conversationLimit = 200, channel = null }) {
+  const rows = await fetchRows({ brandId, days, rowLimit, channel });
   return groupIntoConversations(rows, brandId).slice(0, conversationLimit);
 }
 
