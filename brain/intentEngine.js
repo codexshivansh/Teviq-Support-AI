@@ -171,6 +171,12 @@ const INTENT_RULES = [
     patterns: [
       /\b(agency hoon|clients ke liye|reseller|white label|margin kya|partnership)\b/i
     ]
+  },
+  {
+    intent: "b2b_demo_request",
+    patterns: [
+      /\b(demo chahiye|demo dekhna|demo book|demo schedule|call schedule|meeting chahiye|product dikhao|live demo|free demo)\b/i
+    ]
   }
 ];
 
