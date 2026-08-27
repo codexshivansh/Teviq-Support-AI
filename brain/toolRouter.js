@@ -32,7 +32,8 @@ const B2B_OBJECTION_INTENTS = [
   "b2b_integration_objection",
   "b2b_trial_objection",
   "b2b_budget_objection",
-  "b2b_agency_objection"
+  "b2b_agency_objection",
+  "b2b_demo_request"
 ];
 
 function orderVerificationResult(status, orderId, reply) {
