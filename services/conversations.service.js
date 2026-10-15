@@ -40,7 +40,7 @@ function cutoffIso(days) {
 
 async function fetchRows({ brandId, days, rowLimit, channel }) {
   const { url } = getSupabaseConfig();
-  const select = "customer_id,message,reply,detected_intent,escalated,created_at,is_fallback,channel";
+  const select = "customer_id,message,reply,detected_intent,escalated,created_at,is_fallback,channel,source";
   let filter = `brand_id=eq.${encodeURIComponent(brandId)}&created_at=gte.${encodeURIComponent(cutoffIso(days))}`;
   if (channel) {
     filter += `&channel=eq.${encodeURIComponent(channel)}`;
@@ -121,7 +121,12 @@ function groupIntoConversations(rows, brandId) {
       // (it needs the last *customer* message's time, not just the
       // conversation's overall last-activity time).
       if (row.message) current.messages.push({ role: "customer", text: row.message, timestamp: row.created_at });
-      if (row.reply) current.messages.push({ role: "assistant", text: row.reply, timestamp: row.created_at });
+      if (row.reply) current.messages.push({
+        role: "assistant",
+        text: row.reply,
+        timestamp: row.created_at,
+        source: row.source || (row.detected_intent === "human_reply" ? "human_agent" : null)
+      });
     }
   }
 
