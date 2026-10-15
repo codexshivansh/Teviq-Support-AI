@@ -176,7 +176,7 @@ function getHeaders(extra = {}) {
  */
 async function lookupWhatsappConnectionForBrand(brandId) {
   const { url } = getSupabaseConfig();
-  const path = `?brand_id=eq.${encodeURIComponent(brandId)}&select=phone_number_id,access_token,is_active&limit=1`;
+  const path = `?brand_id=eq.${encodeURIComponent(brandId)}&is_active=eq.true&select=phone_number_id,access_token&limit=2`;
 
   const response = await fetch(`${url}/rest/v1/whatsapp_connections${path}`, { headers: getHeaders() });
   const text = await response.text();
@@ -188,10 +188,15 @@ async function lookupWhatsappConnectionForBrand(brandId) {
     throw error;
   }
 
-  const row = Array.isArray(data) ? data[0] : null;
-  if (!row || !row.is_active) return null;
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) return null;
+  if (rows.length > 1) {
+    const error = new Error(`Multiple active WhatsApp connections found for brand "${brandId}". Specify a sending number before replying.`);
+    error.code = 'whatsapp_connection_ambiguous';
+    throw error;
+  }
 
-  return { phoneNumberId: row.phone_number_id, accessToken: row.access_token };
+  return { phoneNumberId: rows[0].phone_number_id, accessToken: rows[0].access_token };
 }
 
 /**
@@ -304,6 +309,9 @@ router.post(
       return res.json({ ok: true, messageId: sendResult?.messages?.[0]?.id || null });
     } catch (error) {
       console.error(`[whatsapp.routes] Manual send failed for brand=${brandId}:`, error);
+      if (error.code === 'whatsapp_connection_ambiguous') {
+        return res.status(409).json({ ok: false, error: error.code, message: error.message });
+      }
       return res.status(500).json({
         ok: false,
         error: 'send_failed',
