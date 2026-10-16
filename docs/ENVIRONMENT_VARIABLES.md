@@ -19,8 +19,7 @@ Never commit real values. Backend secrets belong only in Render/local `.env`; da
 | `SUPABASE_URL` | Yes | No | Supabase project URL. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Yes | Server-only database and Storage access. |
 | `SUPABASE_KNOWLEDGE_BUCKET` | No | No | Private source-document bucket; default `knowledge-documents`. |
-| `CHAT_RETENTION_DAYS` | No | No | Chat-log retention; safe default `30`. |
-| `INTERNAL_CRON_SECRET` | Yes for scheduled jobs | Yes | Protects internal retention/recovery endpoints. |
+| `INTERNAL_CRON_SECRET` | Yes for scheduled jobs | Yes | Protects internal recovery and token-refresh endpoints. |
 | `SHOPIFY_CLIENT_ID` | Yes for live Shopify | No | Shopify app client ID. |
 | `SHOPIFY_CLIENT_SECRET` | Yes for live Shopify | Yes | Shopify app secret and webhook HMAC key. |
 | `SHOPIFY_CREDENTIALS_SECRET` | Yes for live Shopify | Yes | Independent AES-256-GCM token-encryption secret. |
@@ -51,7 +50,6 @@ GROQ_API_KEY=<secret>
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<secret>
 SUPABASE_KNOWLEDGE_BUCKET=knowledge-documents
-CHAT_RETENTION_DAYS=30
 INTERNAL_CRON_SECRET=<long-random-secret>
 SHOPIFY_CLIENT_ID=<client-id>
 SHOPIFY_CLIENT_SECRET=<secret>

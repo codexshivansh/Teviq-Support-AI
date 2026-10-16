@@ -8,13 +8,9 @@ Code-side production hardening is automated where possible. These remaining item
 2. Commit and push each repository only after approval.
 3. Confirm the latest deployment is healthy in Render and Vercel.
 
-## 2. Activate 30-day chat retention
+## 2. Handle data-deletion requests
 
-1. In Render, keep `CHAT_RETENTION_DAYS=30` or rely on the safe default of 30.
-2. Confirm `INTERNAL_CRON_SECRET` is a long random value.
-3. In the backend GitHub repository, add an Actions secret named `INTERNAL_CRON_SECRET` with the same value.
-4. Run the **Chat Retention** workflow manually once.
-5. Confirm the workflow succeeds and old `chat_logs` rows are removed without affecting recent conversations.
+Teviq does not automatically delete support conversations after a fixed age. Keep the public privacy wording aligned with this behavior. When a client or customer requests deletion, verify their authority, identify the exact brand and records in Supabase, review any legal or security retention obligations, then perform and document a scoped manual deletion. Do not delete another brand's records or run a broad cleanup query. Disconnecting a channel is a separate action from deleting historical chats.
 
 ## 3. Verify website and widget deployment
 

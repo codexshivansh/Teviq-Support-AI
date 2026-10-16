@@ -7,7 +7,6 @@ const {
   hasAlertBeenSent: hasCartAlertBeenSent,
   recordAlertAttempt: recordCartAlertAttempt
 } = require("../services/cartRecoveryAlertRecord.service");
-const { deleteExpiredChatLogs } = require("../services/chatRetention.service");
 const { refreshExpiringTokens } = require("../integrations/instagram/instagramTokenRefresh.service");
 
 async function runDelayCheck(req, res) {
@@ -164,18 +163,10 @@ async function runCartRecoveryCheck(req, res) {
   return res.json({ ok: true, ...results });
 }
 
-async function runChatRetention(req, res) {
-  const result = await deleteExpiredChatLogs();
-  console.log(
-    `[internal] Chat retention removed ${result.deletedCount} rows older than ${result.retentionDays} days.`
-  );
-  return res.json({ ok: true, ...result });
-}
-
 async function runInstagramTokenRefresh(req, res) {
   const result = await refreshExpiringTokens();
   console.log(`[internal] Instagram token refresh checked ${result.checked} connection(s); refreshed ${result.refreshed}.`);
   return res.json({ ok: true, ...result });
 }
 
-module.exports = { runDelayCheck, runCartRecoveryCheck, runChatRetention, runInstagramTokenRefresh };
+module.exports = { runDelayCheck, runCartRecoveryCheck, runInstagramTokenRefresh };

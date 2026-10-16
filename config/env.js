@@ -51,13 +51,6 @@ function validateEnv() {
     );
   }
 
-  if (
-    process.env.CHAT_RETENTION_DAYS &&
-    (!Number.isInteger(Number(process.env.CHAT_RETENTION_DAYS)) || Number(process.env.CHAT_RETENTION_DAYS) < 1)
-  ) {
-    console.warn("[env] CHAT_RETENTION_DAYS is invalid. The 30-day default will be used.");
-  }
-
   if (isProduction() && (!process.env.SHOPIFY_CLIENT_ID || !process.env.SHOPIFY_CLIENT_SECRET)) {
     console.warn(
       "[env] SHOPIFY_CLIENT_ID or SHOPIFY_CLIENT_SECRET is missing. Shopify OAuth connections will be unavailable."
