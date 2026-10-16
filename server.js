@@ -17,6 +17,7 @@ const conversationsRoutes = require("./routes/conversations.routes");
 const internalRoutes = require("./routes/internal.routes");
 const meRoutes = require("./routes/me.routes");
 const whatsappRoutes = require("./routes/whatsapp.routes");
+const instagramRoutes = require("./routes/instagram.routes");
 const { corsOptionsDelegate } = require("./config/cors");
 const { getNodeEnv, validateEnv } = require("./config/env");
 const { requireClerkAuth } = require("./middleware/clerkAuth.middleware");
@@ -37,7 +38,13 @@ app.use(
 app.use(cors(corsOptionsDelegate));
 app.options("*", cors(corsOptionsDelegate));
 app.use("/api/integrations/shopify", shopifyWebhookRoutes);
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({
+  limit: "1mb",
+  verify: (req, res, buffer) => {
+    // Meta signs webhook requests over the raw request bytes.
+    req.rawBody = Buffer.from(buffer);
+  }
+}));
 
 const chatRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -202,6 +209,7 @@ app.use("/api/analytics", requireClerkAuth, analyticsRoutes);
 app.use("/api/conversations", requireClerkAuth, conversationsRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/instagram", instagramRoutes);
 app.use("/internal", requireInternalCronSecret, internalRoutes);
 
 app.use((req, res) => {

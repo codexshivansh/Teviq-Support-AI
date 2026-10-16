@@ -29,6 +29,11 @@ Never commit real values. Backend secrets belong only in Render/local `.env`; da
 | `SHOPIFY_REDIRECT_URI` | Yes for OAuth | No | Exact production OAuth callback URL. |
 | `PUBLIC_API_URL` | Yes for Shopify webhooks | No | Public backend base URL. |
 | `DASHBOARD_URL` | Yes for OAuth return | No | `https://dashboard.teviq.in`. |
+| `INSTAGRAM_APP_SECRET` | Yes for Instagram Login/webhooks | Yes | Meta app secret used to verify webhook signatures and exchange OAuth tokens. |
+| `INSTAGRAM_APP_ID` | Yes for Instagram Login | No | Meta app ID used to start Instagram OAuth. |
+| `INSTAGRAM_REDIRECT_URI` | Recommended for Instagram Login | No | Exact registered HTTPS callback; defaults to `PUBLIC_API_URL/api/instagram/oauth/callback`. |
+| `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` | Yes for Instagram webhooks | Yes | Random string you choose and enter in Meta's webhook configuration. |
+| `INSTAGRAM_GRAPH_API_VERSION` | No | No | Graph API version for Instagram messaging; defaults to `v26.0`. |
 | `SHOPIFY_PRODUCT_SYNC_MAX_PAGES` | No | No | Product sync safety cap; default `50`. |
 | `SHOPIFY_ORDER_SYNC_MAX_PAGES` | No | No | Order sync safety cap; default `20`. |
 | `TWILIO_ACCOUNT_SID` | Only if SMS is enabled | Yes | Twilio account identifier. |
@@ -56,6 +61,11 @@ SHOPIFY_ADMIN_API_VERSION=2026-07
 SHOPIFY_REDIRECT_URI=https://teviq-support-ai-backend.onrender.com/api/integrations/shopify/oauth/callback
 PUBLIC_API_URL=https://teviq-support-ai-backend.onrender.com
 DASHBOARD_URL=https://dashboard.teviq.in
+INSTAGRAM_APP_SECRET=<secret>
+INSTAGRAM_APP_ID=<app-id>
+INSTAGRAM_REDIRECT_URI=https://teviq-support-ai-backend.onrender.com/api/instagram/oauth/callback
+INSTAGRAM_WEBHOOK_VERIFY_TOKEN=<long-random-secret>
+INSTAGRAM_GRAPH_API_VERSION=v26.0
 ```
 
 Missing Gemini/Groq keys do not crash startup, but knowledge ingestion needs Gemini embeddings. Missing Supabase or Clerk secrets makes the related operations fail closed.
