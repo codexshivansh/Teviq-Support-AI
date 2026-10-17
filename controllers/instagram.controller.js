@@ -4,6 +4,7 @@ const { decryptValue } = require("../services/shopifyCredentials.service");
 const { sendInstagramMessage } = require("../services/instagram.service");
 const { appendChatLog } = require("../services/analytics.service");
 const { getBrandOrRespond } = require("./helpers/brandLookup");
+const { getLastInboundMessageTimestamp, isReplyWindowOpen } = require("../services/customerReplyWindow.service");
 
 function requireInteractiveClerkSession(req, res) {
   // Connecting or disconnecting a third-party account is never allowed from
@@ -73,34 +74,8 @@ async function sendManualReply(req, res) {
     return res.status(404).json({ ok: false, error: "instagram_not_connected", message: "No active Instagram connection was found for this workspace." });
   }
 
-  const supabaseUrl = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  if (!supabaseUrl || !serviceRoleKey) {
-    return res.status(503).json({ ok: false, error: "supabase_not_configured", message: "Conversation storage is not configured." });
-  }
-  const query = new URLSearchParams({
-    brand_id: `eq.${brand.brandId}`,
-    customer_id: `eq.${customerId}`,
-    channel: "eq.instagram",
-    select: "message,created_at",
-    order: "created_at.desc",
-    limit: "20"
-  });
-  const response = await fetch(`${supabaseUrl}/rest/v1/chat_logs?${query}`, {
-    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` }
-  });
-  const rows = await response.json().catch(() => []);
-  if (!response.ok) {
-    const error = new Error("Could not verify the Instagram reply window.");
-    error.statusCode = 503;
-    error.code = "instagram_reply_window_check_failed";
-    throw error;
-  }
-  const latestCustomerMessage = Array.isArray(rows)
-    ? rows.find((row) => typeof row.message === "string" && row.message.trim())
-    : null;
-  const lastInboundAt = latestCustomerMessage ? new Date(latestCustomerMessage.created_at).getTime() : 0;
-  if (!lastInboundAt || !Number.isFinite(lastInboundAt) || Date.now() - lastInboundAt >= 23 * 60 * 60 * 1000) {
+  const lastInboundAt = await getLastInboundMessageTimestamp({ brandId: brand.brandId, customerId, channel: "instagram" });
+  if (!isReplyWindowOpen(lastInboundAt)) {
     return res.status(422).json({
       ok: false,
       error: "window_expired",

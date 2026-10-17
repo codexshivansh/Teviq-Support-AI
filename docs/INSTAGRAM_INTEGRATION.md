@@ -76,6 +76,14 @@ Before OAuth can succeed, configure `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, 
 
 ## Message flow
 
+### Reply windows and inbox refresh
+
+WhatsApp and Instagram manual replies both use `services/customerReplyWindow.service.js`: the last non-empty inbound customer message is selected in the database before applying a one-row limit. Outbound-only rows cannot hide that message or reopen its window. Both channels reject manual replies at or beyond the 23-hour safety cutoff, including exactly 23 hours. The 30-minute conversation-session grouping is independent of this customer-level reply window.
+
+The dashboard refreshes the current inbox every 15 seconds while visible, and when the window gains focus or becomes visible again. Background refresh preserves the current thread and draft, avoids overlapping requests, ignores stale responses around a manual send or workspace change, and retains the visible inbox after a background network error. The elapsed-time indicator also updates every minute. Backend validation remains authoritative.
+
+Regression checks: `npm run test:reply-window`, `npm run test:instagram-manual-reply`, and (from the dashboard directory) `node scripts/test-conversation-polling.mjs`.
+
 ```text
 Customer DM
   -> Meta webhook POST

@@ -24,6 +24,7 @@
     "test:instagram-customer-profiles": "node scripts/test-instagram-customer-profiles.js",
     "test:instagram-oauth": "node scripts/test-instagram-oauth.js",
     "test:instagram-manual-reply": "node scripts/test-instagram-manual-reply.js",
+    "test:reply-window": "node scripts/test-customer-reply-window.js",
     "test:instagram-token-refresh": "node scripts/test-instagram-token-refresh.js",
     "test:production-hardening": "node scripts/test-production-hardening.js",
     "test:response-integrity": "node scripts/test-response-integrity.js",

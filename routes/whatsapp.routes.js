@@ -26,6 +26,7 @@ const { appendChatLog } = require('../services/analytics.service');
 const { requireClerkAuth } = require('../middleware/clerkAuth.middleware');
 const { requireBrandAccess } = require('../middleware/brandAccess.middleware');
 const { asyncHandler } = require('../middleware/asyncHandler');
+const { getLastInboundMessageTimestamp, isReplyWindowOpen } = require('../services/customerReplyWindow.service');
 
 // Wired to the existing brain: backend/brain/supportBrain.js
 // CONFIRMED exported function signature (as of this integration):
@@ -142,8 +143,6 @@ router.post('/webhook', async (req, res) => {
 // / getHeaders against SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), rather than
 // introducing a different way of talking to Supabase.
 
-const WHATSAPP_WINDOW_MS = 23 * 60 * 60 * 1000; // 23h — conservative 1hr buffer under Meta's 24h customer service window
-
 function getSupabaseConfig() {
   const url = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -210,26 +209,7 @@ async function lookupWhatsappConnectionForBrand(brandId) {
  * themselves, which would then fail for real at Meta's API anyway.
  */
 async function getLastCustomerMessageTimestamp({ brandId, customerId }) {
-  const { url } = getSupabaseConfig();
-  const select = 'message,created_at';
-  const filter = `brand_id=eq.${encodeURIComponent(brandId)}&customer_id=eq.${encodeURIComponent(customerId)}&channel=eq.whatsapp`;
-
-  const response = await fetch(
-    `${url}/rest/v1/chat_logs?${filter}&select=${select}&order=created_at.desc&limit=10`,
-    { headers: getHeaders() }
-  );
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : [];
-
-  if (!response.ok) {
-    const error = new Error(data?.message || `Supabase chat_logs lookup failed with ${response.status}`);
-    error.statusCode = response.status;
-    throw error;
-  }
-
-  const rows = Array.isArray(data) ? data : [];
-  const lastCustomerRow = rows.find((row) => typeof row.message === 'string' && row.message.trim().length > 0);
-  return lastCustomerRow ? new Date(lastCustomerRow.created_at).getTime() : null;
+  return getLastInboundMessageTimestamp({ brandId, customerId, channel: 'whatsapp' });
 }
 
 /**
@@ -267,11 +247,11 @@ router.post(
       }
 
       const lastCustomerMessageAt = await getLastCustomerMessageTimestamp({ brandId, customerId: to });
-      if (!lastCustomerMessageAt || Date.now() - lastCustomerMessageAt > WHATSAPP_WINDOW_MS) {
+      if (!isReplyWindowOpen(lastCustomerMessageAt)) {
         return res.status(422).json({
           ok: false,
           error: 'window_expired',
-          message: '24-hour WhatsApp window has expired for this customer. Use a template message instead.'
+          message: 'The WhatsApp reply window is closed (Teviq uses a 23-hour safety limit). Wait for a customer message or use an approved template.'
         });
       }
 
