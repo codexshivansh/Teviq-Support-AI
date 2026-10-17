@@ -5,7 +5,10 @@ async function getConversations(req, res) {
   const brand = await getBrandOrRespond(req, res);
   if (!brand) return;
 
-  const days = Math.max(1, Math.min(365, Number(req.query.days) || 30));
+  const requestedDays = Number(req.query.days);
+  const days = Number.isFinite(requestedDays) && requestedDays > 0
+    ? Math.min(3650, requestedDays)
+    : null;
   const channel = typeof req.query.channel === "string" && req.query.channel.trim()
     ? req.query.channel.trim().toLowerCase()
     : null;

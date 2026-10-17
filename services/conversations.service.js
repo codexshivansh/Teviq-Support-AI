@@ -41,7 +41,10 @@ function cutoffIso(days) {
 async function fetchRows({ brandId, days, rowLimit, channel }) {
   const { url } = getSupabaseConfig();
   const select = "customer_id,message,reply,detected_intent,escalated,created_at,is_fallback,channel,source";
-  let filter = `brand_id=eq.${encodeURIComponent(brandId)}&created_at=gte.${encodeURIComponent(cutoffIso(days))}`;
+  let filter = `brand_id=eq.${encodeURIComponent(brandId)}`;
+  if (Number.isFinite(days) && days > 0) {
+    filter += `&created_at=gte.${encodeURIComponent(cutoffIso(days))}`;
+  }
   if (channel) {
     filter += `&channel=eq.${encodeURIComponent(channel)}`;
   }
@@ -143,7 +146,7 @@ function groupIntoConversations(rows, brandId) {
 
 // channel is optional — omit it (or pass a falsy value) to get every
 // channel back, matching existing behaviour before this filter existed.
-async function listConversations({ brandId, days = 30, rowLimit = 1000, conversationLimit = 200, channel = null }) {
+async function listConversations({ brandId, days = null, rowLimit = 1000, conversationLimit = 200, channel = null }) {
   const rows = await fetchRows({ brandId, days, rowLimit, channel });
   return groupIntoConversations(rows, brandId).slice(0, conversationLimit);
 }
