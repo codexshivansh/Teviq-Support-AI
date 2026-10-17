@@ -1,6 +1,17 @@
 # Instagram Messaging Integration
 
-Status: webhook, OAuth, dashboard connection controls, and manual replies are implemented locally. This is not yet connected or deployed; a live Meta test and production setup remain.
+Status: webhook, OAuth, dashboard connection controls, and manual replies are deployed. The Meta app was published on 17 October 2026. A real incoming DM and automated reply were verified after publication. Advanced Access review and a separate live manual-reply test remain outstanding.
+
+## Verified operational checkpoint — 17 October 2026
+
+- Meta confirmed that the Teviq app was successfully published. Its Publish page now shows `Published` and offers `Unpublish`.
+- Meta's `messages` sample webhook test reported success. This verifies the sample delivery test, not a real customer conversation or an AI reply.
+- The `helloteviq` account is listed in Instagram API setup with its account webhook subscription On, and the `messages` field is subscribed.
+- The last real DM test before publication did not appear in the dashboard. A fresh DM after publication produced a processed webhook-event record, an Instagram chat-log row with an AI reply, and a dashboard conversation. The account owner also confirmed receiving the reply in Instagram. This verifies the tested account's inbound-to-AI-reply flow; it does not establish Advanced Access for other customers' accounts.
+- The review draft requests `instagram_business_basic` and `instagram_business_manage_messages`; Advanced Access has not been approved. Screencasts, reviewer access/instructions, and data-handling answers still need completion.
+- Application logs do not record every successful webhook request. An empty Render application-log window is therefore not proof that no request arrived; inspect webhook-event storage or request diagnostics before concluding that delivery failed.
+
+App publication and Advanced Access approval are separate states. Check the actual Publish page instead of assuming that an unfinished Advanced Access review prevents publication.
 
 ## Goal
 
@@ -11,6 +22,7 @@ Route Instagram Direct Messages into the same brand-scoped Teviq Support Brain u
 - `services/instagram.service.js` normalizes inbound text messages, ignores business-account echoes and unsupported non-text messages, resolves the connected Teviq brand, decrypts its stored access token, verifies Meta webhook signatures, and sends text replies through Instagram's Graph API.
 - `routes/instagram.routes.js` implements Meta's webhook verification handshake and signed inbound webhook endpoint. Valid text messages are routed to `supportBrain.processMessage()` with `channel: "instagram"`; the shared Brain owns the `chat_logs` write, avoiding duplicate transcript rows.
 - `instagram_webhook_events` stores inbound message IDs so Meta webhook retries do not trigger duplicate AI responses.
+- `services/instagramCustomerProfiles.service.js` enriches dashboard conversations with the sender's current Instagram username/name through the connected brand account. Profiles are cached in memory for one hour (failed lookups for one minute), scoped by brand/account/sender, with a 500-entry cap, four concurrent calls, and a 2.5-second provider lookup budget per inbox load. Tokens stay in server-side Authorization headers. No new database migration or permission is required. A missing/private/unavailable profile does not hide the conversation; the dashboard displays `Instagram user` instead of treating the scoped sender ID as a phone number. The actual ID remains unchanged for routing and replies.
 - `integrations/instagram/instagramOAuth.service.js` creates a short-lived, hashed, one-time OAuth state; requests the current Instagram Login scopes; exchanges the code for a long-lived token; fetches the authorized account identity; encrypts the token before persistence; and exposes no token through status APIs.
 - `controllers/instagram.controller.js` and `routes/instagram.routes.js` expose authenticated status/connect/disconnect endpoints. OAuth connect and disconnect reject local demo sessions.
 - `dashboard/src/pages/Settings.jsx` provides the connect/disconnect card; `dashboard/src/pages/Conversations.jsx` supports manual Instagram replies while the customer-service window is open.
@@ -41,7 +53,7 @@ Configure these server-side environment values after the app is created:
 
 | Variable | Purpose |
 | --- | --- |
-| `INSTAGRAM_APP_ID` | Meta app ID used by Instagram Login. |
+| `INSTAGRAM_APP_ID` | Instagram app ID shown under Instagram API setup with Instagram Login; this can differ from the parent Meta app ID. |
 | `INSTAGRAM_APP_SECRET` | Validates `X-Hub-Signature-256` and is used server-side for OAuth token exchange. |
 | `INSTAGRAM_REDIRECT_URI` | Exact registered OAuth callback; defaults to `${PUBLIC_API_URL}/api/instagram/oauth/callback`. |
 | `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` | Chosen random secret used for Meta's webhook verification handshake. |
@@ -78,7 +90,7 @@ Customer DM
 
 ## Next engineering steps
 
-1. Configure server secrets, run the database migration, finish Meta webhook/account subscription setup, and test with the authorized `helloteviq` account plus a separate customer test account.
+1. Record the now-working connection/profile and real-DM-to-AI-reply flow for App Review. Retest immediately before recording, then complete reviewer instructions and the owner's data-handling answers. The observed review draft is autosaved and showed no immediate submission deadline.
 2. Schedule the protected token-refresh endpoint daily using the existing internal cron setup.
 3. Add integration tests for inbound brand lookup, event deduplication, AI routing, and provider send failures.
 4. Complete the broader knowledge refresh only after the Instagram integration is stable; the Brain uses the shared brand knowledge across channels.

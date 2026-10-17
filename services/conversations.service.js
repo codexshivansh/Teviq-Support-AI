@@ -10,6 +10,7 @@
 // "escalated" here — never a fabricated "resolved".
 
 const SESSION_GAP_MS = 30 * 60 * 1000;
+const { enrichInstagramConversations } = require("./instagramCustomerProfiles.service");
 
 function getSupabaseConfig() {
   const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
@@ -148,7 +149,8 @@ function groupIntoConversations(rows, brandId) {
 // channel back, matching existing behaviour before this filter existed.
 async function listConversations({ brandId, days = null, rowLimit = 1000, conversationLimit = 200, channel = null }) {
   const rows = await fetchRows({ brandId, days, rowLimit, channel });
-  return groupIntoConversations(rows, brandId).slice(0, conversationLimit);
+  const conversations = groupIntoConversations(rows, brandId).slice(0, conversationLimit);
+  return enrichInstagramConversations({ brandId, conversations });
 }
 
 module.exports = { listConversations };

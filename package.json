@@ -21,6 +21,7 @@
     "test:shopify-oauth": "node scripts/test-shopify-oauth.js",
     "test:shopify-webhooks": "node scripts/test-shopify-webhooks.js",
     "test:instagram-service": "node scripts/test-instagram-service.js",
+    "test:instagram-customer-profiles": "node scripts/test-instagram-customer-profiles.js",
     "test:instagram-oauth": "node scripts/test-instagram-oauth.js",
     "test:instagram-manual-reply": "node scripts/test-instagram-manual-reply.js",
     "test:instagram-token-refresh": "node scripts/test-instagram-token-refresh.js",
