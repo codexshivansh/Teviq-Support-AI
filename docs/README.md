@@ -37,8 +37,8 @@ Read these first:
 | Widget | Plain HTML/CSS/JS |
 | Website | React, Vite, TailwindCSS, React Router |
 | Auth | Clerk |
-| AI | Gemini primary, Groq fallback |
-| Storage MVP | Local JSON files and uploads |
+| AI | Groq generation; local lexical knowledge retrieval |
+| Storage | Supabase runtime records and private document storage; local JSON only for demo fixtures |
 | Deployment | Render + Vercel/static hosting |
 
 ## Installation

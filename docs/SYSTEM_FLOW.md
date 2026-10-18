@@ -209,10 +209,9 @@ Flow:
 Intent allows AI
   -> retrieveKnowledge({ brandId, query, topK: 5 })
   -> If confidence is low for unknown/product recommendation, block hallucination
-  -> Otherwise build Gemini prompt
-  -> Gemini success: source=gemini
-  -> Gemini failure: Groq fallback
-  -> Groq failure: extractive/system fallback
+  -> Build prompt with brand context, retrieved knowledge, and recent memory
+  -> Groq success: source=groq
+  -> Groq failure: extractive/system fallback or escalation
   -> responseValidator repairs unsafe output
 ```
 

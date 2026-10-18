@@ -31,7 +31,7 @@ Customer
   -> active brand validation
   -> analysis, intent and entity extraction
   -> order/policy/knowledge/lead/escalation tools
-  -> Gemini primary or Groq fallback when generation is allowed
+  -> Groq generation when allowed; grounded local/system fallback otherwise
   -> response validator
   -> widget response
   -> Supabase chat analytics
@@ -56,7 +56,7 @@ Normal users cannot select or fetch another brand. `teviq_admin` can switch work
 Supabase stores:
 
 - Brands and widget settings.
-- Knowledge metadata, vectors, FAQs, and policies.
+- Knowledge metadata, compatibility vectors, FAQs, and policies.
 - Private original PDF/DOCX/TXT files through Supabase Storage.
 - Conversation workflow state.
 - Chat logs, conversation history, analytics, leads, and support requests.
@@ -66,11 +66,13 @@ Local JSON remains for demo products/orders and legacy fallback tests only.
 
 ## Knowledge Brain
 
-- Gemini Embedding 2 with 768-dimensional vectors.
-- Supabase pgvector cosine search through `match_knowledge_chunks_v3`.
-- SQL-side `brand_id` filtering.
-- FAQ/policy/document retrieval with citations and confidence gating.
-- Low-confidence high-risk answers fail safely instead of guessing.
+- Supabase stores brand-scoped knowledge text and metadata.
+- Current retrieval uses local lexical matching over the selected brand's stored text; no external embedding request is made.
+- New compatibility vectors are local feature hashes, not semantic embeddings. Existing stored vectors are retained but are not used for current matching.
+- FAQ/policy/document retrieval returns citations and heuristic confidence scores.
+- Lexical matching can miss Hindi/Hinglish paraphrases without shared terms; low-confidence and high-risk answers fail safely instead of guessing.
+
+See [Groq-only mode](./GROQ_ONLY_MODE.md) for rollout, tradeoffs, and verification details.
 
 ## Shopify
 

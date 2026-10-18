@@ -77,20 +77,18 @@ Their chunks are indexed into the same `knowledge_chunks` table with `source_typ
 
 ## Retrieval
 
-- Embedding provider: Gemini Embedding 2.
-- Dimensions: 768.
-- Similarity: pgvector cosine distance converted to similarity by the SQL RPC.
-- RPC: `match_knowledge_chunks_v3`.
+- Current retrieval: local lexical matching over brand-scoped Supabase knowledge text.
+- New writes store deterministic 768-dimensional local compatibility features; these are not semantic embeddings.
+- The legacy pgvector RPC and stored vectors remain in the database but are not used by the current retrieval path.
 - Default returned context: top 5 chunks.
-- Candidate fetch: at least 20 before source-aware reranking.
-- Minimum confidence gate: `0.68`.
-- High confidence: `0.80`.
-- Source preference: exact FAQ, then score-adjusted FAQ/policy/document results.
+- Candidate fetch: paginated brand-scoped text reads, up to 10,000 chunks; retrieval fails closed if the scan would exceed that bound.
+- Confidence values are lexical heuristics. High-risk and low-confidence answers fail safely.
+- Source results retain FAQ, policy, and document citations.
 - Chunk maximum: 1,100 characters.
 - Chunk overlap: 140 characters.
 - Minimum chunk target: 120 characters.
 
-Every vector search receives `p_brand_id`; isolation is enforced inside SQL, not by filtering mixed results in JavaScript.
+Every lexical query is filtered by `brand_id` in Supabase and each returned row is checked against the requested brand before ranking.
 
 ## Conversations and Analytics
 

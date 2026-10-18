@@ -160,7 +160,7 @@ curl -X POST "$API/api/knowledge/urban-demo/upload" \
 2. Check intent and warnings.
 3. Check the brand's Supabase `chat_logs` rows or the protected Conversations page.
 4. If Knowledge Brain is involved, call `/api/knowledge/:brandId/retrieve`.
-5. If AI is involved, check Gemini/Groq key configuration.
+5. If AI is involved, check the Groq key configuration. Gemini customer-data calls are disabled; knowledge retrieval is local lexical matching.
 
 ## Local Development Notes
 

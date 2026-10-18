@@ -112,9 +112,9 @@ Important files:
 Key behavior:
 
 - SQL RPC filters by `brandId`.
-- Similarity is pgvector cosine similarity over Gemini Embedding 2 vectors.
-- Candidate search uses `p_min_score=0`; application confidence gating starts at `0.68`.
-- `topK` defaults to 5 after source-aware reranking.
+- Current matching is local lexical ranking over brand-scoped text; confidence values are heuristics, not vector similarity probabilities.
+- The query scans at most 10,000 chunks, then fails closed rather than ranking a partial corpus.
+- `topK` defaults to 5 after lexical ranking.
 
 If answer is too generic:
 

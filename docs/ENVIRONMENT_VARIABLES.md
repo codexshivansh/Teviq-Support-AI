@@ -9,10 +9,10 @@ Never commit real values. Backend secrets belong only in Render/local `.env`; da
 | `NODE_ENV` | Yes | No | Use `production` on Render. |
 | `PORT` | Platform-provided | No | Express port; local default is `5000`. |
 | `ALLOWED_ORIGINS` | Yes | No | Comma-separated browser origins. Values are trimmed and deduplicated. |
-| `GEMINI_API_KEY` | Recommended | Yes | Primary replies and required knowledge embeddings. |
-| `GEMINI_MODEL` | No | No | Default `gemini-3.5-flash`. |
-| `GEMINI_EMBEDDING_MODEL` | No | No | Default `gemini-embedding-2`. |
-| `GROQ_API_KEY` | Recommended | Yes | AI fallback provider. |
+| `GEMINI_API_KEY` | No (legacy only) | Yes | Ignored by the current backend; Gemini calls fail closed before network access. Remove from Render when convenient. |
+| `GEMINI_MODEL` | No (legacy only) | No | Ignored by the current backend. |
+| `GEMINI_EMBEDDING_MODEL` | No (legacy only) | No | Ignored; knowledge indexing and retrieval are local. |
+| `GROQ_API_KEY` | Yes for generated AI replies | Yes | Current AI generation provider. |
 | `GROQ_MODEL` | No | No | Default `openai/gpt-oss-20b`. |
 | `CLERK_SECRET_KEY` | Yes | Yes | Verifies dashboard JWTs and manages approved metadata updates. |
 | `ENABLE_DEMO_LOGIN` | No | No | Must be `false`/omitted in production. |
@@ -45,7 +45,6 @@ Minimum production example:
 NODE_ENV=production
 ALLOWED_ORIGINS=https://dashboard.teviq.in,https://teviq.in,https://www.teviq.in
 CLERK_SECRET_KEY=<secret>
-GEMINI_API_KEY=<secret>
 GROQ_API_KEY=<secret>
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<secret>
@@ -66,7 +65,7 @@ INSTAGRAM_WEBHOOK_VERIFY_TOKEN=<long-random-secret>
 INSTAGRAM_GRAPH_API_VERSION=v26.0
 ```
 
-Missing Gemini/Groq keys do not crash startup, but knowledge ingestion needs Gemini embeddings. Missing Supabase or Clerk secrets makes the related operations fail closed.
+Missing `GROQ_API_KEY` does not crash startup; AI replies use grounded local/system fallbacks. Knowledge indexing and retrieval run locally over Supabase text and do not require a Gemini key. Missing Supabase or Clerk secrets makes the related operations fail closed.
 
 ## Dashboard
 

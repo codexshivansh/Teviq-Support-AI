@@ -34,14 +34,13 @@ Business Tools
           |
           v
 AI Provider Layer
-  - Gemini primary
-  - Groq fallback
+  - Groq generation
   - System fallback
           |
           v
 Storage
   - Supabase brands and runtime records
-  - Supabase pgvector knowledge chunks
+  - Supabase knowledge text and metadata (local lexical retrieval)
   - Private Supabase Storage documents
   - Supabase analytics and workflow state
   - Local JSON demo fixtures only
@@ -195,18 +194,20 @@ The AI provider logic lives in:
 backend/services/ai.service.js
 ```
 
-Order of execution:
+Current order of execution:
 
 1. Build prompt with brand tone, policies, FAQs, memory, intent, and retrieved knowledge.
-2. Call Gemini using `GEMINI_API_KEY`.
-3. If Gemini fails, call Groq using `GROQ_API_KEY`.
-4. If both fail and a strong knowledge match exists, return an extractive system fallback.
-5. Otherwise return a safe system fallback.
+2. Call Groq using `GROQ_API_KEY`.
+3. If Groq fails and a strong knowledge match exists, return an extractive system fallback.
+4. Otherwise return a safe system fallback or escalation.
 
-Current models default to:
+The deprecated Gemini caller fails closed before network access. Knowledge search and indexing use local lexical processing.
 
-- Gemini: `gemini-3.5-flash`
+Current model default:
+
 - Groq: `openai/gpt-oss-20b`
+
+See `docs/GROQ_ONLY_MODE.md` for operational status, ZDR scope, tests, and lexical-search limitations.
 
 ## Database and Storage
 
@@ -261,10 +262,10 @@ Flow:
 3. Extractor reads text.
 4. Chunker splits into semantic-ish sections.
 5. Original bytes are stored in a private, brand-scoped Supabase Storage object.
-6. Gemini Embedding 2 creates 768-dimensional semantic embeddings.
-7. Supabase persists metadata and pgvector chunks.
-8. SQL RPC retrieval filters by `brandId` before results leave the database.
-9. Support Brain uses grounded context before Gemini/Groq when AI is allowed.
+6. Local lexical indexing creates compatibility features without an embedding API request.
+7. Supabase persists metadata, knowledge text, and compatibility vectors.
+8. Retrieval reads only the requested brand's text and ranks it with local lexical matching.
+9. Support Brain uses grounded context before Groq when AI is allowed.
 
 ## Analytics
 

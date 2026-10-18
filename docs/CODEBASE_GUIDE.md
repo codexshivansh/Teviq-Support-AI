@@ -84,7 +84,7 @@ Business services used by the Support Brain.
 
 Files:
 
-- `ai.service.js`: Gemini/Groq calls, prompt generation, fallback.
+- `ai.service.js`: Groq calls, prompt generation, grounded local/system fallback. Gemini is disabled for customer-data processing.
 - `brand.service.js`: loads/validates Supabase brands and returns public widget config.
 - `order.service.js`: live Shopify cache/provider with demo/local fallback restricted to explicit demo brands.
 - `policy.service.js`: return/exchange/cancellation/refund logic.
@@ -108,8 +108,8 @@ Files:
 - `upload.service.js`: Multer file upload, type/size validation.
 - `extraction.service.js`: PDF/DOCX/TXT text extraction.
 - `chunking.service.js`: semantic-ish section chunking.
-- `embedding.service.js`: Gemini Embedding 2 document/query embeddings.
-- `vectorStore.service.js`: Supabase metadata and pgvector RPC access.
+- `embedding.service.js`: offline compatibility features for knowledge writes.
+- `vectorStore.service.js`: Supabase knowledge text persistence and brand-scoped lexical queries; legacy vector rows are retained but not searched.
 - `retrieval.service.js`: query retrieval, citations, confidence checks.
 - `knowledge.service.js`: ingestion orchestration.
 

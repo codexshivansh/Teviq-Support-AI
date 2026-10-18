@@ -93,9 +93,9 @@ The active intent implementation is `brain/intentEngine.js`. Any remaining legac
 
 - Brand records persist in Supabase instead of runtime JSON files.
 - Clerk-authenticated dashboard routes enforce assigned-brand access; only `teviq_admin` can switch brands.
-- Knowledge metadata/chunks persist in Supabase Postgres with pgvector and SQL-side `brand_id` filtering.
+- Knowledge metadata and chunks persist in Supabase; the legacy pgvector column/RPC remain for compatibility while current searches use brand-scoped lexical reads.
 - Original PDF/DOCX/TXT files persist in a private, brand-scoped Supabase Storage bucket.
-- Gemini Embedding 2 produces 768-dimensional semantic vectors.
+- Current retrieval uses local lexical matching; it can miss paraphrases without shared terms. The old Gemini vector rows remain stored but are not used. Evaluate retrieval quality and a budget-compatible semantic alternative before promising broad multilingual paraphrase coverage.
 - Chat analytics and conversation history persist in Supabase `chat_logs`.
 - Shopify OAuth tokens are encrypted; operational webhooks are HMAC-verified and deduplicated.
 - Live Shopify order lookup requires order plus matching contact verification and rate limits failed attempts.
