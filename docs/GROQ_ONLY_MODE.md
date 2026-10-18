@@ -5,8 +5,10 @@
 The owner declined enabling paid Gemini billing. Customer prompts, sales
 prompts and retrieval queries must therefore not be sent to Gemini's unpaid
 API. The replacement is Groq-only text generation plus local lexical retrieval.
-This document records implementation, not a claim of Meta approval or complete
-regulatory compliance. At this checkpoint the changes are local, not deployed.
+The backend change was deployed on 18 October 2026. A minimal synthetic
+production chat in the isolated Teviq Meta Review workspace returned
+`source: groq`; no customer conversation was used. This does not establish Meta
+Advanced Access approval or complete regulatory compliance.
 
 ## Data paths
 
@@ -65,14 +67,17 @@ these checks; only counts/scores were printed.
   Free, $0, Current Plan. With the owner's explicit approval, Inference APIs ZDR
   was enabled on 18 October 2026 and remained enabled on a fresh console state.
   Global ZDR stayed disabled; Batch and Fine-tuning/LoRA stayed on. No billing,
-  upgrade, or other data-control setting changed. Before claiming this covers
-  live Teviq requests, verify the deployed API key belongs to this organization.
-- Verify the configured production Groq model is allowed by the account, then
-  use synthetic test data for a provider smoke check and confirm the deployed
-  revision. Do not treat mocked tests as live Instagram proof.
-- Update Meta's provider disclosures based on the final deployed data path;
-  do not remove Google from the current live disclosure while the old deployed
-  backend still uses it. Record all processing/access countries accurately.
+  upgrade, or other data-control setting changed. The production Groq key
+  accepted a synthetic request. ZDR was enabled in the Personal / Default
+  Project organization; the key's organization was not independently matched,
+  so confirm that association before making a compliance claim about the live
+  key.
+- A production synthetic chat returned `source: groq`. This confirms the tested
+  route used Groq, not a real Instagram customer flow.
+- Update Meta's provider disclosures to reflect the deployed path: Render,
+  Supabase and Groq process or store service data; Google/Gemini is no longer
+  called by the backend. Verify all processing and remote-access countries
+  before saving provider entries.
 - Reviewer workspace, recording, data-handling answers and review submission
   remain separate tasks. No review was submitted by this code change.
 

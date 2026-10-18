@@ -59,13 +59,13 @@ is not yet tested. No credentials are stored here.
 
 ## Data-handling facts and owner answers
 
-Local implementation update: see [Groq-only mode](GROQ_ONLY_MODE.md).
-The owner confirmed Gemini uses the free tier and declined new billing costs.
-Groq-only replies and offline lexical indexing/retrieval are implemented and
-tested locally, not deployed. Provider roles below describe the current live
-path until deployment is verified. Do not claim live Gemini processing has
-already stopped. The signed-in Groq console shows Free ($0), but inference ZDR
-is off and the deployed key's organization still needs matching.
+Implementation update: see [Groq-only mode](GROQ_ONLY_MODE.md). The owner
+confirmed Gemini uses the free tier and declined new billing costs. The Groq-only
+backend is deployed, and an isolated synthetic chat returned a Groq-sourced
+reply. Inference API Zero Data Retention is enabled in the signed-in Groq
+Personal / Default Project organization. Before making a compliance claim,
+confirm the deployed key belongs to that organization. Google/Gemini is no
+longer called by the current backend.
 
 The code confirms that third-party processors are used. The form must not say that no processors access Platform Data.
 
@@ -73,8 +73,7 @@ The code confirms that third-party processors are used. The form must not say th
 | --- | --- |
 | Render | Executes backend processing, including webhook payloads and server-side credentials. |
 | Supabase | Stores conversation history, connection metadata, and encrypted Instagram access tokens. |
-| Google / Gemini | Receives customer-support prompt content, including the message and relevant context, to generate replies. |
-| Groq | Receives prompt content when the configured fallback or objection-response paths use Groq. |
+| Groq | Receives customer-support prompts and recent conversation context to generate replies. |
 
 Verify the contracting legal entities, applicable service regions and live configuration before entering provider details. Clerk authenticates dashboard users and Vercel hosts the dashboard; check their actual Platform Data exposure instead of assuming that every infrastructure vendor receives Instagram message data.
 
@@ -113,15 +112,10 @@ The review has not been submitted.
   allows processing in the United States and other countries where Groq or its
   subprocessors operate. Check its current trust-center subprocessor disclosures
   before treating USA as exhaustive.
-- The implementation calls Google's global Gemini Developer API, not a
-  region-pinned Vertex AI endpoint. [Gemini API terms](https://ai.google.dev/gemini-api/terms)
-  distinguish billing-enabled projects from unpaid use. Unpaid use can involve
-  product improvement and human review, and the terms instruct users not to
-  submit personal, sensitive or confidential information to unpaid services.
-  Paid-service terms do not use prompts/responses for product improvement but
-  allow limited safety processing and transient storage across countries with
-  Google/agent facilities. The live API project's billing status is unverified;
-  ask the owner or inspect the applicable project's billing status read-only.
+- Gemini was removed from the backend customer-data processing path after
+  confirming the configured Google API was on the unpaid tier. Historical
+  Gemini terms research is retained in the Groq-only implementation notes; it
+  does not describe the current production path.
 - No provider entry has been saved with guessed countries; no billing,
   production credentials, service region or model routing has been changed.
 

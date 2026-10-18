@@ -40,7 +40,7 @@ npm start
 Purpose:
 
 - Production brand system of record.
-- Knowledge document metadata and pgvector retrieval.
+- Knowledge document metadata and local lexical retrieval over Supabase text.
 - Private original-document storage.
 - Shopify connections and support-safe cache.
 - Conversation workflow state and analytics.
@@ -82,10 +82,11 @@ Required website value:
 Important:
 Keep form validation and spam controls enabled, and verify the recipient inbox before launch.
 
-## Gemini
+## Gemini (disabled for customer-data processing)
 
 Purpose:
-Primary AI generation provider.
+Legacy provider configuration. Current backend does not send customer prompts,
+sales prompts, or retrieval queries to Gemini, even if an old key remains set.
 
 Used by:
 
@@ -102,15 +103,13 @@ GEMINI_MODEL=gemini-3.5-flash
 
 Behavior:
 
-- Called first.
-- Timeout: 15 seconds.
-- Temperature: 0.3.
-- Max output tokens: 350.
+- `callGemini` fails closed before making a network request.
+- Knowledge retrieval and indexing use local lexical processing.
 
 ## Groq
 
 Purpose:
-Fallback AI generation provider.
+Current AI generation provider for customer support and sales replies.
 
 Env:
 
@@ -121,10 +120,13 @@ GROQ_MODEL=openai/gpt-oss-20b
 
 Behavior:
 
-- Called if Gemini fails.
+- Called directly; no Gemini fallback.
 - Timeout: 15 seconds.
 - Temperature: 0.3.
-- Max tokens: 350.
+- Groq quota/provider failures use existing grounded local replies or escalation.
+- Inference API Zero Data Retention is enabled in the signed-in Groq console;
+  verify the deployed key belongs to that organization before making a scope
+  or compliance claim.
 
 ## Shopify
 
