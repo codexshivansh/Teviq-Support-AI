@@ -144,7 +144,7 @@ function getChunkSourceType(chunk) {
 }
 
 function toChunkRow(chunk) {
-  const metadata = chunk.metadata || {};
+  const metadata = { ...(chunk.metadata || {}), embedding_model: 'local-feature-hash-v1', retrieval_mode: 'lexical' };
   const embedding = formatVector(chunk.embedding);
 
   return {
@@ -155,9 +155,9 @@ function toChunkRow(chunk) {
     source_type: getChunkSourceType(chunk),
     text: chunk.text,
     metadata,
-    // Keep the legacy NOT NULL column populated during the zero-downtime
-    // migration. Retrieval reads embedding_v3 exclusively; embedding can be
-    // removed in a later cleanup migration after every backend is upgraded.
+    // Preserve both existing vector columns for schema compatibility only.
+    // New rows carry local feature hashes; live retrieval uses stored text.
+    // Do not use the legacy semantic RPC over this mixed-model corpus.
     embedding,
     embedding_v3: embedding
   };
@@ -332,17 +332,7 @@ async function deleteChunksBySource({ brandId, sourceId, sourceType }) {
 }
 
 async function search({ brandId, queryEmbedding, topK = 5, minScore = 0.12 }) {
-  const rows = await request("rpc/match_knowledge_chunks_v3", {
-    method: "POST",
-    body: JSON.stringify({
-      p_brand_id: brandId,
-      p_query_embedding: formatVector(queryEmbedding),
-      p_min_score: minScore,
-      p_match_count: topK
-    })
-  });
-
-  return (Array.isArray(rows) ? rows : []).map(fromChunkRow);
+  throw new Error('Legacy semantic vector search is disabled; use brand-scoped text search.');
 }
 
 async function getStats(brandId) {
@@ -364,6 +354,23 @@ async function getStats(brandId) {
   };
 }
 
+async function searchText({ brandId, query, topK = 5 }) {
+  if (!/^[a-z0-9-]+$/.test(String(brandId || ''))) throw new Error('A valid brandId is required for text search');
+  const { rankChunks } = require('./localTextSearch');
+  const chunks = [];
+  const pageSize = 500;
+  // Brand-scoped bounded pagination; fail rather than silently search only
+  // part of a large corpus. Embeddings and other brands are not requested.
+  for (let page = 0; page < 20; page += 1) {
+    const rows = await request(`knowledge_chunks?brand_id=eq.${encodeFilter(brandId)}&select=id,brand_id,document_id,text,metadata&order=id.asc&limit=${pageSize}&offset=${page * pageSize}`);
+    if (!Array.isArray(rows)) throw new Error('Invalid knowledge text-search response');
+    if (rows.some(row => row.brand_id !== brandId)) throw new Error('Knowledge search returned an unexpected brand');
+    chunks.push(...rows.map(fromChunkRow));
+    if (rows.length < pageSize) return rankChunks(chunks, query, Math.min(50, Math.max(1, Number(topK) || 5)));
+  }
+  throw new Error('Knowledge text-search corpus exceeds the safe scan limit');
+}
+
 module.exports = {
   vectorStorePath,
   upsertDocument,
@@ -373,5 +380,6 @@ module.exports = {
   deleteDocumentRecords,
   deleteChunksBySource,
   search,
+  searchText,
   getStats
 };

@@ -33,6 +33,8 @@ Route Instagram Direct Messages into the same brand-scoped Teviq Support Brain u
 
 ## Not implemented yet
 
+See [Instagram App Review preparation](INSTAGRAM_APP_REVIEW.md) for the recording run sheet, reviewer access prerequisites, observed processor roles, and the current submission checkpoint.
+
 - Meta App Review / Advanced Access and a production-account end-to-end test.
 - Production scheduling of the protected token-refresh endpoint.
 - Delivery/read status, media handling, and webhook retry recovery tooling.

@@ -8,7 +8,7 @@
  *
  * Resolves B2B pre-sale objections (from marketing agencies or businesses
  * evaluating Teviq itself, not a brand's D2C customers) using the same
- * Gemini-first/Groq-fallback AI call pattern as salesObjection.service.js,
+ * Groq-only AI call pattern as salesObjection.service.js,
  * with a dedicated qualify -> handle objection -> book demo system prompt.
  *
  * Called from toolRouter.js for the 6 B2B objection intents added in
@@ -20,7 +20,7 @@
  * handlers produce, so supportBrain.js needs no changes to consume it.
  */
 
-const { callGemini, callGroq } = require("./ai.service");
+const { callGroq } = require("./ai.service");
 
 // Verbatim system prompt supplied for this feature. Do not shorten, reword,
 // or summarise — {{placeholders}} are substituted with real brand values
@@ -158,17 +158,10 @@ async function resolveB2bObjection({ intent, message, brand, channel }) {
   const prompt = [systemPrompt, "", `Message: ${message}`, "", "Final answer:"].join("\n");
 
   try {
-    const reply = await callGemini(prompt);
-    return { reply, intent, source: "gemini" };
-  } catch (geminiError) {
-    console.warn(`[b2bObjection] Gemini failed for intent=${intent}, channel=${channel || "widget"}:`, geminiError.message);
-  }
-
-  try {
     const reply = await callGroq(prompt);
     return { reply, intent, source: "groq" };
   } catch (groqError) {
-    console.warn(`[b2bObjection] Groq failed for intent=${intent}, channel=${channel || "widget"}:`, groqError.message);
+    console.warn(`[b2bObjection] Groq unavailable for intent=${intent}; using local fallback.`);
   }
 
   return { reply: buildFallbackReply(brand), intent, source: "system" };

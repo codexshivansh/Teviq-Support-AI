@@ -1,6 +1,10 @@
 require("dotenv").config();
 const { embedBatchForStorage, MODEL } = require("../knowledge/embedding.service");
 
+if (MODEL !== 'gemini-embedding-2') {
+  throw new Error('Gemini backfill is disabled in local lexical mode. Existing vectors must not be overwritten.');
+}
+
 function getSupabaseConfig() {
   const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -1,4 +1,3 @@
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 const { getEscalationContact } = require("./escalation.service");
 
@@ -172,38 +171,11 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
 }
 
 async function callGemini(prompt) {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured");
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
-  const data = await postJson(
-    url,
-    {
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 800
-      }
-    },
-    { timeout: 15000 }
-  );
-
-  const candidate = data?.candidates?.[0];
-  const reply = candidate?.content?.parts
-    ?.map((part) => part?.text || "")
-    .join("")
-    .trim();
-  if (isIncompleteReply(reply, candidate?.finishReason)) {
-    throw new Error("Gemini returned an incomplete response");
-  }
-
-  return reply;
+  // Retained only to fail closed for stale callers. Having an old API key in
+  // the environment must never silently re-enable customer-data egress.
+  const error = new Error("Gemini customer-data processing is disabled.");
+  error.code = "gemini_disabled";
+  throw error;
 }
 
 async function callGroq(prompt) {
@@ -331,17 +303,6 @@ async function generateSupportReply(context) {
   const prompt = buildPrompt(context);
 
   try {
-    const reply = await callGemini(prompt);
-    return {
-      reply,
-      source: "gemini",
-      ...assessReplyConfidence(reply, context)
-    };
-  } catch (geminiError) {
-    console.warn("Gemini failed:", geminiError.message);
-  }
-
-  try {
     const reply = await callGroq(prompt);
     return {
       reply,
@@ -349,7 +310,7 @@ async function generateSupportReply(context) {
       ...assessReplyConfidence(reply, context)
     };
   } catch (groqError) {
-    console.warn("Groq failed:", groqError.message);
+    console.warn("Groq reply unavailable; using the safe local fallback.");
     const fallbackReply = buildExtractiveKnowledgeFallback(context);
     if (fallbackReply) {
       return {
@@ -375,9 +336,7 @@ module.exports = {
   assessReplyConfidence,
   buildExtractiveKnowledgeFallback,
   isIncompleteReply,
-  // Exported for salesObjection.service.js, which needs the same
-  // Gemini-first/Groq-fallback AI call pattern but with its own prompt
-  // (not the general support prompt built by buildPrompt/generateSupportReply).
+  // Sales handlers share callGroq; the deprecated Gemini entry fails closed.
   callGemini,
   callGroq
 };

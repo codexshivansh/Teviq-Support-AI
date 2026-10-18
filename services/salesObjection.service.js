@@ -2,7 +2,7 @@
  * salesObjection.service.js
  *
  * Resolves pre-purchase sales/objection queries (price, trust, delivery,
- * COD, size/fit) using the same Gemini-first/Groq-fallback AI call pattern
+ * COD, size/fit) using the same Groq-only AI call pattern
  * as ai.service.js, but with a dedicated sales-objection system prompt
  * instead of the general support prompt.
  *
@@ -14,7 +14,7 @@
  * handlers produce, so supportBrain.js needs no changes to consume it.
  */
 
-const { callGemini, callGroq } = require("./ai.service");
+const { callGroq } = require("./ai.service");
 
 // Verbatim system prompt supplied for this feature. Do not shorten, reword,
 // or summarise — {{placeholders}} are substituted with real brand values
@@ -134,17 +134,10 @@ async function resolveSalesObjection({ intent, message, brand, channel }) {
   const prompt = [systemPrompt, "", `Customer message: ${message}`, "", "Final answer:"].join("\n");
 
   try {
-    const reply = await callGemini(prompt);
-    return { reply, intent, source: "gemini" };
-  } catch (geminiError) {
-    console.warn(`[salesObjection] Gemini failed for intent=${intent}, channel=${channel || "widget"}:`, geminiError.message);
-  }
-
-  try {
     const reply = await callGroq(prompt);
     return { reply, intent, source: "groq" };
   } catch (groqError) {
-    console.warn(`[salesObjection] Groq failed for intent=${intent}, channel=${channel || "widget"}:`, groqError.message);
+    console.warn(`[salesObjection] Groq unavailable for intent=${intent}; using local fallback.`);
   }
 
   return { reply: buildFallbackReply(brand), intent, source: "system" };

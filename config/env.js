@@ -14,12 +14,8 @@ function getAllowedOrigins() {
 }
 
 function validateEnv() {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("[env] GEMINI_API_KEY is missing. Gemini calls will be skipped.");
-  }
-
   if (!process.env.GROQ_API_KEY) {
-    console.warn("[env] GROQ_API_KEY is missing. Groq fallback calls will be skipped.");
+    console.warn("[env] GROQ_API_KEY is missing. AI replies will use local safe fallbacks.");
   }
 
   if (isProduction() && getAllowedOrigins().length === 0) {
