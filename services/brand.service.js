@@ -1,3 +1,4 @@
+const { DEFAULT_APPEARANCE } = require("./widgetAppearance");
 const REQUIRED_FIELDS = [
   "id",
   "brand_name",
@@ -111,6 +112,7 @@ function normalizeBrand(row) {
     supportLanguage: row.support_language || "en",
     isActive: Boolean(row.is_active),
     widgetConfig: {
+      appearance: { ...DEFAULT_APPEARANCE, ...(row.widget_appearance || {}) },
       widgetTitle: row.welcome_title || "Support",
       welcomeTitle: row.welcome_title || "Welcome!",
       welcomeBody:
@@ -231,6 +233,7 @@ async function updateBrand(brandId, updates) {
     "contact_email",
     "business_hours",
     "theme_color",
+    "widget_appearance",
     "is_active"
   ];
   const payload = {};
@@ -276,6 +279,7 @@ async function getPublicBrandConfig(brandId) {
     welcomeBody: widgetConfig.welcomeBody,
     inputPlaceholder: widgetConfig.inputPlaceholder,
     themeColor: widgetConfig.themeColor,
+    appearance: widgetConfig.appearance,
     position: widgetConfig.position,
     quickReplies: widgetConfig.quickReplies || []
   };

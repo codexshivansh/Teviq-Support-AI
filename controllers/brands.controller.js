@@ -2,6 +2,7 @@ const { getBrandById, listBrands, updateBrand } = require("../services/brand.ser
 const { getMetadataBrandId, getUserPublicMetadata } = require("../services/clerkMetadata.service");
 
 const HEX_COLOR_PATTERN = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+const { validateAppearance } = require("../services/widgetAppearance");
 
 // Editable-settings projection — everything the Settings page needs to
 // display and save, minus Shopify secrets and internal ranking data.
@@ -11,6 +12,8 @@ function toEditableSettings(brand) {
     brandName: brand.brandName,
     industry: brand.brandCategory,
     themeColor: brand.widgetConfig?.themeColor || "#0f172a",
+    appearance: brand.widgetConfig?.appearance || {},
+    inputPlaceholder: brand.widgetConfig?.inputPlaceholder || "Type your question",
     welcomeTitle: brand.widgetConfig?.welcomeTitle || "Welcome!",
     welcomeMessage: brand.widgetConfig?.welcomeBody || "",
     quickActions: (brand.widgetConfig?.quickReplies || []).map((reply) => reply.label),
@@ -83,6 +86,15 @@ async function updateBrandSettings(req, res, next) {
 
     const body = req.body || {};
     const updates = {};
+    if (body.appearance !== undefined) {
+      updates.widget_appearance = { ...existing.widgetConfig.appearance, ...validateAppearance(body.appearance) };
+    }
+    if (body.inputPlaceholder !== undefined) {
+      if (typeof body.inputPlaceholder !== "string" || body.inputPlaceholder.length > 120) {
+        return res.status(400).json({ error: "invalid_placeholder", message: "Placeholder must be 120 characters or fewer." });
+      }
+      updates.input_placeholder = body.inputPlaceholder.trim() || null;
+    }
 
     if (body.welcomeTitle !== undefined) {
       updates.welcome_title = normalizeText(body.welcomeTitle) || null;
