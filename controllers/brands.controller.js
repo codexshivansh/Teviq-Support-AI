@@ -11,6 +11,7 @@ function toEditableSettings(brand) {
     brandName: brand.brandName,
     industry: brand.brandCategory,
     themeColor: brand.widgetConfig?.themeColor || "#0f172a",
+    welcomeTitle: brand.widgetConfig?.welcomeTitle || "Welcome!",
     welcomeMessage: brand.widgetConfig?.welcomeBody || "",
     quickActions: (brand.widgetConfig?.quickReplies || []).map((reply) => reply.label),
     supportPhone: brand.contact?.phone || "",
@@ -82,6 +83,10 @@ async function updateBrandSettings(req, res, next) {
 
     const body = req.body || {};
     const updates = {};
+
+    if (body.welcomeTitle !== undefined) {
+      updates.welcome_title = normalizeText(body.welcomeTitle) || null;
+    }
 
     if (body.welcomeMessage !== undefined) {
       updates.welcome_body = normalizeText(body.welcomeMessage) || null;

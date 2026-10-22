@@ -7,13 +7,12 @@ const REQUIRED_FIELDS = [
 ];
 
 // Fallback only — used when a brand has no quick_replies set (null or []).
-// Mirrors widget.js's own hardcoded getDefaultActions() so brands that
-// never configure this keep seeing exactly what they see today.
+// Keep unconfigured brands aligned with the dashboard and widget defaults.
 const DEFAULT_QUICK_REPLIES = [
-  { label: "📦 Track my order", message: "Track my order" },
-  { label: "↩ Return / Exchange", message: "Return / Exchange" },
-  { label: "🚚 Shipping & Delivery", message: "Shipping & Delivery" },
-  { label: "👤 Talk to Support", message: "Talk to human" }
+  { label: "Explore products or services", message: "Explore products or services" },
+  { label: "Pricing and plans", message: "Pricing and plans" },
+  { label: "Shipping and delivery", message: "Shipping and delivery" },
+  { label: "Talk to support", message: "Talk to human" }
 ];
 
 function isSafeBrandId(brandId) {
@@ -113,9 +112,9 @@ function normalizeBrand(row) {
     isActive: Boolean(row.is_active),
     widgetConfig: {
       widgetTitle: row.welcome_title || "Support",
-      welcomeTitle: row.welcome_title || "Welcome to Support",
+      welcomeTitle: row.welcome_title || "Welcome!",
       welcomeBody:
-        row.welcome_body || "Hi there! How can we help you today?",
+        row.welcome_body || "Ask me about our products, services, pricing, or anything else you’re curious about.",
       inputPlaceholder: row.input_placeholder || "Type your question here...",
       themeColor: row.theme_color || "#4F46E5",
       position: row.position || "bottom-right",
