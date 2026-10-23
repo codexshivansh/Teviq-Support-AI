@@ -112,7 +112,7 @@ function normalizeBrand(row) {
     supportLanguage: row.support_language || "en",
     isActive: Boolean(row.is_active),
     widgetConfig: {
-      appearance: { ...DEFAULT_APPEARANCE, ...(row.widget_appearance || {}) },
+      appearance: { ...DEFAULT_APPEARANCE, ...(row.widget_appearance || {}), showBranding: true },
       widgetTitle: row.welcome_title || "Support",
       welcomeTitle: row.welcome_title || "Welcome!",
       welcomeBody:
