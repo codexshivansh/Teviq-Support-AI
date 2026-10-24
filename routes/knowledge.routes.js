@@ -2,6 +2,8 @@ const express = require("express");
 const {
   uploadKnowledgeDocument,
   listKnowledgeDocuments,
+  getKnowledgeDocumentText,
+  saveTextDocument,
   deleteKnowledgeDocument,
   retrieveKnowledgeForDebug,
   listPolicies,
@@ -26,6 +28,9 @@ router.post(
   asyncHandler(uploadKnowledgeDocument)
 );
 router.get("/:brandId/documents", requireBrandAccess, asyncHandler(listKnowledgeDocuments));
+router.post("/:brandId/documents", requireBrandAccess, asyncHandler(saveTextDocument));
+router.get("/:brandId/documents/:documentId", requireBrandAccess, asyncHandler(getKnowledgeDocumentText));
+router.put("/:brandId/documents/:documentId", requireBrandAccess, asyncHandler(saveTextDocument));
 router.delete("/:brandId/documents/:documentId", requireBrandAccess, asyncHandler(deleteKnowledgeDocument));
 router.get("/:brandId/policies", requireBrandAccess, asyncHandler(listPolicies));
 router.post("/:brandId/policies", requireBrandAccess, asyncHandler(createPolicy));

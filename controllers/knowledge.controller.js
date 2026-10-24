@@ -63,6 +63,47 @@ async function listKnowledgeDocuments(req, res, next) {
   }
 }
 
+async function getKnowledgeDocumentText(req, res) {
+  const brand = await getBrandOrRespond(req, res);
+  if (!brand) return;
+  const documents = await vectorStore.listDocuments(brand.brandId);
+  const document = documents.find((item) => item.documentId === req.params.documentId);
+  if (!document) return res.status(404).json({ message: "Document not found." });
+  const content = document.extraction?.editableText;
+  if (typeof content === "string") return res.json({ document, content });
+  const chunks = await vectorStore.listDocumentChunks({ brandId: brand.brandId, documentId: document.documentId });
+  return res.json({ document, content: chunks.map((item) => item.text).join("\n\n") });
+}
+
+async function saveTextDocument(req, res) {
+  const brand = await getBrandOrRespond(req, res);
+  if (!brand) return;
+  const title = String(req.body?.title || "").trim();
+  const content = String(req.body?.content || "").trim();
+  if (!title || title.length > 160 || content.length < 20 || content.length > 100000) {
+    return res.status(400).json({ message: "Add a title and 20 to 100,000 characters of text." });
+  }
+  let previous = null;
+  if (req.params.documentId) {
+    const documents = await vectorStore.listDocuments(brand.brandId);
+    previous = documents.find((item) => item.documentId === req.params.documentId);
+    if (!previous) return res.status(404).json({ message: "Document not found." });
+  }
+  const buffer = Buffer.from(content, "utf8");
+  const metadata = buildUploadMetadata({
+    brandId: brand.brandId,
+    title,
+    file: { originalname: `${title.replace(/[^a-z0-9-]+/gi, "-").slice(0, 80) || "knowledge"}.txt`, buffer, size: buffer.length, mimetype: "text/plain" }
+  });
+  const result = await ingestKnowledgeDocument(metadata);
+  await vectorStore.setEditableText({ brandId: brand.brandId, documentId: result.document.documentId, content });
+  if (previous) {
+    await vectorStore.deleteDocument({ brandId: brand.brandId, documentId: previous.documentId });
+    if (previous.storedFileName) await knowledgeFileStorage.deleteDocument({ brandId: brand.brandId, storedFileName: previous.storedFileName });
+  }
+  return res.status(previous ? 200 : 201).json({ document: result.document, chunkCount: result.chunkCount });
+}
+
 async function deleteKnowledgeDocument(req, res, next) {
   try {
     const brand = await getBrandOrRespond(req, res);
@@ -332,6 +373,8 @@ async function deleteFaq(req, res) {
 module.exports = {
   uploadKnowledgeDocument,
   listKnowledgeDocuments,
+  getKnowledgeDocumentText,
+  saveTextDocument,
   deleteKnowledgeDocument,
   retrieveKnowledgeForDebug,
   listPolicies,

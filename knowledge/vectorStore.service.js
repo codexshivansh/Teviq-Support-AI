@@ -258,6 +258,20 @@ async function listDocuments(brandId) {
   return (Array.isArray(rows) ? rows : []).map(fromDocumentRow);
 }
 
+async function listDocumentChunks({ brandId, documentId }) {
+  const rows = await request(`knowledge_chunks?brand_id=eq.${encodeFilter(brandId)}&document_id=eq.${encodeFilter(documentId)}&select=text,metadata&limit=500`);
+  return (rows || []).sort((a, b) => Number(a.metadata?.chunkIndex || 0) - Number(b.metadata?.chunkIndex || 0));
+}
+
+async function setEditableText({ brandId, documentId, content }) {
+  const documents = await listDocuments(brandId);
+  const document = documents.find((item) => item.documentId === documentId);
+  if (!document) throw new Error("Document not found after indexing.");
+  await request(`knowledge_documents?brand_id=eq.${encodeFilter(brandId)}&document_id=eq.${encodeFilter(documentId)}`, {
+    method: "PATCH", body: JSON.stringify({ extraction: { ...document.extraction, editableText: content } })
+  });
+}
+
 async function deleteDocumentRecords({ brandId, documentId }) {
   const encodedBrandId = encodeFilter(brandId);
   const encodedDocumentId = encodeFilter(documentId);
@@ -376,6 +390,8 @@ module.exports = {
   upsertDocument,
   upsertSourceChunks,
   listDocuments,
+  listDocumentChunks,
+  setEditableText,
   deleteDocument,
   deleteDocumentRecords,
   deleteChunksBySource,
