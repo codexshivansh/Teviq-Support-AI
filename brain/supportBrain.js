@@ -909,6 +909,7 @@ async function processMessage({
   } else if (toolResult.allowAI) {
     const aiResponse = await generateSupportReply({
       brand,
+      channel,
       faqs: brand.faqs || [],
       message: storedMessage,
       customerId,
@@ -921,7 +922,10 @@ async function processMessage({
     reply = aiResponse.reply;
     source = aiResponse.source;
 
-    if (aiResponse.needsEscalation) {
+    if (aiResponse.limitReached) {
+      escalated = true;
+      isFallback = true;
+    } else if (aiResponse.needsEscalation) {
       reply = buildConfidenceEscalationReply(brand, analysis.language);
       source = "system";
       escalated = true;

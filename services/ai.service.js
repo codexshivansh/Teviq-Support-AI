@@ -1,5 +1,6 @@
 const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 const { getEscalationContact } = require("./escalation.service");
+const { reserveAiCall, finishAiCall } = require("./aiUsage.service");
 
 const STRONG_UNCERTAINTY_PATTERNS = [
   /\b(?:i|we) (?:do not|don't|cannot|can't) have (?:enough )?(?:confirmed|verified|specific) (?:information|details|data)\b/i,
@@ -178,7 +179,7 @@ async function callGemini(prompt) {
   throw error;
 }
 
-async function callGroq(prompt) {
+async function callGroq(prompt, { brandId, channel = "widget" } = {}) {
   if (!process.env.GROQ_API_KEY) {
     throw new Error("GROQ_API_KEY is not configured");
   }
@@ -186,7 +187,10 @@ async function callGroq(prompt) {
   const supportsReasoningControls = /^openai\/gpt-oss-(?:20b|120b)$/i.test(GROQ_MODEL);
 
   async function requestCompletion(maxCompletionTokens) {
-    const data = await postJson(
+    const reservation = await reserveAiCall({ brandId, channel, model: GROQ_MODEL, prompt, maxCompletionTokens });
+    let data;
+    try {
+      data = await postJson(
       "https://api.groq.com/openai/v1/chat/completions",
       {
         model: GROQ_MODEL,
@@ -215,7 +219,12 @@ async function callGroq(prompt) {
           Authorization: `Bearer ${process.env.GROQ_API_KEY}`
         }
       }
-    );
+      );
+    } finally {
+      // A failed/ambiguous provider request keeps its conservative reservation
+      // rather than undercounting tokens that may have been processed remotely.
+      await finishAiCall(reservation, data?.usage);
+    }
 
     return data?.choices?.[0] || null;
   }
@@ -303,13 +312,22 @@ async function generateSupportReply(context) {
   const prompt = buildPrompt(context);
 
   try {
-    const reply = await callGroq(prompt);
+    const reply = await callGroq(prompt, { brandId: context.brand?.brandId, channel: context.channel });
     return {
       reply,
       source: "groq",
       ...assessReplyConfidence(reply, context)
     };
   } catch (groqError) {
+    if (groqError.code === "ai_trial_limit") {
+      return {
+        reply: "The AI trial limit has been reached for now. Please contact the support team for help.",
+        source: "system",
+        confidence: "low",
+        needsEscalation: true,
+        limitReached: true
+      };
+    }
     console.warn("Groq reply unavailable; using the safe local fallback.");
     const fallbackReply = buildExtractiveKnowledgeFallback(context);
     if (fallbackReply) {

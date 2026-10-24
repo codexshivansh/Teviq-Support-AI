@@ -29,6 +29,7 @@
     "test:production-hardening": "node scripts/test-production-hardening.js",
     "test:response-integrity": "node scripts/test-response-integrity.js",
     "test:groq-only": "node scripts/test-groq-only.js",
+    "test:ai-trial": "node scripts/test-ai-trial-usage.js",
     "backfill:embedding-2": "node scripts/backfill-gemini-embedding-2.js"
   },
   "keywords": [

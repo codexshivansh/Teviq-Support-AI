@@ -158,9 +158,12 @@ async function resolveB2bObjection({ intent, message, brand, channel }) {
   const prompt = [systemPrompt, "", `Message: ${message}`, "", "Final answer:"].join("\n");
 
   try {
-    const reply = await callGroq(prompt);
+    const reply = await callGroq(prompt, { brandId: brand?.brandId, channel });
     return { reply, intent, source: "groq" };
   } catch (groqError) {
+    if (groqError.code === 'ai_trial_limit') {
+      return { reply: 'The AI trial limit has been reached for now. Please contact our team for help.', intent, source: 'system' };
+    }
     console.warn(`[b2bObjection] Groq unavailable for intent=${intent}; using local fallback.`);
   }
 

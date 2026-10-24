@@ -206,6 +206,7 @@ app.use("/api/integrations/shopify", shopifyPublicRoutes);
 app.use("/api/integrations/shopify", requireClerkAuth, shopifyRoutes);
 app.use("/api/onboarding", requireClerkAuth, onboardingRoutes);
 app.use("/api/analytics", requireClerkAuth, analyticsRoutes);
+app.use("/api/ai-trial", requireClerkAuth, require("./routes/aiTrial.routes"));
 app.use("/api/conversations", requireClerkAuth, conversationsRoutes);
 app.use("/api/chat", chatRateLimit, chatRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
