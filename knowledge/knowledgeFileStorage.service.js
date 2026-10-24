@@ -220,6 +220,13 @@ async function deleteDocument({ brandId, storedFileName }) {
   };
 }
 
+async function downloadDocument({ brandId, storedFileName }) {
+  await ensurePrivateBucket();
+  const { data, error } = await getStorageClient().storage.from(getBucketName()).download(buildObjectPath({ brandId, storedFileName }));
+  if (error) throw error;
+  return Buffer.from(await data.arrayBuffer());
+}
+
 function setStorageClientForTests(mockClient) {
   clientOverride = mockClient || null;
   bucketReadyPromise = null;
@@ -237,6 +244,7 @@ module.exports = {
   MAX_FILE_SIZE_BYTES,
   buildObjectPath,
   deleteDocument,
+  downloadDocument,
   ensurePrivateBucket,
   getBucketName,
   resetStorageClientForTests,

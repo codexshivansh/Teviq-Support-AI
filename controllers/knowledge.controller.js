@@ -1,6 +1,7 @@
 const fs = require("fs");
 const { buildUploadMetadata, uploadRoot } = require("../knowledge/upload.service");
 const { ingestKnowledgeDocument } = require("../knowledge/knowledge.service");
+const { extractText } = require("../knowledge/extraction.service");
 const { retrieveKnowledge } = require("../knowledge/retrieval.service");
 const vectorStore = require("../knowledge/vectorStore.service");
 const knowledgeFileStorage = require("../knowledge/knowledgeFileStorage.service");
@@ -71,8 +72,27 @@ async function getKnowledgeDocumentText(req, res) {
   if (!document) return res.status(404).json({ message: "Document not found." });
   const content = document.extraction?.editableText;
   if (typeof content === "string") return res.json({ document, content });
+  if (document.storedFileName) {
+    try {
+      const fileBuffer = await knowledgeFileStorage.downloadDocument({ brandId: brand.brandId, storedFileName: document.storedFileName });
+      const extracted = await extractText({ extension: document.extension, fileBuffer });
+      if (extracted.text?.trim()) return res.json({ document, content: extracted.text });
+    } catch (error) {
+      console.warn("[knowledge] Original document unavailable; opening indexed text instead:", error.message);
+    }
+  }
   const chunks = await vectorStore.listDocumentChunks({ brandId: brand.brandId, documentId: document.documentId });
-  return res.json({ document, content: chunks.map((item) => item.text).join("\n\n") });
+  let reconstructed = "";
+  for (const chunk of chunks) {
+    const value = chunk.text;
+    const maxOverlap = Math.min(reconstructed.length, value.length, 2000);
+    let overlap = 0;
+    for (let size = maxOverlap; size > 20; size -= 1) {
+      if (reconstructed.endsWith(value.slice(0, size))) { overlap = size; break; }
+    }
+    reconstructed += `${reconstructed && !overlap ? "\n\n" : ""}${value.slice(overlap)}`;
+  }
+  return res.json({ document, content: reconstructed });
 }
 
 async function saveTextDocument(req, res) {
@@ -96,10 +116,21 @@ async function saveTextDocument(req, res) {
     file: { originalname: `${title.replace(/[^a-z0-9-]+/gi, "-").slice(0, 80) || "knowledge"}.txt`, buffer, size: buffer.length, mimetype: "text/plain" }
   });
   const result = await ingestKnowledgeDocument(metadata);
-  await vectorStore.setEditableText({ brandId: brand.brandId, documentId: result.document.documentId, content });
   if (previous) {
-    await vectorStore.deleteDocument({ brandId: brand.brandId, documentId: previous.documentId });
-    if (previous.storedFileName) await knowledgeFileStorage.deleteDocument({ brandId: brand.brandId, storedFileName: previous.storedFileName });
+    try {
+      await vectorStore.deleteDocument({ brandId: brand.brandId, documentId: previous.documentId });
+    } catch (error) {
+      await Promise.allSettled([
+        vectorStore.deleteDocument({ brandId: brand.brandId, documentId: result.document.documentId }),
+        knowledgeFileStorage.deleteDocument({ brandId: brand.brandId, storedFileName: result.document.storedFileName })
+      ]);
+      throw error;
+    }
+    if (previous.storedFileName) {
+      await knowledgeFileStorage.deleteDocument({ brandId: brand.brandId, storedFileName: previous.storedFileName }).catch((error) => {
+        console.warn("[knowledge] Old file cleanup deferred:", error.message);
+      });
+    }
   }
   return res.status(previous ? 200 : 201).json({ document: result.document, chunkCount: result.chunkCount });
 }

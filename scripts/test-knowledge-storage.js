@@ -2,6 +2,7 @@ const assert = require("assert");
 const {
   buildObjectPath,
   deleteDocument,
+  downloadDocument,
   resetStorageClientForTests,
   setStorageClientForTests,
   uploadDocument
@@ -44,6 +45,10 @@ function createStorageMock({ existingBucket = null } = {}) {
         },
         from(bucket) {
           return {
+            async download(objectPath) {
+              calls.push({ action: "download", bucket, objectPath });
+              return { data: new Blob(["Returns are accepted after delivery."]), error: null };
+            },
             async upload(objectPath, buffer, options) {
               calls.push({
                 action: "upload",
@@ -246,6 +251,10 @@ async function run() {
     assert.strictEqual(uploadCall.buffer.toString("utf8"), file.buffer.toString("utf8"));
     assert.strictEqual(uploadCall.options.contentType, "text/plain");
     assert.strictEqual(uploadCall.options.upsert, false);
+
+    const downloaded = await downloadDocument({ brandId: "urban-demo", storedFileName: metadata.storedFileName });
+    assert.strictEqual(downloaded.toString("utf8"), "Returns are accepted after delivery.");
+    assert.strictEqual(storageMock.calls.find((call) => call.action === "download").objectPath, `urban-demo/${metadata.storedFileName}`);
 
     const deleted = await deleteDocument({
       brandId: "urban-demo",
