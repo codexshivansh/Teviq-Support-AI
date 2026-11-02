@@ -63,6 +63,64 @@ function tokenNeedsRefresh(connection) {
   return new Date(connection.access_token_expires_at).getTime() <= Date.now() + REFRESH_BUFFER_MS;
 }
 
+function tokenMode(connection) {
+  if (!connection?.access_token_expires_at) return "legacy_non_expiring";
+  return connection.refresh_token_encrypted
+    ? "expiring_offline"
+    : "expiring_without_refresh";
+}
+
+function buildTokenUpdates(tokenData, connection) {
+  return {
+    access_token_encrypted: JSON.stringify(encryptValue(tokenData.access_token)),
+    refresh_token_encrypted: tokenData.refresh_token
+      ? JSON.stringify(encryptValue(tokenData.refresh_token))
+      : connection.refresh_token_encrypted,
+    access_token_expires_at: addSeconds(tokenData.expires_in),
+    refresh_token_expires_at: addSeconds(tokenData.refresh_token_expires_in),
+    scopes: String(tokenData.scope || "")
+      .split(",")
+      .map((scope) => scope.trim())
+      .filter(Boolean),
+    status: "active"
+  };
+}
+
+async function persistTokenPair(connection, tokenData) {
+  if (!tokenData?.access_token || !tokenData?.refresh_token || !tokenData?.expires_in) {
+    const error = new Error("Shopify did not return a complete expiring offline token pair.");
+    error.statusCode = 502;
+    error.code = "shopify_incomplete_token_pair";
+    throw error;
+  }
+
+  const updated = await connectionStore.updateConnectionIfTokenVersionMatches(
+    connection.brand_id,
+    {
+      accessTokenEncrypted: connection.access_token_encrypted,
+      refreshTokenEncrypted: connection.refresh_token_encrypted
+    },
+    buildTokenUpdates(tokenData, connection)
+  );
+  if (updated) return updated;
+
+  // Another backend instance rotated the token pair first. Never overwrite its
+  // newer pair with a stale response; converge on the current database row.
+  const current = await connectionStore.getConnectionByBrandId(connection.brand_id);
+  if (
+    current?.status === "active" &&
+    tokenMode(current) === "expiring_offline" &&
+    current.access_token_encrypted !== connection.access_token_encrypted
+  ) {
+    return current;
+  }
+
+  const error = new Error("Shopify token state changed during rotation. Reconnect the store.");
+  error.statusCode = 409;
+  error.code = "shopify_token_rotation_conflict";
+  throw error;
+}
+
 async function refreshAccessToken(connection) {
   if (!connection.refresh_token_encrypted) {
     const error = new Error("Reconnect Shopify to continue syncing store data.");
@@ -80,19 +138,7 @@ async function refreshAccessToken(connection) {
     refresh_token: refreshToken
   });
 
-  return connectionStore.updateConnection(connection.brand_id, {
-    access_token_encrypted: JSON.stringify(encryptValue(tokenData.access_token)),
-    refresh_token_encrypted: tokenData.refresh_token
-      ? JSON.stringify(encryptValue(tokenData.refresh_token))
-      : connection.refresh_token_encrypted,
-    access_token_expires_at: addSeconds(tokenData.expires_in),
-    refresh_token_expires_at: addSeconds(tokenData.refresh_token_expires_in),
-    scopes: String(tokenData.scope || "")
-      .split(",")
-      .map((scope) => scope.trim())
-      .filter(Boolean),
-    status: "active"
-  });
+  return persistTokenPair(connection, tokenData);
 }
 
 async function refreshOnce(connection) {
@@ -102,6 +148,40 @@ async function refreshOnce(connection) {
   const promise = refreshAccessToken(connection).finally(() => refreshLocks.delete(brandId));
   refreshLocks.set(brandId, promise);
   return promise;
+}
+
+async function migrateLegacyOfflineToken(connection) {
+  if (!connection || connection.status !== "active") {
+    const error = new Error("Shopify is not connected for this brand.");
+    error.statusCode = 409;
+    error.code = "shopify_not_connected";
+    throw error;
+  }
+  if (tokenMode(connection) === "expiring_offline") return connection;
+  if (connection.refresh_token_encrypted || connection.access_token_expires_at) {
+    const error = new Error("Reconnect Shopify to obtain a complete expiring offline token pair.");
+    error.statusCode = 409;
+    error.code = "shopify_reauthorization_required";
+    throw error;
+  }
+
+  const config = getShopifyConfig({ required: true });
+  const legacyAccessToken = decryptValue(connection.access_token_encrypted);
+  const tokenData = await requestToken(connection.shop_domain, {
+    grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    subject_token: legacyAccessToken,
+    subject_token_type: "urn:shopify:params:oauth:token-type:offline-access-token",
+    requested_token_type: "urn:shopify:params:oauth:token-type:offline-access-token",
+    expiring: "1"
+  });
+  return persistTokenPair(connection, tokenData);
+}
+
+async function migrateBrandToExpiringOfflineToken(brandId) {
+  const connection = await connectionStore.getConnectionByBrandId(brandId);
+  return migrateLegacyOfflineToken(connection);
 }
 
 async function getAccessContext(brandId) {
@@ -415,6 +495,7 @@ async function syncBrand(brandId) {
 
 module.exports = {
   addSeconds,
+  buildTokenUpdates,
   executeGraphql,
   getAccessContext,
   getAllOrdersWithToken,
@@ -426,7 +507,11 @@ module.exports = {
   getSummaryWithToken,
   mapOrder,
   mapProduct,
+  migrateBrandToExpiringOfflineToken,
+  migrateLegacyOfflineToken,
+  persistTokenPair,
   requestToken,
   syncBrand,
+  tokenMode,
   tokenNeedsRefresh
 };

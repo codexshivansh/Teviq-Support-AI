@@ -138,7 +138,7 @@ async function resolveSalesObjection({ intent, message, brand, channel }) {
     return { reply, intent, source: "groq" };
   } catch (groqError) {
     if (groqError.code === 'ai_trial_limit') {
-      return { reply: 'The AI trial limit has been reached for now. Please contact our team for help.', intent, source: 'system' };
+      return { reply: 'AI replies are temporarily unavailable for this workspace. Please contact our team for help.', intent, source: 'system', needsEscalation: true };
     }
     console.warn(`[salesObjection] Groq unavailable for intent=${intent}; using local fallback.`);
   }

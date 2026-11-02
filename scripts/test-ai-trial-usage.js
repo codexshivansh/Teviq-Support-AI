@@ -6,11 +6,14 @@ process.env.GROQ_API_KEY = 'test-key';
 process.env.AI_TRIAL_METERING_ENABLED = 'true';
 
 const { callGroq } = require('../services/ai.service');
-const { getAiUsageSummary } = require('../services/aiUsage.service');
+const { getAiUsageSummary, finishAiCall } = require('../services/aiUsage.service');
 const originalFetch = global.fetch;
 const calls = [];
 let allowed = true;
 let incompleteOnce = false;
+let summaryRows = null;
+let expectedTotal = 230;
+let finishFails = false;
 
 global.fetch = async (raw, options = {}) => {
   const url = new URL(raw);
@@ -22,7 +25,8 @@ global.fetch = async (raw, options = {}) => {
     return { ok: true, async text() { return JSON.stringify(allowed ? 'allowed' : 'brand_limit'); } };
   }
   if (url.pathname.endsWith('/rpc/finish_ai_usage')) {
-    assert.equal(body.p_total_tokens, 230);
+    assert.equal(body.p_total_tokens, expectedTotal);
+    if (finishFails) throw new Error('Simulated accounting outage');
     return { ok: true, async text() { return ''; } };
   }
   if (url.hostname === 'api.groq.com') {
@@ -37,6 +41,11 @@ global.fetch = async (raw, options = {}) => {
     return { ok: true, async text() { return JSON.stringify([{ enabled: true, max_calls_per_day: 10, max_tokens_per_day: 30000 }]); } };
   }
   if (url.pathname.endsWith('/ai_usage_events')) {
+    if (summaryRows) {
+      const offset = Number(url.searchParams.get('offset'));
+      assert.equal(url.searchParams.get('limit'), '500');
+      return { ok: true, async text() { return JSON.stringify(summaryRows.slice(offset, offset + 500)); } };
+    }
     return { ok: true, async text() { return JSON.stringify([{ status: 'completed', prompt_tokens: 200, completion_tokens: 30, total_tokens: 230, reserved_tokens: 500, model: 'openai/gpt-oss-20b', channel: 'whatsapp' }]); } };
   }
   throw new Error(`Unexpected URL ${url}`);
@@ -57,5 +66,19 @@ global.fetch = async (raw, options = {}) => {
   allowed = false;
   await assert.rejects(callGroq('Question', { brandId: 'trial-brand', channel: 'whatsapp' }), { code: 'ai_trial_limit' });
   assert.equal(calls.filter(call => call.url.hostname === 'api.groq.com').length, 3, 'limit must stop calls before Groq');
+  expectedTotal = null;
+  await finishAiCall({id:'unknown'}, {total_tokens:null});
+  await finishAiCall({id:'invalid'}, {total_tokens:10,prompt_tokens:8,completion_tokens:8});
+  expectedTotal = 230;
+  allowed = true; finishFails = true;
+  assert.equal(await callGroq('Accounting outage', {brandId:'trial-brand',channel:'whatsapp'}), 'A complete answer.', 'valid provider answer survives accounting outage; reservation remains');
+  finishFails = false;
+  summaryRows = Array.from({length:1001},(_,id)=>({id,status:'completed',prompt_tokens:200,completion_tokens:30,total_tokens:230,reserved_tokens:500,model:'openai/gpt-oss-20b'}));
+  const paginated = await getAiUsageSummary('trial-brand');
+  assert.equal(paginated.calls,1001); assert.equal(paginated.tokens,230230);
+  summaryRows.push({status:'unknown',total_tokens:null,reserved_tokens:900,model:'unpriced-model'});
+  const uncertain = await getAiUsageSummary('trial-brand');
+  assert.equal(uncertain.estimatedUsd,null); assert.equal(uncertain.tokens,231130);
+  assert.equal(uncertain.hasUnknownUsage,true); assert.equal(uncertain.hasUnknownPricing,true);
   console.log('PASS AI usage reservation, accounting, dashboard summary and pre-call limit');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { global.fetch = originalFetch; });

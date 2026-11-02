@@ -65,12 +65,12 @@ async function run() {
   const context = { brand, faqs: [], message: 'delivery time', customerId: 'test-customer', intent: 'general_faq', language: 'english', memory: [], knowledge: { lowConfidence: false, matches: [], citations: [], contextText: '' } };
   assert.equal((await ai.generateSupportReply(context)).source, 'groq');
   assert.equal((await resolveSalesObjection({ brand, intent: 'delivery_objection', message: 'delivery time' })).source, 'groq');
-  assert.equal((await resolveB2bObjection({ brand, intent: 'b2b_trial_objection', message: 'test trial' })).source, 'groq');
+  assert.equal((await resolveB2bObjection({ brand: { ...brand, brandId: 'teviq' }, intent: 'b2b_trial_objection', message: 'test trial' })).source, 'groq');
   groqStatus = 429;
   const safe = await ai.generateSupportReply({ ...context, knowledge: null });
   assert.equal(safe.source, 'system'); assert.equal(safe.needsEscalation, true);
   assert.equal((await resolveSalesObjection({ brand, intent: 'delivery_objection', message: 'delivery time' })).source, 'system');
-  assert.equal((await resolveB2bObjection({ brand, intent: 'b2b_trial_objection', message: 'test trial' })).source, 'system');
+  assert.equal((await resolveB2bObjection({ brand: { ...brand, brandId: 'teviq' }, intent: 'b2b_trial_objection', message: 'test trial' })).source, 'system');
   assert.equal(calls.filter(call => call.url.hostname === 'api.groq.com').length, 6);
 
   const exact = await retrieveKnowledge({ brandId: 'review-brand', query: 'How long does delivery take?' });

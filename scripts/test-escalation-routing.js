@@ -543,7 +543,8 @@ const cases = [
       assert.equal(supportBrainHarness.getAiCalls(), callsBefore + 1);
       assert.equal(result.source, "system");
       assert.equal(result.escalated, true);
-      assert.match(result.reply, /escalat/i);
+      assert.match(result.reply, /contact the support team/i);
+      assert.doesNotMatch(result.reply, /connecting|notified|escalating/i);
     }
   }
 ];

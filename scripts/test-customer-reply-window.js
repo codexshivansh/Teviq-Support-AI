@@ -15,6 +15,7 @@ global.fetch = async (input) => {
   assert.equal(query.get("brand_id"), "eq.test-brand");
   assert.equal(query.get("customer_id"), "eq.test-customer");
   assert(["eq.whatsapp", "eq.instagram"].includes(query.get("channel")));
+  if (String(input).includes('channel_message_inbox')) return new Response('[]', { status: 200 });
   assert.equal(query.get("message"), "neq.");
   const filtered = query.get("message") === "neq." ? rows.filter((row) => row.message !== "") : rows;
   return new Response(JSON.stringify(filtered.slice(0, Number(query.get("limit")))), { status: 200 });
@@ -32,6 +33,11 @@ async function run() {
   assert.equal(isReplyWindowOpen(NaN, now), false);
   assert.equal(isReplyWindowOpen(null, now), false);
   assert.equal(isReplyWindowOpen(now + 1, now), false);
+  global.fetch = async (input) => {
+    assert.match(String(input), /channel_message_inbox/);
+    return new Response(JSON.stringify([{ event_at: new Date(inboundAt).toISOString() }]), { status: 200 });
+  };
+  assert.equal(await getLastInboundMessageTimestamp({ brandId: 'test-brand', customerId: 'test-customer', channel: 'whatsapp' }), inboundAt, 'queued inbound message opens manual reply window without AI processing');
   global.fetch = async () => new Response("[]", { status: 200 });
   assert.equal(await getLastInboundMessageTimestamp({ brandId: "test-brand", customerId: "test-customer", channel: "instagram" }), null);
   global.fetch = async () => new Response("{}", { status: 503 });

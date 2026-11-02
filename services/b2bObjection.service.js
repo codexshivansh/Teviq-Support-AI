@@ -21,10 +21,9 @@
  */
 
 const { callGroq } = require("./ai.service");
+const { isTeviqSalesBrand } = require('./teviqSalesScope.service');
 
-// Verbatim system prompt supplied for this feature. Do not shorten, reword,
-// or summarise — {{placeholders}} are substituted with real brand values
-// (or "not configured") by fillTemplate() below.
+// Approved Teviq sales guidance. Dynamic contact details come from settings.
 const SYSTEM_PROMPT_TEMPLATE = `You are a confident, consultative sales assistant representing Teviq AI
 — an AI-powered customer support and sales platform for Indian D2C and
 e-commerce businesses.
@@ -59,22 +58,22 @@ demo to walk you through a live example?"
 
 [BUILD VS BUY / "WE CAN BUILD THIS IN-HOUSE"]
 Acknowledge it's possible. Then reframe on speed and maintenance: a
-custom build takes months, needs ongoing AI/prompt engineering, and
-breaks with every Shopify API update. Teviq is live in 24 hours, and
-all maintenance is on us. Forward step: "What's your current timeline
+custom build needs development and ongoing maintenance. Do not invent
+competitor timelines or guarantee a launch date. Forward step: "What's your current timeline
 to have this live?"
 
 [INTEGRATION EFFORT / "HOW COMPLICATED IS THE SETUP?"]
-Be direct: for Shopify brands, setup is a single script tag — 10 minutes.
-For WhatsApp, it's a WABA connection with a guided flow. No dev work
-required from the client's team. Forward step: "Would a quick setup demo
+Explain estimated setup with required access ready: website widget 15–20
+minutes, Instagram 15–30 minutes, WhatsApp 30–60 minutes. Account eligibility,
+permissions and provider approvals can add time; these are not guarantees.
+Shopify data connection is a separate step. Forward step: "Would a quick setup demo
 help clarify?"
 
 [TRIAL / "WE WANT TO TEST FIRST"]
-This is a buying signal, not a blocker. Teviq offers a 7-day trial —
-say so directly, and move to logistics. Forward step: "I can set up a
-trial for one of your brands/clients right now — which one would you
-want to start with?"
+An offered trial lasts 3 days from workspace activation and has configured
+reply/AI usage limits. Do not promise unlimited/full access or claim you
+activated a trial. Forward step: "Which workspace would you like our team
+to consider for a trial?"
 
 [BUDGET / "NOT IN BUDGET RIGHT NOW"]
 Don't discount immediately. First qualify: is this a timing issue or a
@@ -153,6 +152,9 @@ function buildFallbackReply(brand) {
 }
 
 async function resolveB2bObjection({ intent, message, brand, channel }) {
+  if (!isTeviqSalesBrand(brand?.brandId)) {
+    return { reply: 'Please contact this business’s team for its available services and terms.', intent, source: 'system', needsEscalation: true };
+  }
   const brandContext = buildBrandContext(brand);
   const systemPrompt = fillTemplate(SYSTEM_PROMPT_TEMPLATE, brandContext);
   const prompt = [systemPrompt, "", `Message: ${message}`, "", "Final answer:"].join("\n");
@@ -162,7 +164,7 @@ async function resolveB2bObjection({ intent, message, brand, channel }) {
     return { reply, intent, source: "groq" };
   } catch (groqError) {
     if (groqError.code === 'ai_trial_limit') {
-      return { reply: 'The AI trial limit has been reached for now. Please contact our team for help.', intent, source: 'system' };
+      return { reply: 'AI replies are temporarily unavailable for this workspace. Please contact our team for help.', intent, source: 'system', needsEscalation: true };
     }
     console.warn(`[b2bObjection] Groq unavailable for intent=${intent}; using local fallback.`);
   }

@@ -84,12 +84,19 @@ async function sendManualReply(req, res) {
   }
 
   const accessToken = decryptValue(connection.access_token_encrypted);
+  await require('../services/conversationHandoff.service').setConversationHandoff({
+    brandId: brand.brandId, channel: 'instagram', customerId, actorId: req.auth.userId, paused: true
+  });
   const result = await sendInstagramMessage({
     instagramAccountId: connection.instagram_user_id,
     to: customerId,
     text,
     accessToken
   });
+  const providerMessageId = result?.message_id || result?.message?.mid || null;
+  if (providerMessageId) await require('../services/channelMessageInbox.service').recordProviderMessageAccepted({
+    channel: 'instagram', accountId: connection.instagram_user_id, messageId: providerMessageId, brandId: brand.brandId, customerId
+  }).catch(() => {});
 
   try {
     await appendChatLog({
@@ -104,7 +111,8 @@ async function sendManualReply(req, res) {
       knowledgeCitations: [],
       knowledgeConfidence: 0,
       isFallback: false,
-      responseTimeMs: null
+      responseTimeMs: null,
+      providerMessageId
     });
   } catch (logError) {
     console.error("[instagram] Manual reply sent but transcript logging failed.", {

@@ -3,8 +3,14 @@ const MAX_PERSISTED_TURNS = Math.ceil(MAX_MESSAGES_PER_CUSTOMER / 2);
 const MEMORY_FETCH_TIMEOUT_MS = 3000;
 const sessions = new Map();
 
-function getSessionKey(brandId, customerId) {
-  return `${brandId}:${customerId || "guest"}`;
+function getSessionKey(brandId, customerId, channel) {
+  return JSON.stringify([brandId, channel, customerId]);
+}
+
+function hasIdentity(brandId, customerId, channel) {
+  return typeof brandId === 'string' && brandId.length > 0 &&
+    typeof customerId === 'string' && customerId.trim().length > 0 && customerId !== 'guest' &&
+    ['widget', 'whatsapp', 'instagram'].includes(channel);
 }
 
 function getSupabaseConfig() {
@@ -17,7 +23,8 @@ function encodeFilter(value) {
   return encodeURIComponent(String(value || ""));
 }
 
-async function loadPersistedMemory(brandId, customerId) {
+async function loadPersistedMemory(brandId, customerId, channel = 'widget') {
+  if (!hasIdentity(brandId, customerId, channel)) return [];
   const config = getSupabaseConfig();
   if (!config) return [];
 
@@ -25,6 +32,7 @@ async function loadPersistedMemory(brandId, customerId) {
   const timeoutId = setTimeout(() => controller.abort(), MEMORY_FETCH_TIMEOUT_MS);
   const query = [
     `brand_id=eq.${encodeFilter(brandId)}`,
+    `channel=eq.${encodeFilter(channel)}`,
     `customer_id=eq.${encodeFilter(customerId || "guest")}`,
     "select=message,reply,created_at",
     "order=created_at.desc",
@@ -66,8 +74,9 @@ async function loadPersistedMemory(brandId, customerId) {
   }
 }
 
-async function getConversationMemory(brandId, customerId) {
-  const key = getSessionKey(brandId, customerId);
+async function getConversationMemory(brandId, customerId, channel = 'widget') {
+  if (!hasIdentity(brandId, customerId, channel)) return [];
+  const key = getSessionKey(brandId, customerId, channel);
   const localMessages = sessions.get(key) || [];
 
   // A single local message is the current customer turn added immediately
@@ -78,7 +87,7 @@ async function getConversationMemory(brandId, customerId) {
   }
 
   try {
-    const persistedMessages = await loadPersistedMemory(brandId, customerId);
+    const persistedMessages = await loadPersistedMemory(brandId, customerId, channel);
     const hydrated = [...persistedMessages, ...localMessages].slice(-MAX_MESSAGES_PER_CUSTOMER);
     sessions.set(key, hydrated);
     return hydrated;
@@ -90,8 +99,9 @@ async function getConversationMemory(brandId, customerId) {
   }
 }
 
-function addConversationMessage(brandId, customerId, role, content) {
-  const key = getSessionKey(brandId, customerId);
+function addConversationMessage(brandId, customerId, role, content, channel = 'widget') {
+  if (!hasIdentity(brandId, customerId, channel)) return [];
+  const key = getSessionKey(brandId, customerId, channel);
   const existingMessages = sessions.get(key) || [];
 
   existingMessages.push({

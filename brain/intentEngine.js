@@ -1,3 +1,4 @@
+const { isTeviqSalesBrand } = require('../services/teviqSalesScope.service');
 const { parseBudget, hasProductKeywordMatch } = require("../services/product.service");
 const { extractOrderId } = require("./entityExtractor");
 
@@ -197,6 +198,7 @@ function detectIntent(message, brandId) {
   }
 
   const matchedRule = INTENT_RULES.find((rule) =>
+    (!rule.intent.startsWith('b2b_') || isTeviqSalesBrand(brandId)) &&
     rule.patterns.some((pattern) => pattern.test(message))
   );
 

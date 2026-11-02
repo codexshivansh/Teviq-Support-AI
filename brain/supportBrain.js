@@ -90,8 +90,8 @@ async function reverifyExpiredOrderAction({
   });
 
   const storedMessage = redactContactInfo(message);
-  addConversationMessage(brandId, customerId, "user", storedMessage);
-  addConversationMessage(brandId, customerId, "assistant", ORDER_VERIFICATION_REQUIRED_REPLY);
+  addConversationMessage(brandId, customerId, "user", storedMessage, channel);
+  addConversationMessage(brandId, customerId, "assistant", ORDER_VERIFICATION_REQUIRED_REPLY, channel);
 
   try {
     await appendChatLog({
@@ -135,8 +135,8 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
       console.error(`[BRAIN] Failed to reset conversation state after escalation for ${brandId}:${customerId}: ${error.message}`);
     }
     const escalationReply = buildEscalationReply(brand);
-    addConversationMessage(brandId, customerId, "user", storedMessage);
-    addConversationMessage(brandId, customerId, "assistant", escalationReply);
+    addConversationMessage(brandId, customerId, "user", storedMessage, channel);
+    addConversationMessage(brandId, customerId, "assistant", escalationReply, channel);
     try {
       await appendChatLog({
         brandId,
@@ -253,8 +253,8 @@ async function handleCheckingReturnState({ brand, brandId, customerId, channel, 
         : "Aapka return note kar liya gaya hai, hamari team jald aapse contact karegi.";
   }
 
-  addConversationMessage(brandId, customerId, "user", storedMessage);
-  addConversationMessage(brandId, customerId, "assistant", finalReply);
+  addConversationMessage(brandId, customerId, "user", storedMessage, channel);
+  addConversationMessage(brandId, customerId, "assistant", finalReply, channel);
   try {
     await appendChatLog({
       brandId,
@@ -295,8 +295,8 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
       console.error(`[BRAIN] Failed to reset conversation state after escalation for ${brandId}:${customerId}: ${error.message}`);
     }
     const escalationReply = buildEscalationReply(brand);
-    addConversationMessage(brandId, customerId, "user", storedMessage);
-    addConversationMessage(brandId, customerId, "assistant", escalationReply);
+    addConversationMessage(brandId, customerId, "user", storedMessage, channel);
+    addConversationMessage(brandId, customerId, "assistant", escalationReply, channel);
     try {
       await appendChatLog({
         brandId,
@@ -424,8 +424,8 @@ async function handleCheckingCancellationState({ brand, brandId, customerId, cha
     }
   }
 
-  addConversationMessage(brandId, customerId, "user", storedMessage);
-  addConversationMessage(brandId, customerId, "assistant", finalReply);
+  addConversationMessage(brandId, customerId, "user", storedMessage, channel);
+  addConversationMessage(brandId, customerId, "assistant", finalReply, channel);
   try {
     await appendChatLog({
       brandId,
@@ -466,8 +466,8 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
       console.error(`[BRAIN] Failed to reset conversation state after escalation for ${brandId}:${customerId}: ${error.message}`);
     }
     const escalationReply = buildEscalationReply(brand);
-    addConversationMessage(brandId, customerId, "user", storedMessage);
-    addConversationMessage(brandId, customerId, "assistant", escalationReply);
+    addConversationMessage(brandId, customerId, "user", storedMessage, channel);
+    addConversationMessage(brandId, customerId, "assistant", escalationReply, channel);
     try {
       await appendChatLog({
         brandId,
@@ -517,8 +517,8 @@ async function handleNarrowingProductsState({ brand, brandId, customerId, channe
     finalReply = "Maaf kijiye, samajh nahi aaya. Kripya category (jaise kurta, dress) ya budget bataiye taaki main sahi products suggest kar sakoon.";
   }
 
-  addConversationMessage(brandId, customerId, "user", storedMessage);
-  addConversationMessage(brandId, customerId, "assistant", finalReply);
+  addConversationMessage(brandId, customerId, "user", storedMessage, channel);
+  addConversationMessage(brandId, customerId, "assistant", finalReply, channel);
   try {
     await appendChatLog({
       brandId,
@@ -734,8 +734,8 @@ async function processMessage({
     intent = conversationState.context.pendingIntent;
   }
 
-  addConversationMessage(brandId, customerId, "user", storedMessage);
-  const memory = await getConversationMemory(brandId, customerId);
+  addConversationMessage(brandId, customerId, "user", storedMessage, channel);
+  const memory = await getConversationMemory(brandId, customerId, channel);
 
   const toolResult = await routeTools({ brand, intent, entities, message });
 
@@ -946,7 +946,7 @@ async function processMessage({
     isFallback = true;
   }
 
-  addConversationMessage(brandId, customerId, "assistant", validation.finalReply);
+  addConversationMessage(brandId, customerId, "assistant", validation.finalReply, channel);
 
   try {
     await appendChatLog({

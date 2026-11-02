@@ -281,7 +281,13 @@ async function getPublicBrandConfig(brandId) {
     themeColor: widgetConfig.themeColor,
     appearance: widgetConfig.appearance,
     position: widgetConfig.position,
-    quickReplies: widgetConfig.quickReplies || []
+    quickReplies: widgetConfig.quickReplies || [],
+    // Public support details only; never expose internal escalation contacts.
+    supportContact: {
+      phone: brand.contact?.phone || null,
+      email: brand.contact?.email || null,
+      hours: brand.businessHours || null
+    }
   };
 }
 

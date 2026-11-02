@@ -9,6 +9,14 @@
     "smoke:test": "node scripts/smoke-test.js",
     "validate:brands": "node scripts/validate-brands.js",
     "test:brain": "node scripts/test-brain.js",
+    "test:whatsapp-webhook-security": "node scripts/test-whatsapp-webhook-security.js",
+    "test:channel-inbox": "node scripts/test-channel-message-inbox.js",
+    "test:provider-delivery-status": "node scripts/test-provider-delivery-status.js",
+    "test:conversation-delivery-status": "node scripts/test-conversation-delivery-status.js",
+    "test:channel-review-access": "node scripts/test-channel-review-access.js",
+    "test:retrieval-regression": "node scripts/evaluate-retrieval.js",
+    "test:widget-session-security": "node scripts/test-widget-session-security.js",
+    "test:brand-sales-scope": "node scripts/test-brand-sales-scope.js",
     "test:analytics": "node scripts/test-analytics-escalation.js",
     "test:escalation": "node scripts/test-escalation-routing.js",
     "test:knowledge": "node scripts/test-knowledge.js",
@@ -19,7 +27,9 @@
     "test:shopify-orders": "node scripts/test-shopify-order-tracking.js",
     "test:order-security": "node scripts/test-order-verification-security.js",
     "test:shopify-oauth": "node scripts/test-shopify-oauth.js",
+    "test:shopify-token-migration": "node scripts/test-shopify-token-migration.js",
     "test:shopify-webhooks": "node scripts/test-shopify-webhooks.js",
+    "shopify:migrate-offline-token": "node scripts/migrate-shopify-offline-token.js",
     "test:instagram-service": "node scripts/test-instagram-service.js",
     "test:instagram-customer-profiles": "node scripts/test-instagram-customer-profiles.js",
     "test:instagram-oauth": "node scripts/test-instagram-oauth.js",
@@ -30,7 +40,10 @@
     "test:response-integrity": "node scripts/test-response-integrity.js",
     "test:groq-only": "node scripts/test-groq-only.js",
     "test:ai-trial": "node scripts/test-ai-trial-usage.js",
-    "backfill:embedding-2": "node scripts/backfill-gemini-embedding-2.js"
+    "backfill:embedding-2": "node scripts/backfill-gemini-embedding-2.js",
+    "test:ai-access-sql": "node scripts/test-ai-access-sql.js",
+    "test:channel-send-window": "node scripts/test-channel-send-window.js",
+    "test:support-data-erasure": "node scripts/test-support-data-erasure.js"
   },
   "keywords": [
     "support",
@@ -55,6 +68,13 @@
     "twilio": "^6.0.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.14",
     "nodemon": "^3.1.14"
+  },
+  "overrides": {
+    "qs": "6.17.1",
+    "nodemon": {
+      "minimatch": "11.0.1"
+    }
   }
 }

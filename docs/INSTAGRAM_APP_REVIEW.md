@@ -7,7 +7,7 @@ Updated: 18 October 2026. App publication is complete; Advanced Access review is
 - Real Instagram incoming messages, shared Brain replies, received replies, sender usernames, and the dashboard transcript have been verified.
 - The reply-window lookup and inbox refresh fixes are deployed. The inbox refreshes every 15 seconds while visible and when focus/visibility returns.
 - The Meta reviewer-instructions draft now describes dashboard access, Instagram Login, connected-account identification, real DM testing, AI replies, and manual replies. Facebook Login is marked No because this integration uses Instagram Login; Teviq dashboard authentication uses Clerk.
-- Reviewer credentials, screencasts, data-handling answers, and owner usage confirmations are outstanding. Do not submit until the dedicated reviewer account described in the instructions actually exists and can access its review workspace.
+- The dedicated reviewer login and clean workspace have been created and tested, and the test credentials were entered directly in Meta. Screencasts, complete data-handling answers, and owner confirmations for allowed usage remain outstanding. Do not submit until those items are complete.
 
 ## Recording run sheet
 
@@ -63,9 +63,12 @@ Implementation update: see [Groq-only mode](GROQ_ONLY_MODE.md). The owner
 confirmed Gemini uses the free tier and declined new billing costs. The Groq-only
 backend is deployed, and an isolated synthetic chat returned a Groq-sourced
 reply. Inference API Zero Data Retention is enabled in the signed-in Groq
-Personal / Default Project organization. Before making a compliance claim,
-confirm the deployed key belongs to that organization. Google/Gemini is no
-longer called by the current backend.
+Personal / Default Project organization. The owner identified this as the
+production API-key project, and the project showed Teviq API keys; no key value
+was revealed. Global ZDR remains disabled. Treat the setting as project-level,
+not a guarantee that all metadata is unretained, and note that account-specific
+coverage and exact staff/subprocessor country access have not been confirmed by
+Groq support. Google/Gemini is no longer called by the current backend.
 
 The code confirms that third-party processors are used. The form must not say that no processors access Platform Data.
 
@@ -112,6 +115,36 @@ The review has not been submitted.
   allows processing in the United States and other countries where Groq or its
   subprocessors operate. Check its current trust-center subprocessor disclosures
   before treating USA as exhaustive.
+- Current official disclosure detail: [Render's security page](https://render.com/security)
+  says its platform is hosted and operated in the United States and lists AWS,
+  GCP, Cloudflare and ClickHouse as US subprocessors. This supports declaring
+  USA for the Render-hosted backend and listed subprocessors, but it does not
+  enumerate every possible staff-access country. Render's [DPA](https://render.com/dpa)
+  points to a changeable authorized-subprocessor list.
+- Supabase's [Data Residency and Transfers FAQ](https://supabase.com/legal/privacy-resources/data-residency-and-transfers-faq)
+  (version dated 6 October 2026) confirms the selected database region for core
+  database and backups, while also describing globally distributed support,
+  account/operations processing outside the region, and EU-based operational
+  logs. It names Singapore and the US entities for ordinary processing/support
+  arrangements, with a marketplace exception. The FAQ does not provide a finite
+  country list for globally distributed support staff.
+- Groq's [data-processing addendum](https://console.groq.com/docs/legal/customer-data-processing-addendum)
+  permits processing in the US and other countries where Groq or its
+  subprocessors operate. The [Trust Center](https://trust.groq.com/) lists some
+  subprocessor entity locations, but not a complete country-level staff-access
+  list. Groq's [data-handling documentation](https://console.groq.com/docs/your-data)
+  says ZDR opts out of retention for reliability/abuse monitoring; usage metadata
+  remains collected, and this control does not establish that processing or
+  support access is confined to one country. The owner identified the logged-in
+  Personal / Default Project as the production API-key project; Teviq-labeled
+  keys were visible there, and Inference API ZDR is enabled. Groq support did
+  not provide an account-specific coverage confirmation.
+- Therefore, the available public disclosures are enough to document known
+  hosting and named processing locations, but not Meta's requested exhaustive
+  processing/access-country list. Do not submit an exhaustive country answer
+  based only on these sources; obtain provider confirmation/current account
+  documentation or ask Meta how to report global support access. No provider
+  entry has been saved with guessed countries.
 - Gemini was removed from the backend customer-data processing path after
   confirming the configured Google API was on the unpaid tier. Historical
   Gemini terms research is retained in the Groq-only implementation notes; it
@@ -124,3 +157,28 @@ Retain chat history according to the published request-based deletion process. F
 ## Final submission checkpoint
 
 Check that the two permission descriptions, working screencasts, tested reviewer access, truthful data-handling responses and owner confirmations are complete. Submit only the requested profile/messaging review; do not add unrelated comments, publishing, insights or Human Agent access to complete the form.
+
+### Public-authority request process update (25 October 2026)
+
+At the owner's direction, Teviq adopted the short written process in
+[`META_PUBLIC_AUTHORITY_REQUEST_SOP.md`](META_PUBLIC_AUTHORITY_REQUEST_SOP.md).
+The process requires an Admin to verify a request and review its legality,
+limit any disclosure to the data required by a valid request, and keep a
+restricted record of the request, reasoning, actors and response. The process
+does not include a formal challenge mechanism for unlawful requests.
+
+The Meta Data handling draft now has these Request 4 answers selected:
+
+- Required review of request legality.
+- Data minimization.
+- Documentation of requests and responses.
+
+The challenge checkbox remains unchecked, and “None of the above” is
+unchecked. This is an unsent draft; the App Review has not been submitted.
+
+At the same time, the processor editor showed an already-saved Supabase entry
+categorized as IT/cloud storage and processing, with Singapore selected. That
+selection is visible in the draft, but the available evidence does not establish
+that it is the complete list of processing and remote-access countries. It was
+not changed or re-saved during this update. Resolve and verify the full provider
+list before submission; do not treat this single country as exhaustive.

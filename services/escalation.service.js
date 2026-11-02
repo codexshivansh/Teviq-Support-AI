@@ -94,15 +94,15 @@ function appendEscalationContact(baseReply, brand) {
 function buildEscalationReply(brand) {
   const baseReply =
     brand?.escalationRules?.response ||
-    "I understand this is sensitive. I am connecting this to a senior support manager for priority help.";
+    "I understand this needs human attention. Please contact the support team using the details below.";
   return appendEscalationContact(baseReply, brand);
 }
 
 function buildConfidenceEscalationReply(brand, language = "english") {
   const baseReply =
     language === "english"
-      ? "I could not confirm this accurately, so I am escalating it to the support team rather than guessing."
-      : "Mujhe iska confirmed answer nahi mila, isliye guess karne ke bajaye main ise support team ko escalate kar raha hoon.";
+      ? "I could not confirm this accurately. Please contact the support team using the details below."
+      : "Mujhe iska confirmed answer nahi mila. Neeche di gayi details par support team se contact karein.";
 
   return appendEscalationContact(baseReply, brand);
 }

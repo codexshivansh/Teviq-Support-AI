@@ -62,7 +62,8 @@ async function appendChatLog(entry) {
       response_time_ms: entry.responseTimeMs ?? null,
       // Defaults to 'widget' so existing call sites that don't pass channel
       // (or haven't been updated yet) keep writing what they always wrote.
-      channel: entry.channel || "widget"
+      channel: entry.channel || "widget",
+      provider_message_id: entry.providerMessageId || null
     })
   });
 }

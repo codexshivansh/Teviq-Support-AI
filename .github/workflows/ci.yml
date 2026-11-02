@@ -18,6 +18,22 @@ jobs:
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run test:response-integrity
+      - run: npm run test:whatsapp-webhook-security
+      - run: npm run test:channel-inbox
+      - run: npm run test:provider-delivery-status
+      - run: npm run test:conversation-delivery-status
+      - run: npm run test:reply-window
+      - run: npm run test:channel-send-window
+      - run: npm run test:support-data-erasure
+      - run: npm run test:escalation
+      - run: npm run test:channel-review-access
+      - run: npm run test:retrieval-regression
+      - run: npm run test:widget-session-security
+      - run: npm run test:brand-sales-scope
+      - run: npm run test:groq-only
+      - run: npm run test:ai-trial
+      - run: npm run test:ai-access-sql
+      - run: npm run test:analytics
       - run: npm run test:knowledge-storage
       - run: npm run test:memory
       - run: npm run test:brain

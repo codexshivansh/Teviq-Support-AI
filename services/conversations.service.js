@@ -11,6 +11,7 @@
 
 const SESSION_GAP_MS = 30 * 60 * 1000;
 const { enrichInstagramConversations } = require("./instagramCustomerProfiles.service");
+const { listProviderMessageStatuses } = require('./channelMessageInbox.service');
 
 function getSupabaseConfig() {
   const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
@@ -41,7 +42,7 @@ function cutoffIso(days) {
 
 async function fetchRows({ brandId, days, rowLimit, channel }) {
   const { url } = getSupabaseConfig();
-  const select = "customer_id,message,reply,detected_intent,escalated,created_at,is_fallback,channel,source";
+  const select = "customer_id,message,reply,detected_intent,escalated,created_at,is_fallback,channel,source,provider_message_id";
   let filter = `brand_id=eq.${encodeURIComponent(brandId)}`;
   if (Number.isFinite(days) && days > 0) {
     filter += `&created_at=gte.${encodeURIComponent(cutoffIso(days))}`;
@@ -129,7 +130,8 @@ function groupIntoConversations(rows, brandId) {
         role: "assistant",
         text: row.reply,
         timestamp: row.created_at,
-        source: row.source || (row.detected_intent === "human_reply" ? "human_agent" : null)
+        source: row.source || (row.detected_intent === "human_reply" ? "human_agent" : null),
+        providerMessageId: row.provider_message_id || null
       });
     }
   }
@@ -147,10 +149,34 @@ function groupIntoConversations(rows, brandId) {
 
 // channel is optional — omit it (or pass a falsy value) to get every
 // channel back, matching existing behaviour before this filter existed.
+async function enrichDeliveryStatuses({ brandId, conversations, loadStatuses = listProviderMessageStatuses }) {
+  const idsByChannel = new Map([['whatsapp', new Set()], ['instagram', new Set()]]);
+  for (const conversation of conversations) {
+    const ids = idsByChannel.get(conversation.channel);
+    if (!ids) continue;
+    for (const message of conversation.messages) {
+      if (message.role !== 'customer' && message.providerMessageId) ids.add(message.providerMessageId);
+    }
+  }
+  const statusMaps = new Map();
+  await Promise.all([...idsByChannel].map(async ([channel, ids]) => {
+    if (!ids.size) return;
+    const statuses = await loadStatuses(brandId, channel, [...ids]);
+    statusMaps.set(channel, new Map((statuses || []).map(item => [item.provider_message_id, item])));
+  }));
+  return conversations.map(conversation => ({ ...conversation, messages: conversation.messages.map(message => {
+    if (message.role === 'customer' || !message.providerMessageId) return message;
+    const receipt = statusMaps.get(conversation.channel)?.get(message.providerMessageId);
+    return { ...message, deliveryStatus: receipt?.provider_status || 'uncertain', deliveredAt: receipt?.delivered_at,
+      readAt: receipt?.read_at, deliveryFailureCategory: receipt?.provider_failure_category };
+  }) }));
+}
+
 async function listConversations({ brandId, days = null, rowLimit = 1000, conversationLimit = 200, channel = null }) {
   const rows = await fetchRows({ brandId, days, rowLimit, channel });
   const conversations = groupIntoConversations(rows, brandId).slice(0, conversationLimit);
-  return enrichInstagramConversations({ brandId, conversations });
+  const result = await enrichDeliveryStatuses({ brandId, conversations });
+  return enrichInstagramConversations({ brandId, conversations: result });
 }
 
-module.exports = { listConversations };
+module.exports = { enrichDeliveryStatuses, listConversations };

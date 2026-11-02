@@ -1,5 +1,9 @@
 const { processMessage } = require("../brain/supportBrain");
 const { getBrandById } = require("../services/brand.service");
+const { resolveWidgetSession } = require("../services/widgetSession.service");
+const { getConversationHandoff } = require('../services/conversationHandoff.service');
+const { appendChatLog } = require('../services/analytics.service');
+const { redactContactInfo } = require('../services/privacy.service');
 
 function normalizeMessage(message) {
   return typeof message === "string" ? message.trim() : "";
@@ -11,7 +15,7 @@ function normalizeBrandId(value) {
 
 async function handleChat(req, res, next) {
   try {
-    const { customerId = "guest", message, context } = req.body || {};
+    const { sessionToken, message, context } = req.body || {};
     const brandId = normalizeBrandId(req.body?.brand_id || req.body?.brandId);
     const cleanMessage = normalizeMessage(message);
 
@@ -52,15 +56,27 @@ async function handleChat(req, res, next) {
       });
     }
 
+    // Public callers cannot select another customer's stored conversation ID.
+    const session = resolveWidgetSession(brandId, sessionToken);
+    const handoff = await getConversationHandoff({ brandId, channel: 'widget', customerId: session.customerId });
+    if (handoff.paused) {
+      const reply = 'AI replies are paused while the team handles this conversation. Please use the business’s support contact for a human response.';
+      await appendChatLog({ brandId, customerId: session.customerId, channel: 'widget',
+        message: redactContactInfo(cleanMessage), reply, detectedIntent: 'human_support', escalated: true,
+        source: 'system', knowledgeCitations: [], knowledgeConfidence: 0, isFallback: true, responseTimeMs: null });
+      return res.json({ sessionToken: session.token, reply, source: 'system', escalated: true, intent: 'human_support', warnings: [] });
+    }
     const result = await processMessage({
       brandId,
       message: cleanMessage,
-      customerId,
+      customerId: session.customerId,
+      channel: 'widget',
       context,
       requestIp: req.ip
     });
 
     return res.status(result.statusCode || 200).json({
+      sessionToken: session.token,
       reply: result.reply,
       source: result.source,
       escalated: result.escalated,

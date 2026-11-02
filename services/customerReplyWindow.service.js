@@ -13,6 +13,21 @@ async function getLastInboundMessageTimestamp({ brandId, customerId, channel }) 
     error.statusCode = 503;
     throw error;
   }
+  const inboxQuery = new URLSearchParams({ brand_id: `eq.${brandId}`, customer_id: `eq.${customerId}`,
+    channel: `eq.${channel}`, select: 'event_at', order: 'event_at.desc', limit: '1' });
+  const inboxResponse = await fetch(`${base}/rest/v1/channel_message_inbox?${inboxQuery}`, {
+    signal: AbortSignal.timeout(8000), headers: { apikey: key, Authorization: `Bearer ${key}` }
+  });
+  if (!inboxResponse.ok) {
+    const error = new Error('Could not verify the customer reply window.');
+    error.statusCode = 503; error.code = 'reply_window_check_failed'; throw error;
+  }
+  const inboxRows = await inboxResponse.json();
+  if (inboxRows?.[0]?.event_at) {
+    const timestamp = Date.parse(inboxRows[0].event_at);
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+  // Legacy conversations before the durable inbox was introduced.
   const query = new URLSearchParams({
     brand_id: `eq.${brandId}`,
     customer_id: `eq.${customerId}`,
@@ -25,6 +40,7 @@ async function getLastInboundMessageTimestamp({ brandId, customerId, channel }) 
     limit: "1"
   });
   const response = await fetch(`${base}/rest/v1/chat_logs?${query}`, {
+    signal: AbortSignal.timeout(8000),
     headers: { apikey: key, Authorization: `Bearer ${key}` }
   });
   if (!response.ok) {

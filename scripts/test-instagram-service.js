@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
-const { parseInboundWebhook, verifyWebhookSignature } = require("../services/instagram.service");
+const { parseInboundWebhook, parseInstagramSeenWebhook, verifyWebhookSignature } = require("../services/instagram.service");
 
 const events = parseInboundWebhook({
   object: "instagram",
@@ -35,6 +35,13 @@ assert.deepEqual(events, [{
   timestamp: new Date(1792160000000).toISOString()
 }]);
 assert.deepEqual(parseInboundWebhook({ object: "page", entry: [] }), []);
+const seenFixture = { object: 'instagram', entry: [{ id: 'ig-business', messaging: [
+  { sender: { id: 'ig-business' }, recipient: { id: 'customer' }, timestamp: 1792160000000, read: { mid: 'outbound' } },
+  { sender: { id: 'customer' }, recipient: { id: 'ig-business' }, timestamp: 1792160000000, read: { mid: 'inbound' } }
+]}] };
+assert.deepEqual(parseInstagramSeenWebhook(seenFixture), [], 'seen parsing stays disabled before the callback format is verified');
+assert.deepEqual(parseInstagramSeenWebhook(seenFixture, { format: 'read_mid_v1' }).map(event => event.messageId), ['outbound']);
+assert.deepEqual(parseInstagramSeenWebhook({ object: 'page', entry: [] }), []);
 
 const rawBody = Buffer.from(JSON.stringify({ object: "instagram" }));
 const appSecret = "test-app-secret";

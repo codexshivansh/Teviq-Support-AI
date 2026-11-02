@@ -10,16 +10,19 @@
  *
  * IMPORTANT — Meta requires a 200 response within a few seconds or it will
  * retry (and eventually mark the endpoint unhealthy). This handler
- * acknowledges immediately and processes messages after responding, so a
- * slow brain call never causes Meta to see a timeout.
+ * acknowledges only after durable storage; a separate worker generates and
+ * sends replies. Storage failures return 503 so Meta can retry.
  */
 
 const express = require('express');
 const router = express.Router();
+const { enqueueChannelMessages, applyProviderMessageStatus, recordProviderMessageAccepted } = require('../services/channelMessageInbox.service');
+const { verifyWhatsAppWebhookSignature } = require('../services/whatsappWebhookSecurity.service');
 
 const {
   resolveBrandFromPhoneNumberId,
   parseInboundWebhook,
+  parseWhatsAppStatusWebhook,
   sendWhatsAppMessage
 } = require('../services/whatsapp.service');
 const { appendChatLog } = require('../services/analytics.service');
@@ -27,50 +30,8 @@ const { requireClerkAuth } = require('../middleware/clerkAuth.middleware');
 const { requireBrandAccess } = require('../middleware/brandAccess.middleware');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { getLastInboundMessageTimestamp, isReplyWindowOpen } = require('../services/customerReplyWindow.service');
-
-// Wired to the existing brain: backend/brain/supportBrain.js
-// CONFIRMED exported function signature (as of this integration):
-//   async function processMessage({ brandId, message, customerId = "guest",
-//     channel = "widget", context: requestContext, requestIp = "unknown" })
-// This is an object-style call — matches the shape used below exactly.
-const { processMessage } = require('../brain/supportBrain');
-
-/**
- * Bridge to the existing chat brain (supportBrain.js), reused as-is for
- * the WhatsApp channel — no changes to the brain itself.
- *
- * IMPORTANT: supportBrain's detectIntent() already takes a brandId (per
- * existing F4 wiring: `detectIntent(message, brand.brandId)`), and state
- * continuity (conversation_states table) is keyed by (brandId, customerId,
- * channel) per the F1 return-flow design — so passing `channel: 'whatsapp'`
- * here keeps WhatsApp conversation state separate from the website widget's
- * state for the same customer, rather than the two channels clobbering
- * each other's progress through a multi-turn flow (e.g. return initiation).
- *
- * @param {object} params
- * @param {string} params.brandId
- * @param {string} params.message
- * @param {string} params.customerId - using the customer's WhatsApp number as the identifier
- * @param {string} params.businessMode - 'd2c' or 'b2b', from whatsapp_connections
- * @returns {Promise<{reply: string, intent: string, escalated: boolean}>}
- */
-async function callBrain({ brandId, message, customerId, businessMode }) {
-  // processMessage's confirmed params: brandId, message, customerId,
-  // channel, context, requestIp. It does NOT currently accept businessMode
-  // — that's fine, we're just not using it yet. When the D2C-vs-B2B
-  // prompt/tool switch gets built inside supportBrain.js, businessMode
-  // will need to be threaded through here as a new param (or folded into
-  // `context`) at that point. For now it's silently unused, which is safe.
-  const brainResult = await processMessage({
-    brandId,
-    message,
-    customerId,          // WhatsApp number doubles as the customer identifier for this channel
-    channel: 'whatsapp',  // keeps conversation_states separate from the website widget's ("widget") state
-    requestIp: 'whatsapp-cloud-api' // no real client IP available on this channel; label it clearly instead of leaving the "unknown" default, which could be confused with a genuine lookup failure elsewhere in the codebase
-  });
-
-  return brainResult;
-}
+const whatsappConnectionStore = require('../integrations/whatsapp/whatsappConnection.store');
+const whatsappEmbeddedSignup = require('../integrations/whatsapp/whatsappEmbeddedSignup.service');
 
 /**
  * GET /webhook — one-time verification handshake.
@@ -88,7 +49,8 @@ router.get('/webhook', (req, res) => {
   // Store it in an env var, never hardcode it.
   const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
 
-  if (mode === 'subscribe' && token === expectedToken) {
+  if (!expectedToken) return res.sendStatus(503);
+  if (mode === 'subscribe' && token === expectedToken && challenge) {
     console.log('[whatsapp.routes] Webhook verified successfully.');
     return res.status(200).send(challenge);
   }
@@ -101,27 +63,26 @@ router.get('/webhook', (req, res) => {
  * POST /webhook — receives inbound messages and delivery/status events.
  */
 router.post('/webhook', async (req, res) => {
-  // Acknowledge immediately. Meta does not need to wait for our brain
-  // to finish thinking — it just needs confirmation the payload arrived.
-  res.sendStatus(200);
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  if (!appSecret || !appSecret.trim()) return res.sendStatus(503);
+  if (!verifyWhatsAppWebhookSignature(req.rawBody, req.get('x-hub-signature-256'), appSecret)) {
+    return res.sendStatus(401);
+  }
 
-  let inboundMessages;
   try {
-    inboundMessages = parseInboundWebhook(req.body);
-  } catch (parseErr) {
-    // A malformed payload should never crash the process — log and stop.
-    console.error('[whatsapp.routes] Failed to parse webhook payload:', parseErr);
-    return;
-  }
-
-  if (inboundMessages.length === 0) {
-    // Likely a status callback (delivered/read) or an unsupported message
-    // type — nothing further to do.
-    return;
-  }
-
-  for (const inbound of inboundMessages) {
-    await handleSingleMessage(inbound);
+    const messages = parseInboundWebhook(req.body);
+    const statuses = parseWhatsAppStatusWebhook(req.body);
+    await enqueueChannelMessages('whatsapp', messages, resolveBrandFromPhoneNumberId);
+    for (const status of statuses) {
+      const connection = await resolveBrandFromPhoneNumberId(status.accountId);
+      if (!connection?.brandId) continue;
+      await applyProviderMessageStatus({ channel: 'whatsapp', ...status });
+    }
+    return res.sendStatus(200);
+  } catch (_) {
+    // No acknowledgement until the batch is durably stored. Meta can retry.
+    console.error('[whatsapp] Inbound batch was not persisted; retry required.');
+    return res.sendStatus(503);
   }
 });
 
@@ -134,39 +95,6 @@ router.post('/webhook', async (req, res) => {
  */
 // --- Manual send (dashboard -> customer), separate from the webhook flow ---
 //
-// NOTE on Supabase access: whatsapp.service.js is intentionally left
-// untouched by this change, and it has no exported "look up a brand's
-// WhatsApp connection by brandId" function (only the reverse lookup, by
-// phone_number_id, for inbound webhook routing) — so the brandId -> connection
-// lookup below is implemented locally, following the exact same raw-fetch
-// REST convention every other service file in this repo uses (getSupabaseConfig
-// / getHeaders against SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), rather than
-// introducing a different way of talking to Supabase.
-
-function getSupabaseConfig() {
-  const url = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-  if (!url || !serviceRoleKey) {
-    const error = new Error('Supabase is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing).');
-    error.statusCode = 503;
-    error.code = 'supabase_not_configured';
-    throw error;
-  }
-
-  return { url, serviceRoleKey };
-}
-
-function getHeaders(extra = {}) {
-  const { serviceRoleKey } = getSupabaseConfig();
-  return {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    'Content-Type': 'application/json',
-    ...extra
-  };
-}
-
 /**
  * Looks up the active WhatsApp connection for a brand (the phone_number_id
  * to send FROM and the access token to send WITH). Mirrors
@@ -174,20 +102,7 @@ function getHeaders(extra = {}) {
  * other direction (brandId -> connection, not phoneNumberId -> brand).
  */
 async function lookupWhatsappConnectionForBrand(brandId) {
-  const { url } = getSupabaseConfig();
-  const path = `?brand_id=eq.${encodeURIComponent(brandId)}&is_active=eq.true&select=phone_number_id,access_token&limit=2`;
-
-  const response = await fetch(`${url}/rest/v1/whatsapp_connections${path}`, { headers: getHeaders() });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-
-  if (!response.ok) {
-    const error = new Error(data?.message || `Supabase whatsapp_connections lookup failed with ${response.status}`);
-    error.statusCode = response.status;
-    throw error;
-  }
-
-  const rows = Array.isArray(data) ? data : [];
+  const rows = await whatsappConnectionStore.listConnectionsByBrand(brandId, { activeOnly: true });
   if (rows.length === 0) return null;
   if (rows.length > 1) {
     const error = new Error(`Multiple active WhatsApp connections found for brand "${brandId}". Specify a sending number before replying.`);
@@ -195,8 +110,53 @@ async function lookupWhatsappConnectionForBrand(brandId) {
     throw error;
   }
 
-  return { phoneNumberId: rows[0].phone_number_id, accessToken: rows[0].access_token };
+  return {
+    phoneNumberId: rows[0].phone_number_id,
+    accessToken: whatsappConnectionStore.getAccessToken(rows[0])
+  };
 }
+
+function requireInteractiveClerkSession(req, res) {
+  if (req.auth?.sessionType !== 'clerk') {
+    res.status(401).json({
+      error: 'real_session_required',
+      message: 'Sign in with your Teviq account before connecting WhatsApp.'
+    });
+    return false;
+  }
+  return true;
+}
+
+router.get('/:brandId/status', requireClerkAuth, requireBrandAccess, asyncHandler(async (req, res) => {
+  const connections = await whatsappConnectionStore.listConnectionsByBrand(req.params.brandId, { activeOnly: true });
+  return res.json({
+    provider: 'whatsapp',
+    brandId: req.params.brandId,
+    connected: connections.length > 0,
+    signupConfigured: whatsappEmbeddedSignup.isConfigured(),
+    signup: whatsappEmbeddedSignup.publicConfig(),
+    connection: whatsappConnectionStore.toPublicConnection(connections[0] || null)
+  });
+}));
+
+router.post('/:brandId/complete', requireClerkAuth, requireBrandAccess, asyncHandler(async (req, res) => {
+  if (!requireInteractiveClerkSession(req, res)) return;
+  const { code, wabaId, phoneNumberId } = req.body || {};
+  const connection = await whatsappEmbeddedSignup.finishSignup({
+    brandId: req.params.brandId,
+    clerkUserId: req.auth.userId,
+    code: String(code || '').trim(),
+    wabaId: String(wabaId || '').trim(),
+    phoneNumberId: String(phoneNumberId || '').trim()
+  });
+  return res.json({ ok: true, connected: true, connection });
+}));
+
+router.delete('/:brandId/connection', requireClerkAuth, requireBrandAccess, asyncHandler(async (req, res) => {
+  if (!requireInteractiveClerkSession(req, res)) return;
+  await whatsappConnectionStore.disconnectBrand(req.params.brandId);
+  return res.json({ ok: true, connected: false });
+}));
 
 /**
  * Returns the timestamp (ms) of this customer's most recent genuine inbound
@@ -224,6 +184,7 @@ async function getLastCustomerMessageTimestamp({ brandId, customerId }) {
 router.post(
   '/send',
   requireClerkAuth,
+  (req, res, next) => { if (requireInteractiveClerkSession(req, res)) next(); },
   requireBrandAccess,
   asyncHandler(async (req, res) => {
     const { to, text, brandId } = req.body || {};
@@ -255,12 +216,18 @@ router.post(
         });
       }
 
+      await require('../services/conversationHandoff.service').setConversationHandoff({
+        brandId, channel: 'whatsapp', customerId: to, actorId: req.auth.userId, paused: true
+      });
       const sendResult = await sendWhatsAppMessage({
         phoneNumberId: connection.phoneNumberId,
         to,
         text,
         accessToken: connection.accessToken
       });
+      const providerMessageId = sendResult?.messages?.[0]?.id || null;
+      if (providerMessageId) await recordProviderMessageAccepted({ channel: 'whatsapp', accountId: connection.phoneNumberId,
+        messageId: providerMessageId, brandId, customerId: to }).catch(() => {});
 
       // Record the outbound message so the dashboard's conversation
       // transcript stays complete. message is deliberately empty — there is
@@ -280,7 +247,8 @@ router.post(
           knowledgeCitations: [],
           knowledgeConfidence: 0,
           isFallback: false,
-          responseTimeMs: null
+          responseTimeMs: null,
+          providerMessageId
         });
       } catch (logErr) {
         console.error(`[whatsapp.routes] Failed to log manual send for brand=${brandId}, to=${to}:`, logErr);
@@ -300,64 +268,5 @@ router.post(
     }
   })
 );
-
-async function handleSingleMessage(inbound) {
-  const { phoneNumberId, from, text, messageId } = inbound;
-
-  let connection;
-  try {
-    connection = await resolveBrandFromPhoneNumberId(phoneNumberId);
-  } catch (lookupErr) {
-    console.error(`[whatsapp.routes] Brand lookup failed for phone_number_id=${phoneNumberId}:`, lookupErr);
-    return;
-  }
-
-  if (!connection) {
-    // No active brand is connected to this number — nothing we can safely
-    // do except log it. This should not normally happen in production
-    // since numbers are only registered when a client connects.
-    console.warn(`[whatsapp.routes] No active brand found for phone_number_id=${phoneNumberId}. Message ${messageId} dropped.`);
-    return;
-  }
-
-  const { brandId, businessMode, accessToken } = connection;
-
-  let brainResult;
-  try {
-    brainResult = await callBrain({
-      brandId,
-      message: text,
-      customerId: from, // WhatsApp number doubles as the customer identifier for this channel
-      businessMode
-    });
-  } catch (brainErr) {
-    console.error(`[whatsapp.routes] Brain call failed for brand=${brandId}, message=${messageId}:`, brainErr);
-
-    // Fail gracefully toward the customer rather than leaving them with
-    // total silence — a stuck/broken bot is worse than no bot.
-    try {
-      await sendWhatsAppMessage({
-        phoneNumberId,
-        to: from,
-        text: "Sorry, I'm having trouble right now. Please try again in a moment, or type \"agent\" to reach a human.",
-        accessToken
-      });
-    } catch (fallbackSendErr) {
-      console.error('[whatsapp.routes] Even the fallback message failed to send:', fallbackSendErr);
-    }
-    return;
-  }
-
-  try {
-    await sendWhatsAppMessage({
-      phoneNumberId,
-      to: from,
-      text: brainResult.reply,
-      accessToken
-    });
-  } catch (sendErr) {
-    console.error(`[whatsapp.routes] Failed to deliver brain reply for brand=${brandId}, message=${messageId}:`, sendErr);
-  }
-}
 
 module.exports = router;

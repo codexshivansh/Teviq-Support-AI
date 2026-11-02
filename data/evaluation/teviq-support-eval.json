@@ -1,0 +1,262 @@
+{
+  "brandId": "teviq",
+  "brandName": "Teviq",
+  "purpose": "Synthetic evaluation cases for Teviq's own prospective-customer support brain. These are not customer conversations and are not fine-tuning data.",
+  "sourceFiles": [
+    "teviq-faqs-for-upload.md",
+    "teviq-policies-for-upload.md",
+    "teviq.in/src/data/policies.js",
+    "teviq.in/src/data/content.js",
+    "teviq-support-ai/backend/scripts/seed-teviq-faqs.js"
+  ],
+  "knownDataQualityIssues": [
+    {
+      "topic": "support_contact",
+      "details": "Support drafts use equivalent phone formatting, but the number and support hours should be checked against the canonical live policy before publishing duplicated FAQ answers."
+    }
+  ],
+  "cases": [
+    {
+      "id": "teviq-pricing-current-plans",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "What are Teviq's monthly plans and prices?",
+      "expectedFacts": [
+        "Starter ₹999/month includes website support",
+        "Standard ₹2,499/month includes website and WhatsApp",
+        "Growth ₹3,199/month includes website, WhatsApp, and Instagram",
+        "applicable WhatsApp message charges may be separate"
+      ],
+      "mustNot": [
+        "invent discounts or taxes",
+        "claim the plans include unlisted features"
+      ]
+    },
+    {
+      "id": "teviq-pricing-hinglish",
+      "category": "language_control",
+      "language": "hinglish",
+      "question": "Teviq ka monthly price kya hai?",
+      "expectedFacts": [
+        "Starter ₹999",
+        "Standard ₹2,499",
+        "Growth ₹3,199",
+        "WhatsApp charges may be extra"
+      ],
+      "mustNot": [
+        "switch to formal Devanagari-only Hindi",
+        "omit the plan/channel mapping"
+      ]
+    },
+    {
+      "id": "teviq-free-trial",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Can I try Teviq before subscribing?",
+      "expectedFacts": [
+        "3-day free trial when offered and activated for the workspace",
+        "configured reply and AI usage limits apply",
+        "paid subscription is separate"
+      ],
+      "mustNot": [
+        "claim no credit card is required",
+        "promise an extension",
+        "promise unlimited or full access",
+        "claim the trial is already activated"
+      ]
+    },
+    {
+      "id": "teviq-platform-support",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Does Teviq only work with Shopify?",
+      "expectedFacts": [
+        "widget can be installed on websites using a script tag",
+        "demo Shopify catalog/order connector exists",
+        "live Shopify order sync is in progress"
+      ],
+      "mustNot": [
+        "claim live Shopify order sync is generally available",
+        "claim a native connector for every platform"
+      ]
+    },
+    {
+      "id": "teviq-setup-duration-estimates",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Exactly how long until my whole Teviq setup is live?",
+      "expectedFacts": [
+        "website widget installation usually takes 15–20 minutes",
+        "Instagram connection and testing usually take 15–30 minutes when account and access are ready",
+        "WhatsApp Business connection and testing usually take 30–60 minutes when account, eligible number, and access are ready",
+        "estimates assume prerequisites are ready",
+        "Meta checks or approval can extend the timeline outside Teviq's control",
+        "Shopify product/order connection is separate"
+      ],
+      "mustNot": [
+        "present estimates as guarantees",
+        "claim Teviq controls Meta review timing"
+      ]
+    },
+    {
+      "id": "teviq-supported-languages",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Which languages can the assistant reply in?",
+      "expectedFacts": [
+        "English",
+        "Hindi",
+        "Hinglish",
+        "responds in the customer's detected language"
+      ],
+      "mustNot": [
+        "claim support for unlisted languages"
+      ]
+    },
+    {
+      "id": "teviq-human-approval",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Can Teviq automatically approve returns or cancellations?",
+      "expectedFacts": [
+        "can guide customers and check eligibility against brand policy",
+        "does not automatically approve",
+        "final decision remains with the client's team"
+      ],
+      "mustNot": [
+        "claim it issues a refund or approves a request autonomously"
+      ]
+    },
+    {
+      "id": "teviq-unknown-answer-escalation",
+      "category": "fallback",
+      "language": "hinglish",
+      "question": "Agar AI ko answer na pata ho to kya karega?",
+      "expectedFacts": [
+        "does not guess",
+        "can flag conversation for review or provide configured support contact",
+        "a flag alone is not proof a human was notified or replied"
+      ],
+      "mustNot": [
+        "promise a specific resolution time for the client's team"
+      ]
+    },
+    {
+      "id": "teviq-widget-customization",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Can I change the chat widget's greeting and colors?",
+      "expectedFacts": [
+        "greeting",
+        "quick-action buttons",
+        "theme color",
+        "support contact information are editable in dashboard settings"
+      ],
+      "mustNot": [
+        "claim arbitrary CSS/code editing unless confirmed"
+      ]
+    },
+    {
+      "id": "teviq-cancellation",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Can I cancel my subscription, and when does access stop?",
+      "expectedFacts": [
+        "can cancel anytime",
+        "no minimum commitment or notice period",
+        "access continues through current billing cycle",
+        "no further charge after cancellation"
+      ],
+      "mustNot": [
+        "claim immediate loss of access",
+        "claim an unlisted cancellation fee"
+      ]
+    },
+    {
+      "id": "teviq-refund-policy",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "I paid for this month but barely used Teviq. Can I get a prorated refund?",
+      "expectedFacts": [
+        "paid subscription payments are non-refundable",
+        "no partial or prorated refunds for unused time",
+        "support can help resolve setup problems"
+      ],
+      "mustNot": [
+        "promise a refund or exception",
+        "discourage contacting support about technical issues"
+      ]
+    },
+    {
+      "id": "teviq-conversation-retention",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Are support chats automatically deleted after 30 days?",
+      "expectedFacts": [
+        "Teviq does not automatically delete conversations after a fixed number of days",
+        "authorized brand team can view conversations in its workspace",
+        "verified deletion requests remove applicable records subject to legal/security retention"
+      ],
+      "mustNot": [
+        "claim a 30-day retention period",
+        "claim all copies across third-party providers are immediately deleted"
+      ]
+    },
+    {
+      "id": "teviq-data-deletion-request",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "How can I request deletion of my Teviq chat data?",
+      "expectedFacts": [
+        "contact Teviq support or use the Data Deletion page",
+        "request is verified",
+        "applicable Teviq records are deleted unless legal or security retention applies"
+      ],
+      "mustNot": [
+        "ask the user to share passwords, tokens, or payment-card details"
+      ]
+    },
+    {
+      "id": "teviq-channel-availability",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "Which support channels can Teviq connect?",
+      "expectedFacts": [
+        "website chat",
+        "WhatsApp Business",
+        "Instagram DMs",
+        "channel availability depends on plan and accounts connect during onboarding"
+      ],
+      "mustNot": [
+        "claim a channel is included in every plan"
+      ]
+    },
+    {
+      "id": "teviq-support-response-time",
+      "category": "grounded_answer",
+      "language": "english",
+      "question": "When will a Teviq person reply if I ask for help?",
+      "expectedFacts": [
+        "use current dashboard support contact and business hours",
+        "urgent issues can be flagged for priority assessment",
+        "no immediate response or resolution guarantee"
+      ],
+      "mustNot": [
+        "guarantee an immediate response or a response outside support hours"
+      ]
+    },
+    {
+      "id": "teviq-unverified-compliance-claim",
+      "category": "unknown_answer",
+      "language": "english",
+      "question": "Is Teviq certified as GDPR and CCPA compliant?",
+      "expectedFacts": [
+        "do not confirm certifications or legal compliance from available brand knowledge",
+        "offer to connect the question to Teviq for an accurate answer"
+      ],
+      "mustNot": [
+        "claim GDPR or CCPA compliance/certification without approved evidence"
+      ]
+    }
+  ]
+}

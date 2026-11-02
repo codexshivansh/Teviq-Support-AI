@@ -19,6 +19,7 @@ async function rest(path, options = {}) {
   const { url, key } = getConfig();
   const response = await fetch(`${url}/rest/v1/${path}`, {
     ...options,
+    signal: AbortSignal.timeout(8000),
     headers: {
       apikey: key,
       Authorization: `Bearer ${key}`,
@@ -41,8 +42,11 @@ async function reserveAiCall({ brandId, channel = 'widget', model, prompt, maxCo
   // capacity before Groq is contacted, not after it has already been billed.
   const reservedTokens = Buffer.byteLength(String(prompt || ''), 'utf8') +
     Buffer.byteLength('You are a concise e-commerce customer support assistant. Always finish the answer in 80 words or fewer.', 'utf8') +
-    maxCompletionTokens;
+    maxCompletionTokens + 512; // Conservative allowance for chat framing.
   const globalMaxTokens = Number(process.env.AI_TRIAL_GLOBAL_TOKENS_PER_DAY || 100000);
+  if (!Number.isSafeInteger(globalMaxTokens) || globalMaxTokens < 1 || globalMaxTokens > 2147483647) {
+    throw new Error('Invalid global AI token capacity');
+  }
   const result = await rest('rpc/reserve_ai_usage', {
     method: 'POST',
     body: JSON.stringify({
@@ -55,7 +59,7 @@ async function reserveAiCall({ brandId, channel = 'widget', model, prompt, maxCo
     })
   });
   if (result !== 'allowed') {
-    const error = new Error('The AI trial usage limit has been reached. Please contact the support team.');
+    const error = new Error('AI access or usage capacity is unavailable. Please contact the support team.');
     error.code = 'ai_trial_limit';
     error.limitReason = result;
     throw error;
@@ -65,8 +69,11 @@ async function reserveAiCall({ brandId, channel = 'widget', model, prompt, maxCo
 
 async function finishAiCall(reservation, usage) {
   if (!reservation) return;
-  const total = Number(usage?.total_tokens);
-  const known = Number.isFinite(total) && total >= 0;
+  const total = usage?.total_tokens;
+  const known = Number.isSafeInteger(total) && total >= 0 &&
+    Number.isSafeInteger(usage?.prompt_tokens) && usage.prompt_tokens >= 0 &&
+    Number.isSafeInteger(usage?.completion_tokens) && usage.completion_tokens >= 0 &&
+    total === usage.prompt_tokens + usage.completion_tokens;
   await rest('rpc/finish_ai_usage', {
     method: 'POST',
     body: JSON.stringify({
@@ -84,18 +91,30 @@ async function getAiUsageSummary(brandId) {
   }).formatToParts(new Date());
   const part = (type) => parts.find(item => item.type === type)?.value;
   const today = `${part('year')}-${part('month')}-${part('day')}`;
+  const snapshotAt = encodeURIComponent(new Date().toISOString());
+  async function loadEvents() {
+    const rows = [];
+    for (let offset = 0; offset < 100000; offset += 500) {
+      const page = await rest(`ai_usage_events?brand_id=eq.${encodeURIComponent(brandId)}&usage_day=eq.${today}&created_at=lte.${snapshotAt}&select=id,status,prompt_tokens,completion_tokens,total_tokens,reserved_tokens,channel,model&order=id.asc&limit=500&offset=${offset}`);
+      rows.push(...page);
+      if (page.length < 500) return rows;
+    }
+    throw new Error('Usage volume requires an aggregate report; partial totals are not shown.');
+  }
   const [limits, events] = await Promise.all([
     rest(`ai_trial_limits?brand_id=eq.${encodeURIComponent(brandId)}&select=*`),
-    rest(`ai_usage_events?brand_id=eq.${encodeURIComponent(brandId)}&usage_day=eq.${today}&select=status,prompt_tokens,completion_tokens,total_tokens,reserved_tokens,channel,model`)
+    loadEvents()
   ]);
   const calls = events.length;
   const tokens = events.reduce((sum, row) => sum + (row.total_tokens ?? row.reserved_tokens), 0);
   const inputTokens = events.reduce((sum, row) => sum + (row.prompt_tokens || 0), 0);
   const outputTokens = events.reduce((sum, row) => sum + (row.completion_tokens || 0), 0);
-  const estimatedUsd = events.reduce((sum, row) => {
+  const knownEstimatedUsd = events.reduce((sum, row) => {
     const price = MODEL_PRICES_USD_PER_MILLION[row.model];
     return price ? sum + ((row.prompt_tokens || 0) * price.input + (row.completion_tokens || 0) * price.output) / 1000000 : sum;
   }, 0);
+  const hasUnknownUsage = events.some(row => row.status !== 'completed');
+  const hasUnknownPricing = events.some(row => !MODEL_PRICES_USD_PER_MILLION[row.model]);
   return {
     day: today,
     meteringEnabled: meteringEnabled(),
@@ -104,8 +123,12 @@ async function getAiUsageSummary(brandId) {
     tokens,
     inputTokens,
     outputTokens,
-    estimatedUsd,
-    hasUnknownUsage: events.some(row => row.status !== 'completed')
+    estimatedUsd: hasUnknownUsage || hasUnknownPricing ? null : knownEstimatedUsd,
+    knownEstimatedUsd,
+    hasUnknownPricing,
+    hasUnknownUsage,
+    remainingCalls: limits[0]?.enabled ? Math.max(0, limits[0].max_calls_per_day - calls) : null,
+    remainingTokens: limits[0]?.enabled ? Math.max(0, limits[0].max_tokens_per_day - tokens) : null
   };
 }
 

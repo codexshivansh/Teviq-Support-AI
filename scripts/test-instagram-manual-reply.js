@@ -6,6 +6,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 let sentMessages = [];
 let loggedRows = [];
 let lastInboundAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+let handoffs = [];
+const handoffPath = require.resolve('../services/conversationHandoff.service');
+require.cache[handoffPath] = { id: handoffPath, filename: handoffPath, loaded: true,
+  exports: { setConversationHandoff: async value => { handoffs.push(value); } } };
 
 const brandLookupPath = require.resolve("../controllers/helpers/brandLookup");
 require.cache[brandLookupPath] = {
@@ -73,6 +77,8 @@ async function invoke(sessionType = "clerk") {
 
 async function run() {
   const sent = await invoke();
+  assert.equal(handoffs[0].paused, true);
+  assert.equal(handoffs[0].actorId, 'user-1');
   assert.equal(sent.statusCode, 200);
   assert.deepEqual(sent.body, { ok: true, messageId: "outbound-1" });
   assert.equal(sentMessages[0].instagramAccountId, "ig-business-id");

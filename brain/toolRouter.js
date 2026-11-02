@@ -16,6 +16,7 @@ const {
 } = require("../integrations/shopify/shopifyOrderVerification.service");
 const { resolveSalesObjection } = require("../services/salesObjection.service");
 const { resolveB2bObjection } = require("../services/b2bObjection.service");
+const { isTeviqSalesBrand } = require('../services/teviqSalesScope.service');
 
 const ORDER_INTENTS = ["order_tracking", "return_exchange", "refund_status", "cancellation"];
 const LEAD_CAPTURE_INTENTS = ["human_support", "business_enquiry"];
@@ -118,7 +119,7 @@ async function routeTools({ brand, intent, entities, message, channel = "widget"
     };
   }
 
-  if (intent === "subjective_opinion") {
+  if (intent === "subjective_opinion" && isTeviqSalesBrand(brand?.brandId)) {
     return {
       allowAI: false,
       source: "system",
@@ -127,7 +128,7 @@ async function routeTools({ brand, intent, entities, message, channel = "widget"
       policyResult: null,
       leadState: null,
       reply:
-        "Bahut se D2C brands isse repetitive queries handle karne ke liye use karte hain — 7-day free trial hai, khud try karke dekh sakte ho risk-free."
+        "Teviq ko apne business ke questions ke saath evaluate kar sakte hain. Offer aur activation hone par 3-day free trial milta hai; configured reply aur AI usage limits apply hoti hain."
     };
   }
 
@@ -280,7 +281,7 @@ async function routeTools({ brand, intent, entities, message, channel = "widget"
     return {
       allowAI: false,
       source: objectionResult.source,
-      escalated: false,
+      escalated: Boolean(objectionResult.needsEscalation),
       order: null,
       policyResult: null,
       leadState: null,
@@ -288,12 +289,12 @@ async function routeTools({ brand, intent, entities, message, channel = "widget"
     };
   }
 
-  if (B2B_OBJECTION_INTENTS.includes(intent)) {
+  if (B2B_OBJECTION_INTENTS.includes(intent) && isTeviqSalesBrand(brand?.brandId)) {
     const b2bObjectionResult = await resolveB2bObjection({ intent, message, brand, channel });
     return {
       allowAI: false,
       source: b2bObjectionResult.source,
-      escalated: false,
+      escalated: Boolean(b2bObjectionResult.needsEscalation),
       order: null,
       policyResult: null,
       leadState: null,

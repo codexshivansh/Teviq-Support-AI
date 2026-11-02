@@ -36,20 +36,24 @@ function baseFilter(brandId, days) {
 // full row (message/reply/citations can be large).
 async function fetchRows({ brandId, days, select, extraFilter = "" }) {
   const { url } = getSupabaseConfig();
-  const response = await fetch(
-    `${url}/rest/v1/chat_logs?${baseFilter(brandId, days)}&select=${select}${extraFilter}`,
-    { headers: getHeaders() }
-  );
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : [];
-
-  if (!response.ok) {
-    const error = new Error(data?.message || `Supabase chat_logs query failed with ${response.status}`);
-    error.statusCode = response.status;
-    throw error;
+  const rows = [];
+  const filter = `${baseFilter(brandId, days)}&created_at=lte.${encodeURIComponent(new Date().toISOString())}`;
+  for (let offset = 0; offset < 100000; offset += 500) {
+    const response = await fetch(
+      `${url}/rest/v1/chat_logs?${filter}&select=${select}${extraFilter}&order=id.asc&limit=500&offset=${offset}`,
+      { headers: getHeaders(), signal: AbortSignal.timeout(8000) }
+    );
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : [];
+    if (!response.ok || !Array.isArray(data)) {
+      const error = new Error(data?.message || `Supabase chat_logs query failed with ${response.status}`);
+      error.statusCode = response.status;
+      throw error;
+    }
+    rows.push(...data);
+    if (data.length < 500) return rows;
   }
-
-  return Array.isArray(data) ? data : [];
+  throw new Error('Analytics volume requires an aggregate report; partial totals are not shown.');
 }
 
 // Pure count via PostgREST's Content-Range header (Prefer: count=exact +
@@ -58,7 +62,7 @@ async function fetchRows({ brandId, days, select, extraFilter = "" }) {
 async function countRows({ brandId, days, extraFilter = "" }) {
   const { url } = getSupabaseConfig();
   const response = await fetch(`${url}/rest/v1/chat_logs?${baseFilter(brandId, days)}&select=id${extraFilter}`, {
-    headers: getHeaders({ Prefer: "count=exact", Range: "0-0" })
+    headers: getHeaders({ Prefer: "count=exact", Range: "0-0" }), signal: AbortSignal.timeout(8000)
   });
 
   if (!response.ok) {
@@ -70,7 +74,8 @@ async function countRows({ brandId, days, extraFilter = "" }) {
 
   const contentRange = response.headers.get("content-range") || "";
   const total = Number(contentRange.split("/")[1]);
-  return Number.isFinite(total) ? total : 0;
+  if (!Number.isSafeInteger(total) || total < 0) throw new Error("Analytics count unavailable");
+  return total;
 }
 
 // Groups a customer's messages into "conversations" using a 30-minute
@@ -81,9 +86,10 @@ async function countRows({ brandId, days, extraFilter = "" }) {
 function sessionize(rows) {
   const byCustomer = new Map();
   for (const row of rows) {
-    const list = byCustomer.get(row.customer_id) || [];
+    const key = JSON.stringify([row.channel || "widget", row.customer_id]);
+    const list = byCustomer.get(key) || [];
     list.push(row);
-    byCustomer.set(row.customer_id, list);
+    byCustomer.set(key, list);
   }
 
   const sessions = [];
@@ -106,12 +112,12 @@ function sessionize(rows) {
 }
 
 async function getTotalConversations(brandId, days = 30) {
-  const rows = await fetchRows({ brandId, days, select: "customer_id,created_at" });
+  const rows = await fetchRows({ brandId, days, select: "channel,customer_id,created_at" });
   return sessionize(rows).length;
 }
 
 async function getEscalationRate(brandId, days = 30) {
-  const rows = await fetchRows({ brandId, days, select: "customer_id,created_at,escalated" });
+  const rows = await fetchRows({ brandId, days, select: "channel,customer_id,created_at,escalated" });
   const sessions = sessionize(rows);
   const escalated = sessions.filter((session) => session.escalated).length;
 
@@ -124,7 +130,7 @@ async function getEscalationRate(brandId, days = 30) {
 }
 
 async function getDeflectionRate(brandId, days = 30) {
-  const rows = await fetchRows({ brandId, days, select: "customer_id,created_at,escalated" });
+  const rows = await fetchRows({ brandId, days, select: "channel,customer_id,created_at,escalated" });
   const sessions = sessionize(rows);
 
   if (!sessions.length) {
@@ -213,7 +219,7 @@ function buildDayRange(days) {
 // conversation-scoped so it uses the same 30-minute session definition as
 // total conversations, deflection rate, and escalation rate.
 async function getEscalationTrend(brandId, days = 30) {
-  const rows = await fetchRows({ brandId, days, select: "customer_id,created_at,escalated" });
+  const rows = await fetchRows({ brandId, days, select: "channel,customer_id,created_at,escalated" });
   const sessions = sessionize(rows);
   const buckets = new Map(buildDayRange(days).map((date) => [date, { escalatedCount: 0, nonEscalatedCount: 0 }]));
 

@@ -223,7 +223,13 @@ async function callGroq(prompt, { brandId, channel = "widget" } = {}) {
     } finally {
       // A failed/ambiguous provider request keeps its conservative reservation
       // rather than undercounting tokens that may have been processed remotely.
-      await finishAiCall(reservation, data?.usage);
+      try {
+        await finishAiCall(reservation, data?.usage);
+      } catch (_) {
+        // The durable reservation remains charged against capacity. Do not
+        // discard a valid reply or replace the original provider error.
+        console.error('[ai-usage] Accounting requires reconciliation', { reservationId: reservation?.id });
+      }
     }
 
     return data?.choices?.[0] || null;
@@ -321,7 +327,7 @@ async function generateSupportReply(context) {
   } catch (groqError) {
     if (groqError.code === "ai_trial_limit") {
       return {
-        reply: "The AI trial limit has been reached for now. Please contact the support team for help.",
+        reply: "AI replies are temporarily unavailable for this workspace. Please contact the support team for help.",
         source: "system",
         confidence: "low",
         needsEscalation: true,

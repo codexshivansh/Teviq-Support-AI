@@ -8,13 +8,11 @@
 // immediately in both the dashboard's FAQs tab and the widget's retrieval.
 //
 // Run from inside backend/:
-//   node scripts/seed-teviq-faqs.js
+//   node scripts/seed-teviq-faqs.js          (preview only)
+//   node scripts/seed-teviq-faqs.js --apply  (creates rows; do not rerun on existing FAQs)
 //
 // Requires backend/.env to already have SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-// and GEMINI_API_KEY set (same values the live app uses).
-
-require("dotenv").config();
-const { createFaq } = require("../knowledge/structuredKnowledge.service");
+// set. Indexing is local; no embedding-provider API key is needed.
 
 const BRAND_ID = "teviq";
 
@@ -24,12 +22,12 @@ const FAQS = [
     en: {
       question: "Can I try Teviq before paying?",
       answer:
-        "Yes, Teviq comes with a 7-day free trial so you can test it on your live store before committing to a paid plan."
+        "When offered and activated for your workspace, Teviq provides a 3-day free trial. Configured reply and AI usage limits apply. Confirm the limits in your trial details; a paid subscription is separate."
     },
     hi: {
       question: "Kya main Teviq ko paise dene se pehle try kar sakta hoon?",
       answer:
-        "Haan, Teviq ka 7-din ka free trial hai jisse aap apne live store pe test kar sakte ho paid plan lene se pehle."
+        "Offer aur workspace activation hone par Teviq ka 3-din ka free trial shuru hota hai. Configured reply aur AI usage limits apply hoti hain. Trial details mein limits confirm karein; paid subscription alag hai."
     }
   },
   {
@@ -49,11 +47,13 @@ const FAQS = [
     tags: ["setup", "onboarding"],
     en: {
       question: "How long does setup take?",
-      answer: "About 15 minutes. Just add one script tag to your site and the widget is live."
+      answer:
+        "Installing the Teviq website widget usually takes 15–20 minutes. Instagram connection and testing usually take 15–30 minutes when the Instagram Professional account and required access are ready. WhatsApp Business connection and testing usually take 30–60 minutes when the WhatsApp Business account, eligible number, and required access are ready. These estimates assume required storefront or business-account access, permissions, and setup information are available when onboarding starts. Meta eligibility checks, verification, or approval can add waiting time outside Teviq's control and may extend the timeline from a few hours to several days. These are estimates, not guarantees. Shopify product or order-data connection is a separate setup step."
     },
     hi: {
       question: "Setup mein kitna time lagta hai?",
-      answer: "Karib 15 minute. Bas ek script tag apni site pe add karo aur widget live ho jayega."
+      answer:
+        "Teviq website widget install karne mein aam taur par 15–20 minute lagte hain. Instagram Professional account aur zaroori access ready ho to connection aur testing mein 15–30 minute lagte hain. WhatsApp Business account, eligible number aur zaroori access ready ho to connection aur testing mein 30–60 minute lagte hain. Ye estimates tab apply hote hain jab onboarding shuru hote waqt zaroori storefront ya business-account access, permissions aur setup information available ho. Meta eligibility check, verification ya approval mein Teviq ke control se bahar wait ho sakta hai aur timeline kuch ghanton se kai din tak badh sakti hai. Ye estimates hain, guarantee nahi. Shopify product ya order-data connection alag setup step hai."
     }
   },
   {
@@ -86,24 +86,24 @@ const FAQS = [
     tags: ["escalation", "fallback"],
     en: {
       question: "What happens if the AI can't answer a question?",
-      answer: "It escalates to your team instead of guessing, along with the full conversation so far."
+      answer: "It avoids guessing and can flag the conversation for review or provide the configured support contact. Your team should monitor escalations in the dashboard; a flag alone does not mean a human has replied."
     },
     hi: {
       question: "Agar AI kisi question ka jawab nahi de pa raha to kya hota hai?",
-      answer: "Wo guess karne ke bajaye aapke team ko escalate kar deta hai, poori conversation ke saath."
+      answer: "AI guess karne ke bajaye conversation review ke liye flag kar sakta hai ya configured support contact de sakta hai. Aapki team dashboard mein escalations monitor kare; flag ka matlab human ne reply kar diya nahi hai."
     }
   },
   {
-    tags: ["whatsapp", "channels", "roadmap"],
+    tags: ["whatsapp", "instagram", "channels", "plans"],
     en: {
       question: "Can customers reach support through WhatsApp?",
       answer:
-        "Not yet — right now Teviq is a website widget only. WhatsApp and Instagram support are planned as part of an upcoming Growth plan, no fixed launch date yet."
+        "Teviq supports website chat, WhatsApp Business, and Instagram DMs. Which channels are included depends on your plan; accounts are connected during onboarding. Applicable WhatsApp message charges may be separate from the plan fee."
     },
     hi: {
       question: "Kya customers WhatsApp pe support le sakte hain?",
       answer:
-        "Abhi nahi — filhaal Teviq sirf website widget hai. WhatsApp aur Instagram support ek upcoming Growth plan ka hissa honge, koi fixed launch date abhi nahi hai."
+        "Haan. Starter plan mein website support, Standard mein website + WhatsApp, aur Growth mein website + WhatsApp + Instagram support hai. Accounts onboarding ke dauraan connect hote hain. WhatsApp ke applicable message charges plan fee se alag ho sakte hain."
     }
   },
   {
@@ -111,12 +111,12 @@ const FAQS = [
     en: {
       question: "Do you store customer conversations?",
       answer:
-        "Yes, conversations are stored securely and scoped to your brand only, so your team can review them. They're retained for 30 days and then permanently deleted."
+        "Conversations from connected website chat, WhatsApp, or Instagram may be stored in the brand's Teviq workspace and viewed by that brand's authorized team. Teviq does not automatically delete conversations after a fixed number of days. To request deletion, contact Teviq support or use the Data Deletion page. We verify requests and delete applicable Teviq records unless retention is required for legal or security reasons."
     },
     hi: {
       question: "Kya aap customer conversations store karte ho?",
       answer:
-        "Haan, conversations securely stored hote hain aur sirf aapke brand tak limited rehte hain, taaki team review kar sake. Ye 30 din tak rakhe jaate hain fir permanently delete ho jaate hain."
+        "Connected website chat, WhatsApp ya Instagram conversations Teviq ke brand workspace mein store ho sakti hain aur us brand ki authorized team dekh sakti hai. Teviq fixed dinon ke baad conversations ko automatically delete nahi karta. Deletion request Teviq support ya Data Deletion page se bheji ja sakti hai; request verify karke applicable Teviq records delete kiye jaate hain, jab tak legal ya security reason se retain karna zaroori na ho."
     }
   },
   {
@@ -137,12 +137,12 @@ const FAQS = [
     en: {
       question: "What does Teviq cost?",
       answer:
-        "₹999/month for our first 10 clients, with that rate locked for your first 3 months. After that, new signups pay ₹1,999/month. If a Growth plan (adding WhatsApp/Instagram, ₹3,999/month) launches while you're still in your 3-month lock-in, you can upgrade early for just ₹1,999 extra on top of your locked rate."
+        "Teviq's current monthly plans are Starter ₹999 for website support, Standard ₹2,499 for website + WhatsApp, and Growth ₹3,199 for website + WhatsApp + Instagram. Applicable WhatsApp message charges may be separate from the plan fee."
     },
     hi: {
       question: "Teviq ki cost kya hai?",
       answer:
-        "Hamare pehle 10 clients ke liye ₹999/month hai, ye rate first 3 months ke liye locked rehta hai. Uske baad, naye signups ₹1,999/month pay karenge. Agar Growth plan (WhatsApp/Instagram ke saath, ₹3,999/month) aapke 3-month lock-in ke andar launch hota hai, to aap sirf ₹1,999 extra deke early upgrade kar sakte ho apne locked rate ke upar."
+        "Teviq ke current monthly plans hain: Starter ₹999 — website support; Standard ₹2,499 — website + WhatsApp; Growth ₹3,199 — website + WhatsApp + Instagram. WhatsApp ke applicable message charges plan fee se alag ho sakte hain."
     }
   },
   {
@@ -150,12 +150,12 @@ const FAQS = [
     en: {
       question: "Can I cancel anytime?",
       answer:
-        "Yes. There's no minimum commitment — the 3-month period only locks in your price, not a contract. You can cancel anytime during or after it."
+        "You can cancel your Teviq subscription anytime. There is no minimum commitment period or notice period. After cancellation, access continues until the end of the current billing cycle. If you later resubscribe, the then-current standard rate applies."
     },
     hi: {
       question: "Kya main kabhi bhi cancel kar sakta hoon?",
       answer:
-        "Haan. Koi minimum commitment nahi hai — 3-month period sirf aapka price lock karta hai, koi contract nahi. Aap kabhi bhi cancel kar sakte ho, uske andar ya baad mein."
+        "Haan, Teviq subscription kabhi bhi cancel kar sakte hain. Koi minimum commitment ya notice period nahi hai. Cancel karne ke baad access current billing cycle ke end tak rahega. Baad mein resubscribe karne par us waqt ka standard rate lagega."
     }
   },
   {
@@ -163,49 +163,55 @@ const FAQS = [
     en: {
       question: "Do you offer refunds?",
       answer:
-        "The 7-day trial is free, so there's nothing to refund during it. Once you're on a paid plan, we don't offer refunds for that billing period."
+        "The activated 3-day trial is free and subject to configured usage limits. Paid plan subscription charges are non-refundable, with no partial or prorated refund for unused billing-cycle time. Contact support about billing or setup issues."
     },
     hi: {
       question: "Kya aap refund dete ho?",
-      answer: "7-din ka trial free hai, to usme refund ka sawal hi nahi. Paid plan lene ke baad, us billing period ka refund nahi diya jaata."
+      answer: "Activated 3-din ka trial free hai aur configured usage limits apply hoti hain. Paid plan subscription charges refundable nahi hain; unused time ka partial ya prorated refund nahi milta. Billing ya setup issue ke liye support se contact karein."
     }
   },
   {
     tags: ["support", "sla"],
     en: {
       question: "How fast does your team respond if something needs a human?",
-      answer: "We aim to respond within 24 hours of an escalation or support request."
+      answer: "Use the current support details and business hours shown in your dashboard. Describe urgent live issues clearly so the team can assess priority; an immediate response or resolution is not guaranteed."
     },
     hi: {
       question: "Agar kisi cheez ke liye human chahiye to aapka team kitni jaldi respond karta hai?",
-      answer: "Hum escalation ya support request ke 24 hours ke andar respond karne ki koshish karte hain."
+      answer: "Dashboard mein current support details aur business hours dekhein. Urgent live issue ka impact clearly batayein taaki team priority assess kar sake; immediate reply ya resolution guaranteed nahi hai."
     }
   },
   {
     tags: ["analytics", "performance"],
     en: {
       question: "Can I see how well Teviq is performing?",
-      answer: "Yes, the Analytics page in your dashboard shows total chats, resolution rate, escalations, and average response time."
+      answer: "Yes, the Analytics page in your dashboard shows conversation counts, deflection, escalations, and response-time metrics. Deflection means no escalation was recorded; it is not proof that a customer issue was resolved."
     },
     hi: {
       question: "Kya main dekh sakta hoon Teviq kitna accha perform kar raha hai?",
-      answer: "Haan, dashboard ke Analytics page pe total chats, resolution rate, escalations, aur average response time dikhta hai."
+      answer: "Haan, dashboard ke Analytics page pe conversation counts, deflection, escalations aur response-time metrics dikhte hain. Deflection ka matlab escalation record nahi hui; issue resolve hone ka proof nahi."
     }
   },
   {
     tags: ["contact", "support"],
     en: {
       question: "How do I reach the Teviq team directly?",
-      answer: "Phone/WhatsApp: +91 9555144436, Email: helloteviq@gmail.com"
+      answer: "For the support team phone number, email and business hours, use the current contact details configured in your dashboard."
     },
     hi: {
       question: "Teviq team se directly kaise contact karoon?",
-      answer: "Phone/WhatsApp: +91 9555144436, Email: helloteviq@gmail.com"
+      answer: "For the support team phone number, email and business hours, use the current contact details configured in your dashboard."
     }
   }
 ];
 
 async function run() {
+  if (!process.argv.includes('--apply')) {
+    console.log(JSON.stringify({ brandId: BRAND_ID, mode: 'preview-only', faqs: FAQS }, null, 2));
+    return;
+  }
+  require('dotenv').config();
+  const { createFaq } = require('../knowledge/structuredKnowledge.service');
   console.log(`Seeding ${FAQS.length * 2} FAQs (English + Hinglish) for brand "${BRAND_ID}"`);
   console.log("=".repeat(70));
 
@@ -258,7 +264,9 @@ async function run() {
   }
 }
 
-run().catch((error) => {
+module.exports = { FAQS };
+
+if (require.main === module) run().catch((error) => {
   console.error("[seed-teviq-faqs] Unexpected failure:", error);
   process.exitCode = 1;
 });

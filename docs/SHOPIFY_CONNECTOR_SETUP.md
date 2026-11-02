@@ -104,3 +104,31 @@ Before Public Distribution review, register all three topics in the Shopify app 
 `https://teviq-support-ai-backend.onrender.com/api/integrations/shopify/webhooks`
 
 The handler is implemented, but registration and Shopify review remain external launch steps.
+
+## Expiring offline token migration
+
+New Shopify installations are already compliant: Teviq includes `expiring=1` in the authorization-code exchange, encrypts both returned tokens and rotates the access/refresh pair before expiry.
+
+Stores connected through the older onboarding path can still have a legacy non-expiring offline token. Migrate one selected brand in a controlled maintenance window from the backend environment:
+
+```sh
+npm run shopify:migrate-offline-token -- --brand <brand-id>
+```
+
+Safety rules:
+
+- Do not paste the Shopify client secret, credential-encryption secret or store access token into chat, shell arguments, tickets or logs. The maintenance command uses the existing protected backend environment.
+- Do not run the command without a database backup and an explicit brand selection.
+- The command never prints token values. It prints only the brand, store, migration mode and expiry timestamps.
+- Shopify invalidates the old non-expiring token after a successful exchange. Treat execution as a production credential rotation, not a read-only check.
+- Teviq writes the access token, refresh token and expiry values as one token pair. Optimistic token-version matching prevents an older refresh response from overwriting a newer rotation from another backend instance.
+- If the provider returns a successful migration response but the database update is lost, follow Shopify's recovery window guidance and retry with the original token only from the protected maintenance environment. Never send the token over chat.
+
+Before production execution, run the credential-free regression tests:
+
+```sh
+npm run test:shopify-token-migration
+npm run test:shopify-oauth
+```
+
+After execution, verify that the Shopify connection reports `expiring_offline`, the access expiry is populated, Sync now succeeds, and no reconnect warning appears. Do not infer success from a token endpoint response alone; the new encrypted pair must also be present in the database.

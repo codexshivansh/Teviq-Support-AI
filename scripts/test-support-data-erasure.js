@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');const path=require('node:path');
+const {PGlite}=require('@electric-sql/pglite');
+(async()=>{const db=new PGlite();try{
+ await db.exec("create role anon;create role authenticated;create role service_role;create table brands(id text primary key);insert into brands values('a'),('b');create table instagram_webhook_events(message_id text primary key)");
+ for(const file of ['0028_add_channel_message_inbox.sql','0029_add_channel_inbox_review.sql','0030_add_conversation_handoffs.sql']) await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations',file),'utf8'));
+ for(const table of ['chat_logs','conversation_states','leads','return_requests']) await db.exec(`create table ${table}(brand_id text,customer_id text,content text);insert into ${table} values('a','target','private'),('b','target','keep'),('a','other','keep')`);
+ await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/0032_add_support_data_erasure.sql'),'utf8'));
+ await db.exec("insert into channel_message_inbox(channel,account_id,message_id,brand_id,customer_id,message,event_at,status) values('instagram','acct','old','a','target','private',now(),'sending')");
+ await assert.rejects(db.query("select erase_customer_support_records('a','target',false)"));
+ await assert.rejects(db.query("select erase_customer_support_records('a','target',true)"));
+ assert.equal((await db.query("select count(*)::int n from chat_logs")).rows[0].n,3);
+ await db.exec("update channel_message_inbox set status='needs_review'; insert into channel_message_reviews(event_id,brand_id,actor_id,action,reason) values(1,'a','operator','resolve','private customer note')");
+ await db.query("select erase_customer_support_records('a','target',true)");
+ const row=(await db.query('select * from channel_message_inbox')).rows[0];
+ assert.equal(row.message,'[erased]');assert.equal(row.status,'resolved');assert.equal(row.customer_id,'erased:1');
+ assert.equal((await db.query('select count(*)::int n from channel_message_reviews')).rows[0].n,0);
+ for(const table of ['chat_logs','conversation_states','leads','return_requests']) assert.equal((await db.query(`select count(*)::int n from ${table}`)).rows[0].n,2);
+ await db.exec("insert into channel_message_inbox(channel,account_id,message_id,brand_id,customer_id,message,event_at) values('instagram','acct','old','a','target','must not return',now()) on conflict do nothing");
+ assert.equal((await db.query('select message from channel_message_inbox')).rows[0].message,'[erased]');
+ await db.exec('set role authenticated');await assert.rejects(db.query("select erase_customer_support_records('b','target',true)"));
+ console.log('PASS scoped support erasure, active-work rejection, cross-brand preservation, review removal, duplicate tombstones and RPC denial');
+}finally{await db.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

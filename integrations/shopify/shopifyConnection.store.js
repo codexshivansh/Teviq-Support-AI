@@ -91,6 +91,25 @@ async function updateConnection(brandId, updates) {
   return firstRow(data);
 }
 
+async function updateConnectionIfTokenVersionMatches(
+  brandId,
+  { accessTokenEncrypted, refreshTokenEncrypted },
+  updates
+) {
+  let query = `?brand_id=eq.${encodeFilter(brandId)}`;
+  query += `&access_token_encrypted=eq.${encodeFilter(accessTokenEncrypted)}`;
+  query += refreshTokenEncrypted == null
+    ? "&refresh_token_encrypted=is.null"
+    : `&refresh_token_encrypted=eq.${encodeFilter(refreshTokenEncrypted)}`;
+
+  const data = await requestTable("shopify_connections", query, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ ...updates, updated_at: new Date().toISOString() })
+  });
+  return firstRow(data);
+}
+
 async function deleteConnection(brandId) {
   await requestTable(
     "shopify_connections",
@@ -140,6 +159,12 @@ async function deleteExpiredOauthStates() {
 function toPublicConnection(row) {
   if (!row) return null;
 
+  const tokenMode = !row.access_token_expires_at
+    ? "legacy_non_expiring"
+    : row.refresh_token_encrypted
+      ? "expiring_offline"
+      : "expiring_without_refresh";
+
   return {
     brandId: row.brand_id,
     provider: "shopify",
@@ -155,7 +180,9 @@ function toPublicConnection(row) {
     webhooksLastRegisteredAt: row.webhooks_last_registered_at || null,
     productCount: Number(row.product_count || 0),
     orderCount: Number(row.order_count || 0),
-    categories: Array.isArray(row.categories) ? row.categories : []
+    categories: Array.isArray(row.categories) ? row.categories : [],
+    tokenMode,
+    tokenMigrationRequired: tokenMode !== "expiring_offline"
   };
 }
 
@@ -169,5 +196,6 @@ module.exports = {
   getConnectionByShopDomain,
   toPublicConnection,
   updateConnection,
+  updateConnectionIfTokenVersionMatches,
   upsertConnection
 };

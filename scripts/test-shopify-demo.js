@@ -138,8 +138,9 @@ const tests = [
           message: "Recommend trail shoes under INR 5000"
         });
         return (
-          requestedUrls.length === 1 &&
-          requestedUrls[0].includes("brand_id=eq.live-brand") &&
+          requestedUrls.length >= 1 &&
+          requestedUrls.every((url) => url.includes("brand_id=eq.live-brand")) &&
+          requestedUrls.some((url) => url.includes("/shopify_products?")) &&
           products[0]?.title === "Trail Runner Pro" &&
           !products.some((product) => product.title === "Other Brand Serum")
         );

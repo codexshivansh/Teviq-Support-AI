@@ -34,6 +34,7 @@ async function resolveBrandFromInstagramAccountId(instagramAccountId) {
     limit: "2"
   });
   const response = await fetch(`${url}/rest/v1/instagram_connections?${query}`, {
+    signal: AbortSignal.timeout(8000),
     headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` }
   });
   const rows = await response.json().catch(() => []);
@@ -139,6 +140,27 @@ function parseInboundWebhook(webhookBody) {
   return messages;
 }
 
+function parseInstagramSeenWebhook(webhookBody, { format = process.env.INSTAGRAM_SEEN_WEBHOOK_FORMAT } = {}) {
+  // Provider messaging surfaces do not expose one stable machine-readable
+  // seen payload schema in the accessible public reference. Stay fail-closed
+  // until the deployed app's signed callback shape has been verified.
+  if (format !== 'read_mid_v1') return [];
+  if (!webhookBody || webhookBody.object !== 'instagram' || !Array.isArray(webhookBody.entry)) return [];
+  const statuses = [];
+  for (const entry of webhookBody.entry) for (const event of Array.isArray(entry.messaging) ? entry.messaging : []) {
+    const mid = event.read?.mid;
+    const accountId = entry.id || event.recipient?.id;
+    const timestampMs = Number(event.timestamp);
+    // read_mid_v1 is deliberately narrow: only an explicit outbound message ID
+    // and account-as-sender event can become customer-seen evidence.
+    if (event.read && event.sender?.id === accountId && mid && Number.isFinite(timestampMs) && timestampMs > 0) {
+      statuses.push({ accountId: String(accountId), messageId: String(mid), status: 'seen',
+        timestamp: new Date(timestampMs).toISOString(), failureCategory: null });
+    }
+  }
+  return statuses;
+}
+
 async function sendInstagramMessage({ instagramAccountId, to, text, accessToken }) {
   if (!instagramAccountId || !to || !text || !accessToken) {
     throw new Error("sendInstagramMessage: instagramAccountId, to, text, and accessToken are required.");
@@ -146,6 +168,7 @@ async function sendInstagramMessage({ instagramAccountId, to, text, accessToken 
 
   const response = await fetch(`${GRAPH_API_BASE}/${encodeURIComponent(instagramAccountId)}/messages`, {
     method: "POST",
+    signal: AbortSignal.timeout(15000),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json"
@@ -169,6 +192,7 @@ async function sendInstagramMessage({ instagramAccountId, to, text, accessToken 
 
 module.exports = {
   parseInboundWebhook,
+  parseInstagramSeenWebhook,
   claimInstagramMessage,
   resolveBrandFromInstagramAccountId,
   sendInstagramMessage,

@@ -33,6 +33,13 @@ Never commit real values. Backend secrets belong only in Render/local `.env`; da
 | `INSTAGRAM_REDIRECT_URI` | Recommended for Instagram Login | No | Exact registered HTTPS callback; defaults to `PUBLIC_API_URL/api/instagram/oauth/callback`. |
 | `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` | Yes for Instagram webhooks | Yes | Random string you choose and enter in Meta's webhook configuration. |
 | `INSTAGRAM_GRAPH_API_VERSION` | No | No | Graph API version for Instagram messaging; defaults to `v26.0`. |
+| `INSTAGRAM_SEEN_WEBHOOK_FORMAT` | No | No | Leave blank until a signed callback verifies the exact seen-event shape. Set to `read_mid_v1` only after that verification. |
+| `WHATSAPP_APP_ID` | Yes for Embedded Signup | No | Meta app ID shown for the Teviq Meta app. |
+| `WHATSAPP_APP_SECRET` | Yes for Embedded Signup and WhatsApp webhooks | Yes | Server-only Meta app secret used for signup code exchange and raw-body webhook signature verification. Missing configuration rejects inbound events with 503; invalid signatures receive 401. Configure the secret for the Meta app delivering these events before deploying. |
+| `WIDGET_SESSION_SECRET` | Yes for widget chat and AI Playground | Yes | Dedicated random signing secret, at least 32 bytes, identical across backend instances. Configure before deploying signed sessions; missing configuration rejects chat. Rotation invalidates existing widget sessions. Never put it in frontend variables. |
+| `WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID` | Yes for Embedded Signup | No | Facebook Login for Business configuration ID with WhatsApp Embedded Signup enabled. |
+| `WHATSAPP_GRAPH_API_VERSION` | No | No | Graph API version for WhatsApp Cloud API; defaults to `v21.0`. |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | Yes for WhatsApp webhooks | Yes | Random verification token configured both here and in the Meta app webhook settings. |
 | `SHOPIFY_PRODUCT_SYNC_MAX_PAGES` | No | No | Product sync safety cap; default `50`. |
 | `SHOPIFY_ORDER_SYNC_MAX_PAGES` | No | No | Order sync safety cap; default `20`. |
 | `TWILIO_ACCOUNT_SID` | Only if SMS is enabled | Yes | Twilio account identifier. |
@@ -63,6 +70,12 @@ INSTAGRAM_APP_ID=<app-id>
 INSTAGRAM_REDIRECT_URI=https://teviq-support-ai-backend.onrender.com/api/instagram/oauth/callback
 INSTAGRAM_WEBHOOK_VERIFY_TOKEN=<long-random-secret>
 INSTAGRAM_GRAPH_API_VERSION=v26.0
+INSTAGRAM_SEEN_WEBHOOK_FORMAT=
+WHATSAPP_APP_ID=<meta-app-id>
+WHATSAPP_APP_SECRET=<secret>
+WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID=<login-for-business-config-id>
+WHATSAPP_GRAPH_API_VERSION=v21.0
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=<long-random-secret>
 ```
 
 Missing `GROQ_API_KEY` does not crash startup; AI replies use grounded local/system fallbacks. Knowledge indexing and retrieval run locally over Supabase text and do not require a Gemini key. Missing Supabase or Clerk secrets makes the related operations fail closed.
@@ -99,5 +112,6 @@ The website embeds the pinned widget release in `index.html`. Keep its valid `VI
 
 - Rotate any secret that appears in a screenshot, log, commit, browser bundle, or support message.
 - Rotate `SHOPIFY_CREDENTIALS_SECRET` only with a token re-encryption plan.
+- Keep `WHATSAPP_APP_SECRET` and all WhatsApp customer access tokens server-only.
 - Frontend and backend Clerk keys must belong to the same Clerk environment.
 - Keep `SUPABASE_SERVICE_ROLE_KEY` server-only.

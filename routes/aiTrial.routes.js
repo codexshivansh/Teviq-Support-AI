@@ -19,15 +19,17 @@ router.put('/:brandId', requireBrandAccess, asyncHandler(async (req, res) => {
   if (!meteringEnabled()) return res.status(503).json({ error: 'metering_not_enabled' });
 
   const { enabled, startsAt, endsAt, maxCallsPerDay, maxTokensPerDay } = req.body || {};
+  const accessMode = req.body?.accessMode ?? (enabled ? 'trial' : 'disabled');
   const start = Date.parse(startsAt);
   const end = Date.parse(endsAt);
-  if (typeof enabled !== 'boolean' || !Number.isFinite(start) || !Number.isFinite(end) || end <= start ||
+  if (!['trial','paid','disabled'].includes(accessMode) || typeof enabled !== 'boolean' || enabled !== (accessMode !== 'disabled') || !Number.isFinite(start) || !Number.isFinite(end) || end <= start ||
       !Number.isSafeInteger(maxCallsPerDay) || maxCallsPerDay < 1 || maxCallsPerDay > 1000 ||
       !Number.isSafeInteger(maxTokensPerDay) || maxTokensPerDay < 1 || maxTokensPerDay > 100000) {
     return res.status(400).json({ error: 'invalid_trial_limits' });
   }
   const trial = await saveTrialLimit(req.params.brandId, {
     enabled,
+    access_mode: accessMode,
     starts_at: new Date(start).toISOString(),
     ends_at: new Date(end).toISOString(),
     max_calls_per_day: maxCallsPerDay,

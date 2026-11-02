@@ -208,6 +208,7 @@ app.use("/api/onboarding", requireClerkAuth, onboardingRoutes);
 app.use("/api/analytics", requireClerkAuth, analyticsRoutes);
 app.use("/api/ai-trial", requireClerkAuth, require("./routes/aiTrial.routes"));
 app.use("/api/conversations", requireClerkAuth, conversationsRoutes);
+app.use('/api/channel-inbox', requireClerkAuth, require('./routes/channelInbox.routes'));
 app.use("/api/chat", chatRateLimit, chatRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/instagram", instagramRoutes);
@@ -332,5 +333,10 @@ const server = app.listen(PORT, () => {
 });
 
 server.ref();
+
+// Deploy migration 0028 first. No provider call is made without a stored event.
+const { startChannelMessageWorker } = require('./services/channelMessageWorker.service');
+const stopChannelMessageWorker = startChannelMessageWorker();
+server.on('close', stopChannelMessageWorker);
 
 module.exports = { app, server };

@@ -23,7 +23,7 @@
  */
 
 const GRAPH_API_VERSION = 'v21.0';
-const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+const { getAccessToken } = require('../integrations/whatsapp/whatsappConnection.store');
 
 function getSupabaseConfig() {
   const url = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -73,11 +73,11 @@ async function resolveBrandFromPhoneNumberId(phoneNumberId) {
     throw new Error('resolveBrandFromPhoneNumberId: phoneNumberId is required');
   }
 
-  const path = `?phone_number_id=eq.${encodeFilter(phoneNumberId)}&select=brand_id,business_mode,access_token,is_active`;
+  const path = `?phone_number_id=eq.${encodeFilter(phoneNumberId)}&select=brand_id,business_mode,access_token,access_token_encrypted,is_active`;
 
   let response;
   try {
-    response = await fetch(getRestUrl(path), { headers: getHeaders() });
+    response = await fetch(getRestUrl(path), { headers: getHeaders(), signal: AbortSignal.timeout(8000) });
   } catch (networkErr) {
     console.error('[whatsapp.service] Network error querying whatsapp_connections:', networkErr);
     throw networkErr;
@@ -105,7 +105,7 @@ async function resolveBrandFromPhoneNumberId(phoneNumberId) {
   return {
     brandId: row.brand_id,
     businessMode: row.business_mode,
-    accessToken: row.access_token
+    accessToken: getAccessToken(row)
   };
 }
 
@@ -165,6 +165,26 @@ function parseInboundWebhook(webhookBody) {
   return parsedMessages;
 }
 
+function parseWhatsAppStatusWebhook(webhookBody) {
+  const statuses = [];
+  if (!webhookBody || !Array.isArray(webhookBody.entry)) return statuses;
+  for (const entry of webhookBody.entry) for (const change of Array.isArray(entry.changes) ? entry.changes : []) {
+    const value = change.value;
+    const accountId = value?.metadata?.phone_number_id;
+    for (const item of Array.isArray(value?.statuses) ? value.statuses : []) {
+      const timestampMs = Number(item.timestamp) * 1000;
+      if (!accountId || !item.id || !['sent', 'delivered', 'read', 'failed'].includes(item.status) || !Number.isFinite(timestampMs)) continue;
+      const providerCode = item.errors?.[0]?.code;
+      const category = item.status === 'failed'
+        ? (providerCode ? `meta_${String(providerCode).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24)}` : 'provider_failed')
+        : null;
+      statuses.push({ accountId: String(accountId), messageId: String(item.id), status: item.status,
+        timestamp: new Date(timestampMs).toISOString(), failureCategory: category });
+    }
+  }
+  return statuses;
+}
+
 /**
  * Sends a plain text reply back to a customer via the WhatsApp Cloud API.
  * Must be called within the 24-hour customer service window for free-form
@@ -183,7 +203,8 @@ async function sendWhatsAppMessage({ phoneNumberId, to, text, accessToken }) {
     throw new Error('sendWhatsAppMessage: phoneNumberId, to, text, and accessToken are all required');
   }
 
-  const url = `${GRAPH_API_BASE}/${phoneNumberId}/messages`;
+  const graphVersion = String(process.env.WHATSAPP_GRAPH_API_VERSION || GRAPH_API_VERSION).trim();
+  const url = `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`;
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -196,6 +217,7 @@ async function sendWhatsAppMessage({ phoneNumberId, to, text, accessToken }) {
   try {
     response = await fetch(url, {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
@@ -230,5 +252,6 @@ async function sendWhatsAppMessage({ phoneNumberId, to, text, accessToken }) {
 module.exports = {
   resolveBrandFromPhoneNumberId,
   parseInboundWebhook,
+  parseWhatsAppStatusWebhook,
   sendWhatsAppMessage
 };
