@@ -9,7 +9,8 @@
 //
 // Run from inside backend/:
 //   node scripts/seed-teviq-faqs.js          (preview only)
-//   node scripts/seed-teviq-faqs.js --apply  (creates rows; do not rerun on existing FAQs)
+//   node scripts/seed-teviq-faqs.js --apply          (adds rows)
+//   node scripts/seed-teviq-faqs.js --replace --apply (replaces all Teviq FAQs)
 //
 // Requires backend/.env to already have SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // set. Indexing is local; no embedding-provider API key is needed.
@@ -211,7 +212,15 @@ async function run() {
     return;
   }
   require('dotenv').config();
-  const { createFaq } = require('../knowledge/structuredKnowledge.service');
+  const { createFaq, deleteItem, listItems } = require('../knowledge/structuredKnowledge.service');
+  if (process.argv.includes('--replace')) {
+    const existing = await listItems({ brandId: BRAND_ID, type: 'faq' });
+    console.log(`Removing ${existing.length} existing FAQs before replacement`);
+    for (const item of existing) {
+      const result = await deleteItem({ brandId: BRAND_ID, itemId: item.id, type: 'faq' });
+      if (!result.deleted) throw new Error(`Could not delete FAQ ${item.id}`);
+    }
+  }
   console.log(`Seeding ${FAQS.length * 2} FAQs (English + Hinglish) for brand "${BRAND_ID}"`);
   console.log("=".repeat(70));
 
