@@ -125,7 +125,8 @@ const teviqProductQuestions = [
   "How do you measure whether an AI response is actually resolved?",
   "What happens when two uploaded documents contain contradictory refund rules?",
   "Agar answer knowledge base mein nahi hai, Teviq guess karega ya support team ko transfer karega?",
-  "Is one brand's customer data ever used to answer another brand's customer?"
+  "Is one brand's customer data ever used to answer another brand's customer?",
+  "Can I cancel my Teviq subscription and get a prorated refund for unused days?"
 ];
 
 const cases = [

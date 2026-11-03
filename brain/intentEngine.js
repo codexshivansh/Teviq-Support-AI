@@ -8,7 +8,11 @@ const TEVIQ_PRODUCT_QUESTION_PATTERNS = [
   /\b(?:ai response|ai answer|resolution rate|resolved response)\b/i,
   /\b(?:one brand|another brand|brand data|customer data)\b/i,
   /\b(?:contradictory|conflicting) (?:documents?|policies|rules|sources?)\b/i,
-  /\b(?:manually add|training time|train (?:the )?ai|which source)\b/i
+  /\b(?:manually add|training time|train (?:the )?ai|which source)\b/i,
+  // Teviq is the SaaS product itself. Subscription and billing questions
+  // must stay on the knowledge/policy path instead of entering a client's
+  // order-cancellation flow when they contain words like "cancel" or "refund".
+  /\b(?:subscription|subscrib(?:e|ed|er|ing)|monthly plan|billing|prorated|paid plan|unused (?:days?|time)|trial)\b/i
 ];
 
 const POLICY_INFORMATION_PATTERN =
