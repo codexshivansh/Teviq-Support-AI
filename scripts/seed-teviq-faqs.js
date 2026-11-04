@@ -203,6 +203,28 @@ const FAQS = [
       question: "Teviq team se directly kaise contact karoon?",
       answer: "For the support team phone number, email and business hours, use the current contact details configured in your dashboard."
     }
+  },
+  {
+    tags: ["shopify", "authorization", "widget"],
+    en: {
+      question: "Does installing the widget automatically connect Shopify orders?",
+      answer: "No. Installing the website widget does not authorize access to Shopify orders. The store owner must separately authorize the Shopify connection, required permissions must be granted, and setup must be verified. Order lookup also requires customer verification. The widget alone does not grant access to store or customer data."
+    },
+    hi: {
+      question: "Widget lagane se Shopify orders automatically connect ho jayenge?",
+      answer: "Nahi. Website widget lagane se Shopify orders ka access nahi milta. Store owner ko alag se Shopify connection authorize karna, required permissions dena aur setup verify karna hota hai. Order lookup ke liye customer verification bhi zaroori hai."
+    }
+  },
+  {
+    tags: ["trial", "payment", "activation"],
+    en: {
+      question: "Does day four automatically charge me?",
+      answer: "No. The three-day trial does not automatically charge you or activate a paid plan. When the trial expires, new AI calls stop until payment is manually confirmed and paid access is explicitly activated. Paying later does not extend the trial automatically."
+    },
+    hi: {
+      question: "Chauthe din automatically payment katega ya trial chalta rahega?",
+      answer: "Nahi. Teen din ka trial khatam hone par na automatic payment katta hai, na paid plan chalu hota hai. Payment manually confirm aur paid access explicitly activate hone tak naye AI calls rukte hain. Baad mein payment karne se trial automatic extend nahi hota."
+    }
   }
 ];
 

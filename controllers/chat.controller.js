@@ -14,6 +14,15 @@ function normalizeBrandId(value) {
 }
 
 async function handleChat(req, res, next) {
+  const startedAt = Date.now();
+  let phase = 'validate';
+  const durations = {};
+  let phaseStartedAt = startedAt;
+  const mark = (nextPhase) => {
+    durations[phase] = Date.now() - phaseStartedAt;
+    phase = nextPhase;
+    phaseStartedAt = Date.now();
+  };
   try {
     const { sessionToken, message, context } = req.body || {};
     const brandId = normalizeBrandId(req.body?.brand_id || req.body?.brandId);
@@ -31,6 +40,7 @@ async function handleChat(req, res, next) {
       });
     }
 
+    mark('brand');
     const brand = /^[a-z0-9-]+$/.test(brandId) ? await getBrandById(brandId) : null;
     if (!brand || brand.isActive === false) {
       return res.status(403).json({
@@ -58,6 +68,7 @@ async function handleChat(req, res, next) {
 
     // Public callers cannot select another customer's stored conversation ID.
     const session = resolveWidgetSession(brandId, sessionToken);
+    mark('handoff');
     const handoff = await getConversationHandoff({ brandId, channel: 'widget', customerId: session.customerId });
     if (handoff.paused) {
       const reply = 'AI replies are paused while the team handles this conversation. Please use the business’s support contact for a human response.';
@@ -66,6 +77,7 @@ async function handleChat(req, res, next) {
         source: 'system', knowledgeCitations: [], knowledgeConfidence: 0, isFallback: true, responseTimeMs: null });
       return res.json({ sessionToken: session.token, reply, source: 'system', escalated: true, intent: 'human_support', warnings: [] });
     }
+    mark('brain');
     const result = await processMessage({
       brandId,
       message: cleanMessage,
@@ -89,6 +101,10 @@ async function handleChat(req, res, next) {
     });
   } catch (error) {
     next(error);
+  } finally {
+    durations[phase] = Date.now() - phaseStartedAt;
+    // Operational durations only: never log customer text, IDs, tokens or errors.
+    console.info('[chat-timing]', JSON.stringify({ totalMs: Date.now() - startedAt, phases: durations }));
   }
 }
 

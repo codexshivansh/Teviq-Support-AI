@@ -34,6 +34,7 @@ function encodeFilter(value) {
 async function request(path, options = {}) {
   const response = await fetch(getRestUrl(path), {
     ...options,
+    signal: options.signal || AbortSignal.timeout(8000),
     headers: getHeaders(options.headers)
   });
   const text = await response.text();

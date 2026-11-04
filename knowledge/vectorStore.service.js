@@ -48,7 +48,6 @@ async function request(path, options = {}) {
       headers: getHeaders(options.headers),
       signal: controller.signal
     });
-    clearTimeout(timeoutId);
 
     let data = null;
     try {
@@ -100,6 +99,8 @@ async function request(path, options = {}) {
     
     console.error('[Supabase Request Error]', path, error.message);
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

@@ -60,6 +60,7 @@ async function requestSupabase(path, options = {}) {
 
   const response = await fetch(getTableUrl(path), {
     ...options,
+    signal: options.signal || AbortSignal.timeout(8000),
     headers
   });
   
