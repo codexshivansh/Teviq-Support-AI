@@ -1,4 +1,5 @@
 const { extractEmail, extractPhone } = require("./privacy.service");
+const { appendEscalationContact } = require('./escalation.service');
 
 function extractContactInfo(message) {
   return {
@@ -14,10 +15,10 @@ function hasContactInfo(message) {
 
 function buildLeadCaptureReply(brand, message) {
   if (hasContactInfo(message)) {
-    return `Thanks. I have noted your details for ${brand.brandName}. Our team will contact you soon.`;
+    return appendEscalationContact(`Thanks. I have noted your details for ${brand.brandName}'s team to review. For a direct response, please use the support contact below.`, brand);
   }
 
-  return `Sure, I can help with that. Please share your name and phone number or email, and ${brand.brandName}'s team will get back to you.`;
+  return appendEscalationContact(`Please share your name and phone number or email so I can save your request for ${brand.brandName}'s team to review. You can also contact support directly.`, brand);
 }
 
 function buildLeadCaptureFailureReply(brand) {

@@ -35,6 +35,7 @@ const {
 } = require("../services/policyConflict.service");
 const { analyzeConversation } = require("./conversationAnalyzer");
 const { detectIntent } = require("./intentEngine");
+const { isTeviqSalesBrand } = require("../services/teviqSalesScope.service");
 const { extractEntities } = require("./entityExtractor");
 const { buildContext } = require("./contextBuilder");
 const { routeTools, ORDER_INTENTS, LEAD_CAPTURE_INTENTS } = require("./toolRouter");
@@ -588,7 +589,7 @@ async function processMessage({
   // recognizable intent as an implicit order-status check — the widget
   // being embedded on an order page IS the context, so "hi" shouldn't
   // trigger the normal collecting_order_id ask.
-  if (presetOrderId) {
+  if (presetOrderId && !isTeviqSalesBrand(brandId)) {
     entities.orderId = entities.orderId || presetOrderId;
     if (intent === "unknown") {
       intent = "order_tracking";
@@ -607,6 +608,12 @@ async function processMessage({
     conversationState = await getState(brandId, customerId, channel);
   } catch (error) {
     console.error(`[BRAIN] Failed to read conversation state for ${brandId}:${customerId}: ${error.message}`);
+  }
+
+  // Ignore legacy merchant-flow state created before the Teviq SaaS router.
+  // Keep human contact capture, but never resume an order action in this workspace.
+  if (isTeviqSalesBrand(brandId) && conversationState.state !== 'collecting_contact') {
+    conversationState = { state: 'idle', context: {}, updatedAt: null };
   }
 
   const isConversationStateFresh =
@@ -729,7 +736,9 @@ async function processMessage({
     isConversationStateFresh &&
     conversationState.context?.pendingIntent &&
     (entities.phone || entities.email) &&
-    (intent === "unknown" || intent === conversationState.context.pendingIntent)
+    (intent === "unknown" || intent === conversationState.context.pendingIntent ||
+      (isTeviqSalesBrand(brandId) && intent === "general_faq" &&
+        message.trim().split(/\s+/).length <= 8 && !/[?？]/.test(message)))
   ) {
     intent = conversationState.context.pendingIntent;
   }
@@ -737,7 +746,7 @@ async function processMessage({
   addConversationMessage(brandId, customerId, "user", storedMessage, channel);
   const memory = await getConversationMemory(brandId, customerId, channel);
 
-  const toolResult = await routeTools({ brand, intent, entities, message });
+  const toolResult = await routeTools({ brand, intent, entities, message, channel });
 
   if (LEAD_CAPTURE_INTENTS.includes(intent) && toolResult.leadState?.hasContact) {
     try {

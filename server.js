@@ -63,7 +63,9 @@ app.get("/health", (req, res) => {
   res.json({
     ok: true,
     service: "teviq-support-ai-backend",
-    environment: NODE_ENV
+    environment: NODE_ENV,
+    revision: /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT || '')
+      ? process.env.RENDER_GIT_COMMIT : null
   });
 });
 

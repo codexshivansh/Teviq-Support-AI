@@ -25,6 +25,8 @@ jobs:
       - run: npm run test:reply-window
       - run: npm run test:channel-send-window
       - run: npm run test:support-data-erasure
+      - run: npm run test:teviq-launch-routing
+      - run: npm run test:faq-sync
       - run: npm run test:escalation
       - run: npm run test:channel-review-access
       - run: npm run test:retrieval-regression

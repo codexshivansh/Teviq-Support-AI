@@ -131,6 +131,54 @@ const teviqProductQuestions = [
 
 const cases = [
   {
+    name: "Teviq subscription and capability questions stay out of merchant actions",
+    run() {
+      for (const question of [
+        'Can I cancel anytime?',
+        'Can I cancel anytime and will I get a prorated refund for unused days?',
+        'Agar AI ko answer nahi pata ho to kya wo guess karega ya human ko bhejega?',
+        'Can you promise that every customer query will be answered correctly without human review?',
+        'How do you handle return requests for my customers?',
+        'Can your AI track orders for my store?',
+        'Kya main kabhi bhi cancel kar sakta hoon?',
+        'क्या मैं कभी भी सब्सक्रिप्शन बंद कर सकता हूँ?',
+        'What about unused days?', 'And after that?',
+        "I don't want to talk to a human; explain the cancellation policy."
+      ]) assert.equal(detectIntent(question, 'teviq'), 'general_faq', question);
+      for (const question of ['I want to talk to a human at Teviq', 'Talk to support',
+        'Can I speak to your support team?', 'Please connect me to a person',
+        'Mujhe support team se baat karni hai', 'मुझे सपोर्ट टीम से बात करनी है']) {
+        assert.equal(detectIntent(question, 'teviq'), 'human_support', question);
+      }
+      assert.equal(detectIntent('Cancel order TVQ1001', 'client-brand'), 'cancellation');
+    }
+  },
+  {
+    name: "Teviq ignores legacy order states and host-supplied shopping context",
+    async run() {
+      for (const state of ['checking_cancellation', 'checking_return', 'collecting_order_contact', 'collecting_order_id', 'narrowing_products']) {
+        supportBrainHarness.setConversationState({ state, context: { orderId: 'TVQ1001', pendingIntent: 'cancellation' }, updatedAt: new Date().toISOString() });
+        const result = await supportBrainHarness.processMessage({ brandId: 'teviq', customerId: 'synthetic-saas', message: 'Can I cancel anytime?', context: { orderId: 'TVQ1001' } });
+        assert.equal(result.intent, 'general_faq');
+        assert.doesNotMatch(result.reply, /order id|order.*cancel/i);
+      }
+      supportBrainHarness.setConversationState({ state: 'idle', context: {}, updatedAt: null });
+    }
+  },
+  {
+    name: "Teviq explicit handoff preserves contact capture across turns",
+    async run() {
+      const first = await supportBrainHarness.processMessage({ brandId: 'teviq', customerId: 'synthetic-handoff', message: 'I want to talk to a human at Teviq' });
+      assert.equal(first.intent, 'human_support');
+      assert.equal(first.escalated, true);
+      const count = supportBrainHarness.getLeadRecords().length;
+      const second = await supportBrainHarness.processMessage({ brandId: 'teviq', customerId: 'synthetic-handoff', message: 'Test Person test@example.com' });
+      assert.equal(second.intent, 'human_support');
+      assert.equal(supportBrainHarness.getLeadRecords().length, count + 1);
+      assert.equal(supportBrainHarness.getConversationState().state, 'idle');
+    }
+  },
+  {
     name: "Teviq product questions are not hijacked by commerce keywords",
     run() {
       for (const question of teviqProductQuestions) {

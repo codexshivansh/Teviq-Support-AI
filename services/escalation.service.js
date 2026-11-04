@@ -108,6 +108,7 @@ function buildConfidenceEscalationReply(brand, language = "english") {
 }
 
 module.exports = {
+  appendEscalationContact,
   detectEscalation,
   buildEscalationReply,
   buildConfidenceEscalationReply,

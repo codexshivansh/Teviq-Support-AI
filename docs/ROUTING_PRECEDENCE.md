@@ -1,5 +1,11 @@
 # Routing Precedence
 
+## Teviq workspace override — 3 November 2026
+
+The canonical `teviq` workspace is a SaaS assistant. Explicit immediate human requests take priority, followed by complaints and the dedicated sales playbooks; other questions use brand knowledge. Merchant order workflows and host-supplied order context are not enabled for this workspace. Legacy merchant states are ignored, while contact capture continues across turns. Other brands keep merchant routing and verification. Hard escalation remains enforced in `routeTools`. All channels are forwarded to tool routing for correct usage accounting.
+
+Public widget customer identity is derived from a signed, brand-bound session; caller-supplied customer IDs are ignored. The historical sections below describe earlier routing work and do not override these current rules.
+
 Pure documentation. No behavior here should change as a result of this file
 existing — it exists to make the *current* routing decision chain legible in
 one place, since it is currently scattered across six layers with no single

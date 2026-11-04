@@ -43,7 +43,9 @@
     "backfill:embedding-2": "node scripts/backfill-gemini-embedding-2.js",
     "test:ai-access-sql": "node scripts/test-ai-access-sql.js",
     "test:channel-send-window": "node scripts/test-channel-send-window.js",
-    "test:support-data-erasure": "node scripts/test-support-data-erasure.js"
+    "test:support-data-erasure": "node scripts/test-support-data-erasure.js",
+    "test:faq-sync": "node scripts/test-faq-sync.js",
+    "test:teviq-launch-routing": "node scripts/test-teviq-launch-routing.js"
   },
   "keywords": [
     "support",

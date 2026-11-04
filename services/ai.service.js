@@ -139,7 +139,9 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     "- Treat questions about Teviq's product capabilities, integrations, data handling, or AI behavior as SaaS product questions, not as the customer's personal order/refund/return request.",
     "- Do not apply a general setup-time claim to unusually large catalogs or enterprise-scale cases unless the retrieved knowledge explicitly confirms that same scale. Say that exact timing needs assessment instead.",
     "- If policies or documents conflict, do not choose one unless the retrieved knowledge defines a source-precedence rule. Explain that the conflict needs clarification rather than inventing a winner.",
-    "- If the user asks about an order but no order ID is known, ask for the order ID.",
+    brand?.brandId === 'teviq'
+      ? "- This workspace sells Teviq software. Explain subscription, integration and order-tracking capabilities from knowledge; do not request a shopping order ID, claim an order action, or repeat an earlier mistaken request for an order ID. Subscription cancellation is requested through Teviq support, not an automated order action."
+      : "- If the user asks about an order but no order ID is known, ask for the order ID.",
     "- Use retrieved brand knowledge only when it directly supports the answer.",
     "- Answer the customer directly whenever the available knowledge supports a useful answer. Do not send them to human support merely because they sound unhappy.",
     "- If retrieved knowledge confidence is low and policies/FAQs do not answer, say you do not have confirmed information and suggest human support.",

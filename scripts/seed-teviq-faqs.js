@@ -1,4 +1,4 @@
-// One-off script to seed the 15 new FAQ topics (English + Hinglish = 30 rows)
+// Preview or safely synchronize the canonical Teviq FAQs (English + Hinglish).
 // straight into the real "teviq" brand's Knowledge Base.
 //
 // This calls structuredKnowledge.service.js's createFaq() directly — the exact
@@ -9,8 +9,8 @@
 //
 // Run from inside backend/:
 //   node scripts/seed-teviq-faqs.js          (preview only)
-//   node scripts/seed-teviq-faqs.js --apply          (adds rows)
-//   node scripts/seed-teviq-faqs.js --replace --apply (replaces all Teviq FAQs)
+//   node scripts/seed-teviq-faqs.js --apply --backup-dir /private/backups
+// Existing IDs are preserved; unrelated FAQs are kept; --replace is rejected.
 //
 // Requires backend/.env to already have SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // set. Indexing is local; no embedding-provider API key is needed.
@@ -23,12 +23,12 @@ const FAQS = [
     en: {
       question: "Can I try Teviq before paying?",
       answer:
-        "When offered and activated for your workspace, Teviq provides a 3-day free trial. Configured reply and AI usage limits apply. Confirm the limits in your trial details; a paid subscription is separate."
+        "When offered and activated for your workspace, Teviq provides a 3-day free trial. Configured reply and AI usage limits apply. Confirm the limits in your trial details. The trial does not automatically become paid: after three days, new AI calls stop unless payment is confirmed and paid access is explicitly activated."
     },
     hi: {
       question: "Kya main Teviq ko paise dene se pehle try kar sakta hoon?",
       answer:
-        "Offer aur workspace activation hone par Teviq ka 3-din ka free trial shuru hota hai. Configured reply aur AI usage limits apply hoti hain. Trial details mein limits confirm karein; paid subscription alag hai."
+        "Offer aur workspace activation hone par Teviq ka 3-din ka free trial shuru hota hai. Configured reply aur AI usage limits apply hoti hain. Trial details mein limits confirm karein. Teen din baad paid access automatic nahi hota: payment confirm hone aur paid access explicitly activate hone tak naye AI calls rukte hain."
     }
   },
   {
@@ -36,12 +36,12 @@ const FAQS = [
     en: {
       question: "Which e-commerce platforms does Teviq work with?",
       answer:
-        "Teviq installs on any website with a single script tag, so it works regardless of platform. A demo Shopify catalog/order connector is available today; live Shopify order sync is in progress."
+        "The website widget can be installed on sites that allow a custom script. Shopify product and order lookup requires a separately connected, authorized store and setup verification; it is not available automatically on every website. Confirm availability for your store during onboarding."
     },
     hi: {
       question: "Teviq kaun-kaun se e-commerce platforms pe kaam karta hai?",
       answer:
-        "Teviq kisi bhi website pe ek script tag add karke chal jata hai, platform koi bhi ho. Demo Shopify catalog/order connector abhi available hai; live Shopify order sync pe kaam chal raha hai."
+        "Website par custom script add karne ki permission ho to widget install ho sakta hai. Shopify product aur order lookup ke liye alag authorized store connection aur setup verification zaroori hai; har website par automatically available nahi hota. Onboarding mein apne store ki availability confirm karein."
     }
   },
   {
@@ -207,70 +207,14 @@ const FAQS = [
 ];
 
 async function run() {
-  if (!process.argv.includes('--apply')) {
-    console.log(JSON.stringify({ brandId: BRAND_ID, mode: 'preview-only', faqs: FAQS }, null, 2));
-    return;
-  }
-  require('dotenv').config();
-  const { createFaq, deleteItem, listItems } = require('../knowledge/structuredKnowledge.service');
-  if (process.argv.includes('--replace')) {
-    const existing = await listItems({ brandId: BRAND_ID, type: 'faq' });
-    console.log(`Removing ${existing.length} existing FAQs before replacement`);
-    for (const item of existing) {
-      const result = await deleteItem({ brandId: BRAND_ID, itemId: item.id, type: 'faq' });
-      if (!result.deleted) throw new Error(`Could not delete FAQ ${item.id}`);
-    }
-  }
-  console.log(`Seeding ${FAQS.length * 2} FAQs (English + Hinglish) for brand "${BRAND_ID}"`);
-  console.log("=".repeat(70));
-
-  const results = [];
-
-  for (const topic of FAQS) {
-    for (const lang of ["en", "hi"]) {
-      const faq = topic[lang];
-      const preview = faq.question.length > 60 ? `${faq.question.slice(0, 60)}...` : faq.question;
-
-      try {
-        const result = await createFaq({
-          brandId: BRAND_ID,
-          question: faq.question,
-          answer: faq.answer,
-          tags: topic.tags
-        });
-
-        if (result.item) {
-          console.log(`  OK   [${lang}] ${preview}`);
-          results.push({ ok: true, question: faq.question });
-        } else {
-          console.log(`  FAIL [${lang}] ${preview}`);
-          console.log(`       error: ${JSON.stringify(result.error)}`);
-          results.push({ ok: false, question: faq.question, error: result.error });
-        }
-      } catch (error) {
-        console.log(`  FAIL [${lang}] ${preview}`);
-        console.log(`       error: ${error.message}`);
-        results.push({ ok: false, question: faq.question, error: error.message });
-      }
-    }
-  }
-
-  const successCount = results.filter((r) => r.ok).length;
-  const failCount = results.length - successCount;
-
-  console.log("\n" + "=".repeat(70));
-  console.log("SUMMARY");
-  console.log(`Total attempted: ${results.length}`);
-  console.log(`Successful: ${successCount}`);
-  console.log(`Failed: ${failCount}`);
-
-  if (failCount > 0) {
-    console.log("\nFailed items:");
-    results
-      .filter((r) => !r.ok)
-      .forEach((r) => console.log(`  - "${r.question}": ${JSON.stringify(r.error)}`));
-    process.exitCode = 1;
-  }
+  if (process.argv.includes('--replace')) throw new Error('Destructive replacement is disabled. Use --apply --backup-dir <private-directory> to sync existing FAQs safely.');
+  require('dotenv').config({ quiet: true });
+  const service = require('../knowledge/structuredKnowledge.service');
+  const { syncFaqs } = require('./lib/sync-faqs');
+  const at = process.argv.indexOf('--backup-dir');
+  const result = await syncFaqs({ brandId: BRAND_ID, desired: FAQS.flatMap(t => ['en','hi'].map(lang => ({ ...t[lang], tags: t.tags }))), service,
+    apply: process.argv.includes('--apply'), backupDir: at >= 0 ? process.argv[at + 1] : null });
+  console.log(JSON.stringify(result, null, 2));
 }
 
 module.exports = { FAQS };

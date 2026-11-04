@@ -100,11 +100,6 @@ function getIntentFallbackReply(brand, intent) {
   return null;
 }
 
-// NOTE: `channel` defaults to "widget" here because supportBrain.js's call
-// site (`routeTools({ brand, intent, entities, message })`) does not
-// currently pass it through — supportBrain.js was out of scope for this
-// change, so channel will always read as the default until that call site
-// is updated to forward the real channel. Flagged for the brand owner.
 async function routeTools({ brand, intent, entities, message, channel = "widget" }) {
   const hardEscalation = detectEscalation(message, brand);
   if (hardEscalation.escalated) {

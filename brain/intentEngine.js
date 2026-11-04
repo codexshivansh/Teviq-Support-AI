@@ -2,18 +2,18 @@ const { isTeviqSalesBrand } = require('../services/teviqSalesScope.service');
 const { parseBudget, hasProductKeywordMatch } = require("../services/product.service");
 const { extractOrderId } = require("./entityExtractor");
 
-const TEVIQ_PRODUCT_QUESTION_PATTERNS = [
-  /\bteviq\b/i,
-  /\b(?:widget|knowledge base|uploaded (?:pdf|document|file)|multiple storefronts?)\b/i,
-  /\b(?:ai response|ai answer|resolution rate|resolved response)\b/i,
-  /\b(?:one brand|another brand|brand data|customer data)\b/i,
-  /\b(?:contradictory|conflicting) (?:documents?|policies|rules|sources?)\b/i,
-  /\b(?:manually add|training time|train (?:the )?ai|which source)\b/i,
-  // Teviq is the SaaS product itself. Subscription and billing questions
-  // must stay on the knowledge/policy path instead of entering a client's
-  // order-cancellation flow when they contain words like "cancel" or "refund".
-  /\b(?:subscription|subscrib(?:e|ed|er|ing)|monthly plan|billing|prorated|paid plan|unused (?:days?|time)|trial)\b/i
-];
+// Teviq sells software, not the merchant's products. Its own workspace must
+// never enter order mutations merely because a visitor says "cancel" or "return".
+function requestsHumanNow(message) {
+  const text = String(message || '').trim();
+  if (/\b(?:do not|don't|dont|no need to)\s+(?:want to |need to )?(?:talk|speak|connect|contact)|\b(?:human|agent|insaan).*\b(?:nahi|nahin)\b/i.test(text)) return false;
+  return /^(?:human|agent|person|manager|support team)[.!?]*$/i.test(text) ||
+    /\b(?:connect me|transfer me|call me|contact me|have someone call me)\b/i.test(text) ||
+    /(?:^|[.!?]\s*)(?:please\s+)?(?:talk|speak) to (?:a |an |the |your )?(?:human|agent|person|manager|support|team)\b/i.test(text) ||
+    /\b(?:i (?:want|need|would like) to|(?:can|could|may) i|let me) (?:talk|speak|connect) (?:to|with) (?:a |an |the |your )?(?:human|agent|person|manager|support|team)\b/i.test(text) ||
+    /\b(?:mujhe|mujko|mujhko|main)\b.{0,35}\b(?:human|insaan|agent|team|support|manager)\b.{0,25}\b(?:baat|baath|connect|bula)\b/i.test(text) ||
+    /(?:मुझे|मुझको).{0,35}(?:इंसान|एजेंट|टीम|सपोर्ट|मैनेजर).{0,25}(?:बात|जोड़)/u.test(text);
+}
 
 const POLICY_INFORMATION_PATTERN =
   /\b(?:return|exchange|refund|cancellation|shipping) (?:policy|rules?|process|window|conditions?|eligibility)\b/i;
@@ -186,11 +186,15 @@ const INTENT_RULES = [
 ];
 
 function detectIntent(message, brandId) {
-  if (
-    brandId === "teviq" &&
-    TEVIQ_PRODUCT_QUESTION_PATTERNS.some((pattern) => pattern.test(message))
-  ) {
-    return "general_faq";
+  if (isTeviqSalesBrand(brandId)) {
+    if (requestsHumanNow(message)) return 'human_support';
+    const complaint = INTENT_RULES.find(rule => rule.intent === 'complaint');
+    if (complaint.patterns.some(pattern => pattern.test(message))) return 'complaint';
+    // Preserve the dedicated sales playbooks for explicit sales objections.
+    const sales = INTENT_RULES.find(rule => rule.intent.startsWith('b2b_') &&
+      rule.patterns.some(pattern => pattern.test(message)));
+    if (sales) return sales.intent;
+    return 'general_faq';
   }
 
   if (
