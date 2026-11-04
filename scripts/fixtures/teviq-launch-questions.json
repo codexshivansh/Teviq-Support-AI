@@ -418,5 +418,26 @@
     "question": "I don't want to talk to a human; explain the cancellation policy.",
     "expectedIntent": "general_faq",
     "acceptance": "Use conversation context or ask for clarification; do not jump into unrelated merchant workflows."
+  },
+  {
+    "id": "TVQ-61",
+    "category": "human",
+    "question": "I need a human agent now",
+    "expectedIntent": "human_support",
+    "acceptance": "Real review flow; no live transfer or response-time promise."
+  },
+  {
+    "id": "TVQ-62",
+    "category": "human",
+    "question": "I want a support agent please",
+    "expectedIntent": "human_support",
+    "acceptance": "Real review flow."
+  },
+  {
+    "id": "TVQ-63",
+    "category": "human",
+    "question": "I do not need a human agent; explain the pricing",
+    "expectedIntent": "general_faq",
+    "acceptance": "Do not force human support for a negated request."
   }
 ]

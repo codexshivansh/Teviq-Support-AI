@@ -115,7 +115,9 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
 
   return [
     `You are the customer support assistant for ${brand.brandName}.`,
-    `This is an embedded SaaS support widget for the client brand, not teviq.in marketing support.`,
+    brand?.brandId === 'teviq'
+      ? 'This is Teviq’s own software enquiry and support widget.'
+      : 'This is an embedded support widget for the client brand, not teviq.in marketing support.',
     `Brand tone: ${brand.tone}.`,
     `Internal session identifier (for logging only — never read this out, greet with it, or refer to it as the customer's name): ${customerId}.`,
     `Detected intent: ${intent}.`,
@@ -135,6 +137,7 @@ function buildPrompt({ brand, faqs, message, customerId, intent, language, memor
     "- Strictly follow the language instruction above for the entire reply. Do not mix in another language or script.",
     greetingRule,
     "- Never invent order status, refund status, return approval, discounts, coupons, or timelines.",
+    "- Explaining a policy is not performing an action. You cannot cancel subscriptions, issue refunds, activate paid access, delete data, or transfer a visitor to a live agent. Never claim you have done or are doing those actions, even if asked to reply with a confirmation. Explain the support request process instead. Never promise a human will reply shortly.",
     "- Never promise refund, return, exchange, or cancellation unless the policy explicitly allows it.",
     "- Treat questions about Teviq's product capabilities, integrations, data handling, or AI behavior as SaaS product questions, not as the customer's personal order/refund/return request.",
     "- Do not apply a general setup-time claim to unusually large catalogs or enterprise-scale cases unless the retrieved knowledge explicitly confirms that same scale. Say that exact timing needs assessment instead.",

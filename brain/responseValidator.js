@@ -1,6 +1,16 @@
 const { ORDER_INTENTS } = require("./toolRouter");
 const { getEscalationContact } = require("../services/escalation.service");
 const { containsSourcePrecedenceClaim } = require("../services/policyConflict.service");
+const { isTeviqSalesBrand } = require('../services/teviqSalesScope.service');
+
+// Teviq's knowledge-answering path has no account mutation or live transfer tool.
+// A policy allowing an action is never evidence that the action happened.
+function hasUnsupportedActionClaim(reply) {
+  return /\b(?:subscription|account|plan|cancellation|refund|payment|data|messages?)\s+(?:(?:has|have) been |is |are |was |were )?(?:successfully )?(?:cancelled|canceled|confirmed|processed|refunded|deleted|erased|activated)\b/i.test(reply) ||
+    /\b(?:i|we)(?:'ve| have|’ve)?\s+(?:successfully )?(?:cancelled|canceled|deleted|erased|refunded|activated|transferred)\b/i.test(reply) ||
+    /\b(?:i am|i'm|i’m|we are|we're|we’re)\s+(?:now )?(?:transferring|connecting) you\b/i.test(reply) ||
+    /(?:cancel|delete|refund|activate)\s+(?:kar diya|ho gaya|kar di|ho gayi)/i.test(reply);
+}
 
 function stripInternalJson(reply) {
   return reply
@@ -60,6 +70,12 @@ function validateResponse({ reply, context, source, escalated }) {
   if (looksLikeIncompleteAiReply(finalReply, source)) {
     warnings.push("incomplete_ai_reply_replaced");
     finalReply = "Sorry, I could not complete that response. Please try again.";
+  }
+
+  if (source !== 'system' && isTeviqSalesBrand(context.brand?.brandId) && hasUnsupportedActionClaim(finalReply)) {
+    warnings.push('unsupported_account_action_removed');
+    finalReply = 'I cannot perform or confirm account changes, refunds, data deletion, or a live agent transfer in this chat. Please contact Teviq support to request the action and obtain confirmation.';
+    shouldEscalate = true;
   }
 
   if (

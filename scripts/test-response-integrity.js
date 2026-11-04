@@ -19,6 +19,32 @@ function baseContext() {
 }
 
 function run() {
+  for (const reply of [
+    'Your Teviq subscription has been cancelled.',
+    'Cancellation confirmed.',
+    'I have deleted all your data.',
+    'I’m transferring you to a human support agent.',
+    'Subscription cancel kar diya.'
+  ]) {
+    const context = baseContext();
+    context.brand.brandId = 'teviq';
+    const result = validateResponse({ reply, context, source: 'groq', escalated: false });
+    assert.ok(result.warnings.includes('unsupported_account_action_removed'), reply);
+    assert.equal(result.forceEscalation, true);
+    assert.match(result.finalReply, /cannot perform or confirm/);
+    assert.match(result.finalReply, /helloteviq@gmail.com/);
+  }
+  for (const reply of [
+    'You can cancel at any time by contacting support.',
+    'I cannot cancel your subscription. Please contact support.',
+    'Payment confirmation and explicit activation are required after the trial.'
+  ]) {
+    const context = baseContext();
+    context.brand.brandId = 'teviq';
+    assert.equal(validateResponse({ reply, context, source: 'groq', escalated: false }).finalReply, reply);
+  }
+  const merchant = validateResponse({ reply: 'Your subscription has been cancelled.', context: baseContext(), source: 'system', escalated: false });
+  assert.equal(merchant.warnings.length, 0);
   assert.equal(isIncompleteReply("For our first clients, Teviq is", "STOP"), true);
   assert.equal(isIncompleteReply("A complete response.", "STOP"), false);
   assert.equal(isIncompleteReply("A complete response.", "MAX_TOKENS"), true);

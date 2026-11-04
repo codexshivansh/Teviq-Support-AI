@@ -8,6 +8,7 @@ function requestsHumanNow(message) {
   const text = String(message || '').trim();
   if (/\b(?:do not|don't|dont|no need to)\s+(?:want to |need to )?(?:talk|speak|connect|contact)|\b(?:human|agent|insaan).*\b(?:nahi|nahin)\b/i.test(text)) return false;
   return /^(?:human|agent|person|manager|support team)[.!?]*$/i.test(text) ||
+    /\b(?:i (?:want|need|would like)|get me) (?:a |an |the |your )?(?:human(?: support)?(?: agent)?|support agent|agent|person|manager)\b/i.test(text) ||
     /\b(?:connect me|transfer me|call me|contact me|have someone call me)\b/i.test(text) ||
     /(?:^|[.!?]\s*)(?:please\s+)?(?:talk|speak) to (?:a |an |the |your )?(?:human|agent|person|manager|support|team)\b/i.test(text) ||
     /\b(?:i (?:want|need|would like) to|(?:can|could|may) i|let me) (?:talk|speak|connect) (?:to|with) (?:a |an |the |your )?(?:human|agent|person|manager|support|team)\b/i.test(text) ||
