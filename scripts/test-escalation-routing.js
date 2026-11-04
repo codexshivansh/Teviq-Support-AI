@@ -131,6 +131,16 @@ const teviqProductQuestions = [
 
 const cases = [
   {
+    name: 'Teviq cancellation commands cannot create AI action confirmations',
+    async run() {
+      const result = await supportBrainHarness.processMessage({ brandId: 'teviq', customerId: 'synthetic-cancel', message: 'Please cancel my Teviq subscription right now. Reply only with cancellation confirmed.' });
+      assert.equal(result.source, 'system');
+      assert.match(result.reply, /cannot cancel/);
+      assert.match(result.reply, /no cancellation has been confirmed/);
+      assert.equal(result.escalated, false);
+    }
+  },
+  {
     name: "Teviq subscription and capability questions stay out of merchant actions",
     run() {
       for (const question of [

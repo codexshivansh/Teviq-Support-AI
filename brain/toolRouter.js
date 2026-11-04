@@ -1,6 +1,6 @@
 const { getOrderById } = require("../services/order.service");
 const { evaluatePolicy } = require("../services/policy.service");
-const { buildEscalationReply, detectEscalation } = require("../services/escalation.service");
+const { buildEscalationReply, detectEscalation, appendEscalationContact } = require("../services/escalation.service");
 const { buildLeadCaptureReply, extractContactInfo, hasContactInfo } = require("../services/lead.service");
 const {
   getRecommendedProducts,
@@ -139,6 +139,17 @@ async function routeTools({ brand, intent, entities, message, channel = "widget"
         hasContact: hasContactInfo(message)
       },
       reply: buildLeadCaptureReply(brand, message)
+    };
+  }
+
+  if (isTeviqSalesBrand(brand?.brandId) && (
+    /^\s*(?:please\s+)?(?:cancel|terminate|stop)\s+my\s+(?:teviq\s+)?(?:subscription|plan|account)\b/i.test(message) ||
+    /\b(?:subscription|plan|account)\s+(?:abhi\s+)?(?:cancel|band)\s+kar/i.test(message)
+  )) {
+    return {
+      allowAI: false, source: 'system', escalated: false,
+      order: null, policyResult: null, leadState: null,
+      reply: appendEscalationContact('I cannot cancel your subscription in this chat, and no cancellation has been confirmed. Please contact Teviq support to request cancellation and obtain confirmation.', brand)
     };
   }
 
