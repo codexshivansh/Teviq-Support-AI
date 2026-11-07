@@ -127,8 +127,8 @@ async function getAiUsageSummary(brandId) {
     knownEstimatedUsd,
     hasUnknownPricing,
     hasUnknownUsage,
-    remainingCalls: limits[0]?.enabled ? Math.max(0, limits[0].max_calls_per_day - calls) : null,
-    remainingTokens: limits[0]?.enabled ? Math.max(0, limits[0].max_tokens_per_day - tokens) : null
+    remainingCalls: limits[0]?.enabled && !limits[0]?.no_cap ? Math.max(0, limits[0].max_calls_per_day - calls) : null,
+    remainingTokens: limits[0]?.enabled && !limits[0]?.no_cap ? Math.max(0, limits[0].max_tokens_per_day - tokens) : null
   };
 }
 

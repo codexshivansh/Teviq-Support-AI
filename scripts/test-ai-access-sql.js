@@ -6,8 +6,8 @@ const { PGlite } = require('@electric-sql/pglite');
 (async () => {
   const db = new PGlite();
   try {
-    await db.exec("create role anon; create role authenticated; create role service_role; create table brands(id text primary key); insert into brands values ('a'),('b'),('missing');");
-    for (const file of ['0027_add_ai_trial_usage.sql','0031_add_ai_access_modes.sql']) {
+    await db.exec("create role anon; create role authenticated; create role service_role; create table brands(id text primary key); insert into brands values ('a'),('b'),('missing'),('teviq');");
+    for (const file of ['0027_add_ai_trial_usage.sql','0031_add_ai_access_modes.sql','0037_add_internal_ai_access.sql']) {
       await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations', file), 'utf8'));
     }
     const reserve = async (brand='a', tokens=100, global=10000, channel='widget') => {
@@ -39,6 +39,21 @@ const { PGlite } = require('@electric-sql/pglite');
     await db.exec("update ai_trial_limits set starts_at=now()-interval '1 hour',max_calls_per_day=2 where brand_id='a'");
     assert.equal((await reserve()).result,'allowed');
     await assert.rejects(reserve('a',100,10000,'forged'));
+    const { parseAccessSettings } = require('../services/aiAccessSettings.service');
+    const config = { enabled:true, accessMode:'internal', noCap:true, maxCallsPerDay:1, maxTokensPerDay:1 };
+    assert.throws(()=>parseAccessSettings('a',config));
+    assert.throws(()=>parseAccessSettings('teviq',{...config,accessMode:'paid'}));
+    assert.equal(parseAccessSettings('teviq',config).ends_at,null);
+    await assert.rejects(db.exec("update ai_trial_limits set access_mode='internal',starts_at=null,ends_at=null where brand_id='a'"));
+    await assert.rejects(db.exec("update ai_trial_limits set no_cap=true where brand_id='a'"));
+    await db.exec("insert into ai_trial_limits(brand_id,enabled,access_mode,no_cap,max_calls_per_day,max_tokens_per_day) values ('teviq',true,'internal',false,1,1000)");
+    assert.equal((await reserve('teviq')).result,'allowed');
+    assert.equal((await reserve('teviq')).result,'brand_limit');
+    await db.exec("update ai_trial_limits set no_cap=true where brand_id='teviq'");
+    assert.equal((await reserve('teviq',20000,1)).result,'allowed','Internal no cap ignores both software caps but records usage');
+    assert.ok((await db.query("select count(*)::int as n from ai_usage_events where brand_id='teviq'")).rows[0].n >= 2);
+    await db.exec("update ai_trial_limits set enabled=false where brand_id='teviq'");
+    assert.equal((await reserve('teviq')).result,'access_disabled');
     await db.exec('set role authenticated');
     await assert.rejects(reserve());
     await db.exec('reset role');
