@@ -142,6 +142,25 @@ async function routeTools({ brand, intent, entities, message, channel = "widget"
     };
   }
 
+  if (isTeviqSalesBrand(brand?.brandId) &&
+      /\b(?:show|share|give|send|reveal)\b.{0,40}\b(?:another|other|different)\b.{0,50}\b(?:brand|customer|conversation|phone|number|data)\b/i.test(message)) {
+    return {
+      allowAI: false, source: 'system', escalated: false,
+      order: null, policyResult: null, leadState: null,
+      reply: 'I cannot share another brand’s customer conversations, phone numbers, or private data. I can explain Teviq’s privacy and deletion practices instead.'
+    };
+  }
+
+  if (isTeviqSalesBrand(brand?.brandId) &&
+      /\b\d[\d,]*\s+(?:products?|orders?|documents?)\b/i.test(message) &&
+      /\b(?:promise|guarantee|within|in)\b.{0,20}\b\d+\s*(?:minutes?|hours?|days?)\b/i.test(message)) {
+    return {
+      allowAI: false, source: 'system', escalated: false,
+      order: null, policyResult: null, leadState: null,
+      reply: 'I cannot promise a 15-minute setup for a 4,000-product catalog. The actual timeline needs an assessment of your catalog, access and verification requirements. We can confirm an estimate during onboarding.'
+    };
+  }
+
   if (isTeviqSalesBrand(brand?.brandId) && (
     /^\s*(?:please\s+)?(?:cancel|terminate|stop)\s+my\s+(?:teviq\s+)?(?:subscription|plan|account)\b/i.test(message) ||
     /\b(?:subscription|plan|account)\s+(?:abhi\s+)?(?:cancel|band)\s+kar/i.test(message)
