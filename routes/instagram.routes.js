@@ -1,3 +1,4 @@
+const { requireBillingChannel } = require('../middleware/billingChannel.middleware');
 const express = require("express");
 const {
   parseInboundWebhook,
@@ -15,9 +16,9 @@ const router = express.Router();
 
 router.get("/oauth/callback", asyncHandler(oauthCallback));
 router.get("/:brandId/status", requireClerkAuth, requireBrandAccess, asyncHandler(getStatus));
-router.post("/:brandId/connect", requireClerkAuth, requireBrandAccess, asyncHandler(connect));
+router.post("/:brandId/connect", requireClerkAuth, requireBrandAccess, requireBillingChannel('instagram'), asyncHandler(connect));
 router.delete("/:brandId/connection", requireClerkAuth, requireBrandAccess, asyncHandler(disconnect));
-router.post("/:brandId/send", requireClerkAuth, requireBrandAccess, asyncHandler(sendManualReply));
+router.post("/:brandId/send", requireClerkAuth, requireBrandAccess, requireBillingChannel('instagram'), asyncHandler(sendManualReply));
 
 router.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];

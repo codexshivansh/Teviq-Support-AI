@@ -1,3 +1,4 @@
+const { requireBillingChannel } = require('../middleware/billingChannel.middleware');
 /**
  * whatsapp.routes.js
  *
@@ -139,7 +140,7 @@ router.get('/:brandId/status', requireClerkAuth, requireBrandAccess, asyncHandle
   });
 }));
 
-router.post('/:brandId/complete', requireClerkAuth, requireBrandAccess, asyncHandler(async (req, res) => {
+router.post('/:brandId/complete', requireClerkAuth, requireBrandAccess, requireBillingChannel('whatsapp'), asyncHandler(async (req, res) => {
   if (!requireInteractiveClerkSession(req, res)) return;
   const { code, wabaId, phoneNumberId } = req.body || {};
   const connection = await whatsappEmbeddedSignup.finishSignup({
@@ -186,6 +187,7 @@ router.post(
   requireClerkAuth,
   (req, res, next) => { if (requireInteractiveClerkSession(req, res)) next(); },
   requireBrandAccess,
+  requireBillingChannel('whatsapp'),
   asyncHandler(async (req, res) => {
     const { to, text, brandId } = req.body || {};
 

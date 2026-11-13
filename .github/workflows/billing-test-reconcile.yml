@@ -1,0 +1,21 @@
+name: Billing test reconciliation
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+jobs:
+  reconcile:
+    if: vars.BILLING_TEST_RECONCILIATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Retry test subscription verification and cancellations
+        env:
+          BILLING_TEST_BASE_URL: ${{ vars.BILLING_TEST_BASE_URL }}
+          INTERNAL_CRON_SECRET: ${{ secrets.BILLING_TEST_INTERNAL_CRON_SECRET }}
+        run: |
+          test -n "$INTERNAL_CRON_SECRET"
+          case "$BILLING_TEST_BASE_URL" in https://*) ;; *) exit 1 ;; esac
+          curl --fail --silent --show-error --max-time 120 --request POST \
+            --header "Authorization: Bearer $INTERNAL_CRON_SECRET" \
+            "$BILLING_TEST_BASE_URL/internal/reconcile-billing"

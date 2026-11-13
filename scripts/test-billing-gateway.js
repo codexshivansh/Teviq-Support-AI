@@ -1,0 +1,20 @@
+const assert = require('node:assert/strict');
+const { createBillingGateway } = require('../services/billingGateway.service');
+(async () => {
+  assert.throws(() => createBillingGateway({ keyId: 'rzp_live_placeholder', keySecret: 'test' }));
+  const order = { provider_order_id: 'order_test', amount_paise: 99900, currency: 'INR' };
+  let payment = { id: 'pay_test', order_id: 'order_test', amount: 99900, currency: 'INR', status: 'authorized', amount_refunded: 0 };
+  let activated = 0;
+  const gateway = createBillingGateway({ keyId: 'rzp_test_fixture', keySecret: 'fixture', fetchImpl: async () => ({ ok: true, json: async () => ({ items: [payment] }) }) });
+  const activate = async () => { activated++; return 'activated'; };
+  assert.equal((await gateway.reconcile(order, activate)).status, 'pending');
+  assert.equal(activated, 0);
+  payment.status = 'captured';
+  assert.equal((await gateway.reconcile(order, activate)).status, 'activated');
+  payment.amount = 1;
+  await assert.rejects(gateway.reconcile(order, activate));
+  payment.amount = 99900; payment.amount_refunded = 1;
+  await assert.rejects(gateway.reconcile(order, activate));
+  assert.equal(activated, 1);
+  console.log('PASS gateway pending/captured/tampered/refunded payment checks and live-key rejection');
+})().catch(error => { console.error(error); process.exitCode = 1; });

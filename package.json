@@ -46,7 +46,8 @@
     "test:support-data-erasure": "node scripts/test-support-data-erasure.js",
     "test:faq-sync": "node scripts/test-faq-sync.js",
     "test:teviq-launch-routing": "node scripts/test-teviq-launch-routing.js",
-    "test:chat-resource-bounds": "node scripts/test-chat-resource-bounds.js"
+    "test:chat-resource-bounds": "node scripts/test-chat-resource-bounds.js",
+    "test:billing": "node scripts/test-billing-verification.js && node scripts/test-billing-gateway.js && node scripts/test-billing-route-gates.js && node scripts/test-billing-channels.js && node scripts/test-trial-cancellation.js && node scripts/test-subscription-lifecycle.js && node scripts/test-subscription-routes.js"
   },
   "keywords": [
     "support",

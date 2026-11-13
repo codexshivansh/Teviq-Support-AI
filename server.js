@@ -200,6 +200,9 @@ app.get("/health/knowledge/:brandId", async (req, res) => {
   }
 });
 
+app.use("/api/billing-webhook", require("./routes/billingWebhook.routes"));
+app.use("/api/subscriptions", requireClerkAuth, require("./routes/subscriptions.routes"));
+app.use("/api/billing", requireClerkAuth, require("./routes/billing.routes"));
 app.use("/api/me", requireClerkAuth, meRoutes);
 app.use("/api/brand-config", brandConfigRoutes);
 app.use("/api/brands", requireClerkAuth, brandsRoutes);

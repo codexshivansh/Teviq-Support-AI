@@ -1,0 +1,27 @@
+const assert=require('node:assert/strict');const fs=require('node:fs');const {randomUUID}=require('node:crypto');const {PGlite}=require('@electric-sql/pglite');
+const {verifyInvoice}=require('../services/subscriptionBilling.service');
+(async()=>{const db=new PGlite();try{
+ await db.exec("create role anon;create role authenticated;create role service_role;create table brands(id text primary key);insert into brands values('client'),('other'),('teviq');");
+ for(const name of ['0027_add_ai_trial_usage.sql','0031_add_ai_access_modes.sql','0037_add_internal_ai_access.sql','0038_add_billing_orders.sql','0039_enforce_paid_ai_channels.sql','0040_subscription_trials.sql'])await db.exec(fs.readFileSync(`supabase/migrations/${name}`,'utf8'));
+ const id=randomUUID();await db.query(`insert into billing_subscriptions(id,brand_id,owner_user_id,plan_version,provider_plan_id,provider_subscription_id,amount_paise,currency,features,max_calls_per_day,max_tokens_per_day,consent_version) values($1,'client','owner','starter-test-v1','plan_fixture','sub_fixture',99900,'INR','["widget"]',30,30000,'test')`,[id]);
+ await db.query('select start_subscription_trial($1)',[id]);
+ const s=(await db.query('select * from billing_subscriptions where id=$1',[id])).rows[0];
+ assert.equal(new Date(s.trial_ends_at)-new Date(s.trial_started_at),72*3600000);
+ assert.equal((await db.query("select billing_channel_allowed('client','instagram') as allowed")).rows[0].allowed,false);
+ await db.query('update billing_subscriptions set cancel_requested_at=now(),cancelled_at=now() where id=$1',[id]);
+ assert.equal((await db.query("select access_mode from ai_trial_limits where brand_id='client'")).rows[0].access_mode,'trial');
+ const start=Math.floor(Date.parse(s.trial_ends_at)/1000),end=start+30*86400;
+ const invoice={id:'inv_fixture',subscription_id:'sub_fixture',status:'paid',payment_id:'pay_fixture',order_id:'order_fixture',amount:99900,currency:'INR',billing_start:start,billing_end:end};
+ const payment={id:'pay_fixture',order_id:'order_fixture',status:'captured',amount:99900,currency:'INR',amount_refunded:0};
+ for(const patch of [{amount:1},{status:'authorized'},{order_id:'order_other'},{amount_refunded:1}])assert.throws(()=>verifyInvoice(s,invoice,{...payment,...patch}));
+ assert.throws(()=>verifyInvoice(s,{...invoice,subscription_id:'sub_other'},payment));
+ assert.throws(()=>verifyInvoice(s,{...invoice,billing_start:start-1},payment));
+ const verified=verifyInvoice(s,invoice,payment);
+ const params=Object.values(verified);
+ const apply=()=>db.query('select apply_subscription_payment($1,$2,$3,$4,$5,$6,$7) as state',params);
+ assert.equal((await apply()).rows[0].state,'paid');assert.equal((await apply()).rows[0].state,'already_applied');
+ assert.equal((await db.query('select count(*)::int as n from billing_subscription_payments')).rows[0].n,1);
+ await assert.rejects(db.query(`insert into billing_subscriptions select gen_random_uuid(),'other',owner_user_id,plan_version,provider_plan_id,null,amount_paise,currency,features,max_calls_per_day,max_tokens_per_day,trial_started_at,trial_ends_at,consent_version,consent_at,provider_status,cancel_requested_at,cancelled_at,review_required,paid_until,last_checked_at from billing_subscriptions where id=$1`,[id]));
+ await db.exec('set role authenticated');await assert.rejects(db.query('select * from billing_subscriptions'));await assert.rejects(apply());await db.exec('reset role');
+ console.log('PASS 72-hour trial, plan channels, cancellation preserves trial, invoice verification, duplicate payment and database role isolation');
+}finally{await db.close();}})().catch(e=>{console.error(e);process.exitCode=1});
