@@ -47,7 +47,8 @@
     "test:faq-sync": "node scripts/test-faq-sync.js",
     "test:teviq-launch-routing": "node scripts/test-teviq-launch-routing.js",
     "test:chat-resource-bounds": "node scripts/test-chat-resource-bounds.js",
-    "test:billing": "node scripts/test-billing-verification.js && node scripts/test-billing-gateway.js && node scripts/test-billing-route-gates.js && node scripts/test-billing-channels.js && node scripts/test-trial-cancellation.js && node scripts/test-subscription-lifecycle.js && node scripts/test-subscription-routes.js"
+    "test:billing": "node scripts/test-billing-verification.js && node scripts/test-billing-gateway.js && node scripts/test-billing-route-gates.js && node scripts/test-billing-channels.js && node scripts/test-trial-cancellation.js && node scripts/test-subscription-lifecycle.js && node scripts/test-subscription-routes.js",
+    "test:razorpay-checkout": "node scripts/test-razorpay-checkout.js && node scripts/test-razorpay-checkout-routes.js"
   },
   "keywords": [
     "support",
@@ -69,6 +70,7 @@
     "mammoth": "^1.12.0",
     "multer": "^2.2.0",
     "pdf-parse": "^2.4.5",
+    "razorpay": "^2.9.8",
     "twilio": "^6.0.2"
   },
   "devDependencies": {
