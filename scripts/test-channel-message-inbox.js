@@ -115,6 +115,12 @@ async function run() {
     assert.equal(brainCalls, 1, 'operator retry uses saved reply without regenerating');
     assert.equal(sends, 4);
     assert.equal((await db.query('select count(*)::int as n from channel_message_reviews')).rows[0].n, 2);
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/0041_allow_human_takeover_retry.sql'), 'utf8'));
+    const held = (await db.query("select * from channel_message_inbox where message_id='human-held'")).rows[0];
+    assert.equal(await review(held.id, 'brand-a', 'retry_reply'), true, 'paused message can retry after resume');
+    await worker.drain();
+    assert.equal(brainCalls, 2, 'retry after human takeover generates the previously held reply once');
+    assert.equal(sends, 5);
     await db.exec('set role authenticated');
     await assert.rejects(db.query('select * from channel_message_reviews'));
     await assert.rejects(db.query('select review_channel_message($1,$2,$3,$4,$5)', [first.id, 'brand-a', 'actor', 'resolve', 'unauthorized request']));

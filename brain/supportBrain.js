@@ -41,6 +41,7 @@ const { buildContext } = require("./contextBuilder");
 const { routeTools, ORDER_INTENTS, LEAD_CAPTURE_INTENTS } = require("./toolRouter");
 const { validateResponse } = require("./responseValidator");
 const { retrieveKnowledge } = require("../knowledge/retrieval.service");
+const { resolveStructuredFaq } = require("../services/structuredFaqResolver.service");
 
 const CONVERSATION_STATE_STALE_MS = 10 * 60 * 1000; // 10 minutes
 const ORDER_VERIFICATION_TTL_MS = 10 * 60 * 1000;
@@ -747,6 +748,24 @@ async function processMessage({
   const memory = await getConversationMemory(brandId, customerId, channel);
 
   const toolResult = await routeTools({ brand, intent, entities, message, channel });
+
+  if (toolResult.allowAI && intent === "general_faq") {
+    try {
+      const faq = await resolveStructuredFaq({
+        brandId: brand.brandId,
+        message: storedMessage,
+        language: analysis.language
+      });
+      if (faq?.answer) {
+        toolResult.allowAI = false;
+        toolResult.source = "system";
+        toolResult.escalated = false;
+        toolResult.reply = faq.answer;
+      }
+    } catch (error) {
+      console.error(`[BRAIN] Structured FAQ lookup failed for ${brandId}: ${error.message}`);
+    }
+  }
 
   if (LEAD_CAPTURE_INTENTS.includes(intent) && toolResult.leadState?.hasContact) {
     try {
