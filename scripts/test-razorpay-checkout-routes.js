@@ -73,7 +73,8 @@ const gateway = {
     req.auth = { userId: ownerUserId, sessionType: 'demo' };
     next();
   });
-  app.use('/api', createCheckoutRouter({ getDb: () => db, getGateway: () => gateway }));
+  app.use('/api', createCheckoutRouter({ getDb: () => db, getGateway: () => gateway,
+    authenticate: (req, res, next) => next() }));
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}/api`;

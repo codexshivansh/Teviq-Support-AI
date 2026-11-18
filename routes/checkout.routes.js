@@ -2,11 +2,12 @@ const { randomUUID } = require('node:crypto');
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { requireBrandAccess } = require('../middleware/brandAccess.middleware');
+const { requireClerkAuth } = require('../middleware/clerkAuth.middleware');
 const { plans } = require('../services/billingCatalog.service');
 const { verifyCapturedPayment } = require('../services/billingVerification.service');
 const { createRazorpayCheckout } = require('../services/razorpayCheckout.service');
 
-function createCheckoutRouter({ getDb, getGateway } = {}) {
+function createCheckoutRouter({ getDb, getGateway, authenticate = requireClerkAuth } = {}) {
   const router = express.Router();
   const resolveDb = getDb || (() => createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY));
   const resolveGateway = getGateway || (() => createRazorpayCheckout({
@@ -18,7 +19,7 @@ function createCheckoutRouter({ getDb, getGateway } = {}) {
     res.json({ plans });
   });
 
-  router.post('/create-order', requireBrandAccess, async (req, res) => {
+  router.post('/create-order', authenticate, requireBrandAccess, async (req, res) => {
     const { brandId, planId, amount, currency = 'INR', receipt } = req.body || {};
     const plan = plans.find((item) => item.id === planId);
     if (!/^[a-z0-9-]+$/.test(String(brandId || '')) || brandId === 'teviq' || !plan) {
@@ -94,7 +95,7 @@ function createCheckoutRouter({ getDb, getGateway } = {}) {
     }
   });
 
-  router.post('/verify-payment', requireBrandAccess, async (req, res) => {
+  router.post('/verify-payment', authenticate, requireBrandAccess, async (req, res) => {
     const { brandId, razorpay_payment_id: paymentId, razorpay_order_id: orderId,
       razorpay_signature: signature } = req.body || {};
     if (!/^[a-z0-9-]+$/.test(String(brandId || '')) ||
